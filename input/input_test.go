@@ -17,6 +17,9 @@ func TestInputs(t *testing.T) {
 
 		err = ValidateWithOptions("testinput")
 		require.EqualError(t, err, "invalid parameter: testinput, available: []")
+
+		err = ValidateWithOptions("", "param1", "param2")
+		require.EqualError(t, err, "parameter not specified")
 	}
 
 	t.Log("Test - ValidateIfNotEmpty")
