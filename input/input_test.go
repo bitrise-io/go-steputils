@@ -13,7 +13,10 @@ func TestInputs(t *testing.T) {
 		require.NoError(t, err)
 
 		err = ValidateWithOptions("testinput", "test", "input")
-		require.Error(t, err)
+		require.EqualError(t, err, "invalid parameter: testinput, available: [test input]")
+
+		err = ValidateWithOptions("testinput")
+		require.EqualError(t, err, "invalid parameter: testinput, available: []")
 	}
 
 	t.Log("Test - ValidateIfNotEmpty")
@@ -22,7 +25,7 @@ func TestInputs(t *testing.T) {
 		require.NoError(t, err)
 
 		err = ValidateIfNotEmpty("")
-		require.Error(t, err)
+		require.EqualError(t, err, "parameter not specified")
 	}
 
 	t.Log("Test - SecureInput")
@@ -40,6 +43,6 @@ func TestInputs(t *testing.T) {
 		require.NoError(t, err)
 
 		err = ValidateIfPathExists("/not/exists/for/sure")
-		require.Error(t, err)
+		require.EqualError(t, err, "path not exist at: /not/exists/for/sure")
 	}
 }
