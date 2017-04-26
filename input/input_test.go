@@ -56,7 +56,7 @@ func TestValidateIfPathExists(t *testing.T) {
 	t.Log("no error - if file exist")
 	{
 		pth := filepath.Join(tmpDir, "test")
-		fileutil.WriteStringToFile(pth, "")
+		require.NoError(t, fileutil.WriteStringToFile(pth, ""))
 
 		err := ValidateIfPathExists(pth)
 		require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestValidateIfDirExists(t *testing.T) {
 	t.Log("error - if path is a file path")
 	{
 		pth := filepath.Join(tmpDir, "test")
-		fileutil.WriteStringToFile(pth, "")
+		require.NoError(t, fileutil.WriteStringToFile(pth, ""))
 
 		err := ValidateIfDirExists(pth)
 		require.EqualError(t, err, "dir not exist at: "+pth)
