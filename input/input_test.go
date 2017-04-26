@@ -1,51 +1,100 @@
 package input
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/bitrise-io/go-utils/fileutil"
+	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/stretchr/testify/require"
 )
 
-func TestInputs(t *testing.T) {
-	t.Log("Test - ValidateWithOptions")
+func TestValidateWithOptions(t *testing.T) {
+	err := ValidateWithOptions("testinput", "tst0", "tst1", "testinput")
+	require.NoError(t, err)
+
+	err = ValidateWithOptions("testinput", "test", "input")
+	require.EqualError(t, err, "invalid parameter: testinput, available: [test input]")
+
+	err = ValidateWithOptions("testinput")
+	require.EqualError(t, err, "invalid parameter: testinput, available: []")
+
+	err = ValidateWithOptions("", "param1", "param2")
+	require.EqualError(t, err, "parameter not specified")
+}
+
+func TestValidateIfNotEmpty(t *testing.T) {
+	err := ValidateIfNotEmpty("testinput")
+	require.NoError(t, err)
+
+	err = ValidateIfNotEmpty("")
+	require.EqualError(t, err, "parameter not specified")
+}
+
+func TestSecureInput(t *testing.T) {
+	output := SecureInput("testinput")
+	require.Equal(t, "***", output)
+
+	output = SecureInput("")
+	require.Equal(t, "", output)
+}
+
+func TestValidateIfPathExists(t *testing.T) {
+	tmpDir, err := pathutil.NormalizedOSTempDirPath("test")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, os.RemoveAll(tmpDir))
+	}()
+
+	t.Log("no error - if dir exist")
 	{
-		err := ValidateWithOptions("testinput", "tst0", "tst1", "testinput")
+		err := ValidateIfPathExists(tmpDir)
 		require.NoError(t, err)
-
-		err = ValidateWithOptions("testinput", "test", "input")
-		require.EqualError(t, err, "invalid parameter: testinput, available: [test input]")
-
-		err = ValidateWithOptions("testinput")
-		require.EqualError(t, err, "invalid parameter: testinput, available: []")
-
-		err = ValidateWithOptions("", "param1", "param2")
-		require.EqualError(t, err, "parameter not specified")
 	}
 
-	t.Log("Test - ValidateIfNotEmpty")
+	t.Log("no error - if file exist")
 	{
-		err := ValidateIfNotEmpty("testinput")
-		require.NoError(t, err)
+		pth := filepath.Join(tmpDir, "test")
+		fileutil.WriteStringToFile(pth, "")
 
-		err = ValidateIfNotEmpty("")
-		require.EqualError(t, err, "parameter not specified")
+		err := ValidateIfPathExists(pth)
+		require.NoError(t, err)
 	}
 
-	t.Log("Test - SecureInput")
+	t.Log("error - if path does not exist")
 	{
-		output := SecureInput("testinput")
-		require.Equal(t, "***", output)
-
-		output = SecureInput("")
-		require.Equal(t, "", output)
-	}
-
-	t.Log("Test - ValidateIfPathExists")
-	{
-		err := ValidateIfPathExists("/tmp")
-		require.NoError(t, err)
-
-		err = ValidateIfPathExists("/not/exists/for/sure")
+		err := ValidateIfPathExists("/not/exists/for/sure")
 		require.EqualError(t, err, "path not exist at: /not/exists/for/sure")
 	}
+}
+
+func TestValidateIfDirExists(t *testing.T) {
+	tmpDir, err := pathutil.NormalizedOSTempDirPath("test")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, os.RemoveAll(tmpDir))
+	}()
+
+	t.Log("no error - if dir exist")
+	{
+		err := ValidateIfDirExists(tmpDir)
+		require.NoError(t, err)
+	}
+
+	t.Log("error - if dir does not exist")
+	{
+		err := ValidateIfDirExists("/not/exists/for/sure")
+		require.EqualError(t, err, "dir not exist at: /not/exists/for/sure")
+	}
+
+	t.Log("error - if path is a file path")
+	{
+		pth := filepath.Join(tmpDir, "test")
+		fileutil.WriteStringToFile(pth, "")
+
+		err := ValidateIfDirExists(pth)
+		require.EqualError(t, err, "dir not exist at: "+pth)
+	}
+
 }
