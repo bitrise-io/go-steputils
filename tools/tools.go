@@ -7,8 +7,8 @@ import (
 )
 
 // ExportEnvironmentWithEnvman ...
-func ExportEnvironmentWithEnvman(keyStr, valueStr string) error {
-	cmd := command.New("envman", "add", "--key", keyStr)
-	cmd.SetStdin(strings.NewReader(valueStr))
+func ExportEnvironmentWithEnvman(key, value string) error {
+	cmd := command.New("envman", "add", "--key", key)
+	cmd.SetStdin(strings.NewReader(value))
 	return cmd.Run()
 }
