@@ -1,12 +1,10 @@
 package tools
 
 import (
-	"os"
-	"testing"
-
-	"path/filepath"
-
 	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/fileutil"
