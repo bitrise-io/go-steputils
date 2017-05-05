@@ -42,3 +42,20 @@ func TestExportEnvironmentWithEnvman(t *testing.T) {
 	require.NoError(t, err, out)
 	require.Equal(t, fmt.Sprintf("%s: %s", key, value), out)
 }
+
+func TestGetEnvironmentValueWithEnvman(t *testing.T) {
+	cmd := command.New("envman", "init")
+	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	require.NoError(t, err, out)
+
+	value, err := GetEnvironmentValueWithEnvman("TEST_KEY")
+	require.Equal(t, "", value)
+	require.NoError(t, err)
+
+	err = ExportEnvironmentWithEnvman("TEST_KEY", "ok")
+	require.NoError(t, err)
+
+	value, err = GetEnvironmentValueWithEnvman("TEST_KEY")
+	require.Equal(t, "ok", value)
+	require.NoError(t, err)
+}
