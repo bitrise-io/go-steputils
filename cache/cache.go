@@ -5,26 +5,33 @@ import "github.com/bitrise-tools/go-steputils/tools"
 // GlobalCacheEnvironmentKey ...
 const GlobalCacheEnvironmentKey = "BITRISE_GLOBAL_CACHE"
 
-// AddRawValueToCacheEnvVar ...
-func AddRawValueToCacheEnvVar(value string) error {
-	return tools.ExportEnvironmentWithEnvman(GlobalCacheEnvironmentKey, value)
+// AppendToCacheEnvVar ...
+func AppendToCacheEnvVar(values ...string) error {
+	content, err := tools.GetEnvironmentValueWithEnvman(GlobalCacheEnvironmentKey)
+	if err != nil {
+		return err
+	}
+
+	for _, line := range values {
+		if content == "" {
+			content += line
+		} else {
+			content += "\n" + line
+		}
+	}
+
+	if err := tools.ExportEnvironmentWithEnvman(GlobalCacheEnvironmentKey, content); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// GetRawValueFromCacheEnvVar ...
-func GetRawValueFromCacheEnvVar() (string, error) {
-	return tools.GetEnvironmentValueWithEnvman(GlobalCacheEnvironmentKey)
-}
-
-// AppendRawValueFromCacheEnvVar ...
-func AppendRawValueFromCacheEnvVar(value string) (string, error) {
-	currentValue, err := GetRawValueFromCacheEnvVar()
+// GetFromCacheEnvVar ...
+func GetFromCacheEnvVar() (string, error) {
+	content, err := tools.GetEnvironmentValueWithEnvman(GlobalCacheEnvironmentKey)
 	if err != nil {
 		return "", err
 	}
-	return currentValue + value, nil
-}
-
-// GetValueListFromCacheEnvVar ...
-func GetValueListFromCacheEnvVar() {
-
+	return content, err
 }
