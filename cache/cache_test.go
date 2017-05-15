@@ -2,9 +2,11 @@ package cache
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/stretchr/testify/require"
 )
@@ -18,16 +20,22 @@ const testEnvVarContent = `/tmp/mypath -> /tmp/mypath/cachefile
 func TestCacheFunctions(t *testing.T) {
 	t.Log("Init envman")
 	{
-		defer func() {
-			require.NoError(t, os.RemoveAll("./.envstore.yml"))
-		}()
-		exists, err := pathutil.IsPathExists("./.envstore.yml")
+		// envman requires an envstore path to use, or looks for default envstore path: ./.envstore.yml
+		workDir, err := pathutil.CurrentWorkingDirectoryAbsolutePath()
 		require.NoError(t, err)
+		defaultEnvstorePth := filepath.Join(workDir, ".envstore.yml")
+		require.NoError(t, fileutil.WriteStringToFile(defaultEnvstorePth, ""))
+		defer func() {
+			require.NoError(t, os.Remove(defaultEnvstorePth))
+		}()
+		//
 
-		if !exists {
-			cmd := command.New("envman", "init")
+		{
+			// envstor should be clear
+			cmd := command.New("envman", "print")
 			out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 			require.NoError(t, err, out)
+			require.Equal(t, "", out)
 		}
 	}
 
