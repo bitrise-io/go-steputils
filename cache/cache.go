@@ -5,8 +5,8 @@ import "github.com/bitrise-tools/go-steputils/tools"
 // GlobalCacheEnvironmentKey ...
 const GlobalCacheEnvironmentKey = "BITRISE_GLOBAL_CACHE"
 
-// AppendToCacheEnvVar ...
-func AppendToCacheEnvVar(values ...string) error {
+// AppendCacheItem ...
+func AppendCacheItem(values ...string) error {
 	content, err := tools.GetEnvironmentValueWithEnvman(GlobalCacheEnvironmentKey)
 	if err != nil {
 		return err
@@ -27,8 +27,8 @@ func AppendToCacheEnvVar(values ...string) error {
 	return nil
 }
 
-// GetFromCacheEnvVar ...
-func GetFromCacheEnvVar() (string, error) {
+// GetCacheItems ...
+func GetCacheItems() (string, error) {
 	content, err := tools.GetEnvironmentValueWithEnvman(GlobalCacheEnvironmentKey)
 	if err != nil {
 		return "", err

@@ -15,7 +15,7 @@ const testEnvVarContent = `/tmp/mypath -> /tmp/mypath/cachefile
 /tmp/othercache
 /somewhere/else`
 
-func TestCacheEnvVarFunctions(t *testing.T) {
+func TestCacheFunctions(t *testing.T) {
 	t.Log("Init envman")
 	{
 		defer func() {
@@ -31,21 +31,21 @@ func TestCacheEnvVarFunctions(t *testing.T) {
 		}
 	}
 
-	t.Log("Test - AppendToCacheEnvVar")
+	t.Log("Test - AppendCacheItem")
 	{
-		err := AppendToCacheEnvVar("/tmp/mypath -> /tmp/mypath/cachefile", "/tmp/otherpath", "/tmp/anotherpath")
+		err := AppendCacheItem("/tmp/mypath -> /tmp/mypath/cachefile", "/tmp/otherpath", "/tmp/anotherpath")
 		require.NoError(t, err)
 
-		err = AppendToCacheEnvVar("/tmp/othercache")
+		err = AppendCacheItem("/tmp/othercache")
 		require.NoError(t, err)
 
-		err = AppendToCacheEnvVar("/somewhere/else")
+		err = AppendCacheItem("/somewhere/else")
 		require.NoError(t, err)
 	}
 
-	t.Log("Test - GetFromCacheEnvVar")
+	t.Log("Test - GetCacheItems")
 	{
-		content, err := GetFromCacheEnvVar()
+		content, err := GetCacheItems()
 		require.NoError(t, err)
 		require.Equal(t, testEnvVarContent, content)
 	}
