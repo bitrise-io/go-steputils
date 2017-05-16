@@ -23,16 +23,14 @@ func TestZipAndExportOutputDir(t *testing.T) {
 		require.NoError(t, revokeFn())
 	}()
 
-	if os.Getenv("ENVMAN_ENVSTORE_PATH") == "" {
-		tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
-		require.NoError(t, fileutil.WriteStringToFile(tmpEnvStorePth, ""))
+	tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
+	require.NoError(t, fileutil.WriteStringToFile(tmpEnvStorePth, ""))
 
-		envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, envstoreRevokeFn())
-		}()
-	}
+	envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, envstoreRevokeFn())
+	}()
 	// ---
 
 	sourceDir := filepath.Join(tmpDir, "source")
@@ -49,7 +47,7 @@ func TestZipAndExportOutputDir(t *testing.T) {
 	require.Equal(t, true, exist, tmpDir)
 
 	// destination should be exported
-	envstoreContent, err := fileutil.ReadStringFromFile(os.Getenv("ENVMAN_ENVSTORE_PATH"))
+	envstoreContent, err := fileutil.ReadStringFromFile(tmpEnvStorePth)
 	require.NoError(t, err)
 	t.Logf("envstoreContent: %s\n", envstoreContent)
 	require.Equal(t, true, strings.Contains(envstoreContent, "- "+envKey+": "+destinationZip), envstoreContent)
@@ -97,16 +95,14 @@ func TestExportOutputFileContent(t *testing.T) {
 		require.NoError(t, revokeFn())
 	}()
 
-	if os.Getenv("ENVMAN_ENVSTORE_PATH") == "" {
-		tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
-		require.NoError(t, fileutil.WriteStringToFile(tmpEnvStorePth, ""))
+	tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
+	require.NoError(t, fileutil.WriteStringToFile(tmpEnvStorePth, ""))
 
-		envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, envstoreRevokeFn())
-		}()
-	}
+	envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, envstoreRevokeFn())
+	}()
 	// ---
 
 	sourceFileContent := "test"
@@ -145,16 +141,14 @@ func TestExportOutputFile(t *testing.T) {
 		require.NoError(t, revokeFn())
 	}()
 
-	if os.Getenv("ENVMAN_ENVSTORE_PATH") == "" {
-		tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
-		require.NoError(t, fileutil.WriteStringToFile(tmpEnvStorePth, ""))
+	tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
+	require.NoError(t, fileutil.WriteStringToFile(tmpEnvStorePth, ""))
 
-		envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, envstoreRevokeFn())
-		}()
-	}
+	envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, envstoreRevokeFn())
+	}()
 	// ---
 
 	sourceFile := filepath.Join(tmpDir, "source")
@@ -189,16 +183,14 @@ func TestExportOutputDir(t *testing.T) {
 		require.NoError(t, revokeFn())
 	}()
 
-	if os.Getenv("ENVMAN_ENVSTORE_PATH") == "" {
-		tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
-		require.NoError(t, fileutil.WriteStringToFile(tmpEnvStorePth, ""))
+	tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
+	require.NoError(t, fileutil.WriteStringToFile(tmpEnvStorePth, ""))
 
-		envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
-		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, envstoreRevokeFn())
-		}()
-	}
+	envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, envstoreRevokeFn())
+	}()
 	// ---
 
 	sourceDir := filepath.Join(tmpDir, "source")
