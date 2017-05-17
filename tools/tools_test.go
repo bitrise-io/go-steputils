@@ -2,11 +2,11 @@ package tools
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/envutil"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/stretchr/testify/require"
@@ -15,15 +15,25 @@ import (
 func TestExportEnvironmentWithEnvman(t *testing.T) {
 	key := "ExportEnvironmentWithEnvmanKey"
 
-	// envman requires an envstore path to use, or looks for default envstore path: ./.envstore.yml
-	workDir, err := pathutil.CurrentWorkingDirectoryAbsolutePath()
+	tmpDir, err := pathutil.NormalizedOSTempDirPath("test")
 	require.NoError(t, err)
-	defaultEnvstorePth := filepath.Join(workDir, ".envstore.yml")
-	require.NoError(t, fileutil.WriteStringToFile(defaultEnvstorePth, ""))
+
+	// envman export requires an envstore
+	revokeFn, err := pathutil.RevokableChangeDir(tmpDir)
+	require.NoError(t, err)
 	defer func() {
-		require.NoError(t, os.Remove(defaultEnvstorePth))
+		require.NoError(t, revokeFn())
 	}()
-	//
+
+	tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
+	require.NoError(t, fileutil.WriteStringToFile(tmpEnvStorePth, ""))
+
+	envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, envstoreRevokeFn())
+	}()
+	// ---
 
 	{
 		// envstor should be clear
