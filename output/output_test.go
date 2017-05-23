@@ -53,37 +53,6 @@ func TestZipAndExportOutputDir(t *testing.T) {
 	require.Equal(t, true, strings.Contains(envstoreContent, "- "+envKey+": "+destinationZip), envstoreContent)
 }
 
-func TestZip(t *testing.T) {
-	tmpDir, err := pathutil.NormalizedOSTempDirPath("test")
-	require.NoError(t, err)
-
-	t.Log("create zip from file")
-	{
-		sourceFile := filepath.Join(tmpDir, "sourceFile")
-		require.NoError(t, fileutil.WriteStringToFile(sourceFile, ""))
-
-		destinationZip := filepath.Join(tmpDir, "destinationFile.zip")
-		require.NoError(t, Zip(sourceFile, destinationZip))
-
-		exist, err := pathutil.IsPathExists(destinationZip)
-		require.NoError(t, err)
-		require.Equal(t, true, exist)
-	}
-
-	t.Log("create zip from dir")
-	{
-		sourceDir := filepath.Join(tmpDir, "sourceDir")
-		require.NoError(t, os.MkdirAll(sourceDir, 0777))
-
-		destinationZip := filepath.Join(tmpDir, "destinationDir.zip")
-		require.NoError(t, Zip(sourceDir, destinationZip))
-
-		exist, err := pathutil.IsPathExists(destinationZip)
-		require.NoError(t, err)
-		require.Equal(t, true, exist, destinationZip)
-	}
-}
-
 func TestExportOutputFileContent(t *testing.T) {
 	tmpDir, err := pathutil.NormalizedOSTempDirPath("test")
 	require.NoError(t, err)
