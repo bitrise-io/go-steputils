@@ -49,28 +49,25 @@ func TestCacheFunctions(t *testing.T) {
 		}
 	}
 
-	t.Log("Test - AppendCacheItem")
+	t.Log("Test - cache")
 	{
-		err := AppendCacheItem("/tmp/mypath -> /tmp/mypath/cachefile", "/tmp/otherpath", "/tmp/anotherpath", "/tmp/othercache", "/somewhere/else")
+		cache := New()
+		cache.IncludePath("/tmp/mypath -> /tmp/mypath/cachefile")
+		cache.IncludePath("/tmp/otherpath")
+		cache.IncludePath("/tmp/anotherpath")
+		cache.IncludePath("/tmp/othercache")
+		cache.IncludePath("/somewhere/else")
+		cache.ExcludePath("/*.log")
+		cache.ExcludePath("/*.bin")
+		cache.ExcludePath("/*.lock")
+		err := cache.Commit()
 		require.NoError(t, err)
-	}
 
-	t.Log("Test - AppendCacheIgnoreItem")
-	{
-		err := AppendCacheIgnoreItem("/*.log", "/*.bin", "/*.lock")
-		require.NoError(t, err)
-	}
-
-	t.Log("Test - GetCacheItems")
-	{
 		content, err := getEnvironmentValueWithEnvman(GlobalCachePathsEnvironmentKey)
 		require.NoError(t, err)
 		require.Equal(t, testEnvVarContent, content)
-	}
 
-	t.Log("Test - GetCacheIgnoreItems")
-	{
-		content, err := getEnvironmentValueWithEnvman(GlobalCacheIgnorePathsEnvironmentKey)
+		content, err = getEnvironmentValueWithEnvman(GlobalCacheIgnorePathsEnvironmentKey)
 		require.NoError(t, err)
 		require.Equal(t, testIgnoreEnvVarContent, content)
 	}
