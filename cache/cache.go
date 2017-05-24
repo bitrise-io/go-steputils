@@ -17,8 +17,8 @@ type Cache struct {
 }
 
 // New ...
-func New() *Cache {
-	return &Cache{}
+func New() Cache {
+	return Cache{}
 }
 
 // IncludePath ...
