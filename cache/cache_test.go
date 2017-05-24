@@ -61,6 +61,13 @@ func TestCacheFunctions(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	t.Log("Test - GetCacheItems")
+	{
+		content, err := getEnvironmentValueWithEnvman(GlobalCachePathsEnvironmentKey)
+		require.NoError(t, err)
+		require.Equal(t, testEnvVarContent, content)
+	}
+
 	t.Log("Test - GetCacheIgnoreItems")
 	{
 		content, err := getEnvironmentValueWithEnvman(GlobalCacheIgnorePathsEnvironmentKey)
