@@ -33,26 +33,26 @@ func (cache *Cache) ExcludePath(item string) {
 
 // Commit ...
 func (cache *Cache) Commit() error {
-	err := appendCacheItem(cache.include...)
+	err := appendCacheItem(cache.include)
 	if err != nil {
 		return err
 	}
-	err = appendCacheIgnoreItem(cache.exclude...)
+	err = appendCacheIgnoreItem(cache.exclude)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func appendCacheItem(values ...string) error {
-	return combineEnvContent(GlobalCachePathsEnvironmentKey, values...)
+func appendCacheItem(values []string) error {
+	return combineEnvContent(GlobalCachePathsEnvironmentKey, values)
 }
 
-func appendCacheIgnoreItem(values ...string) error {
-	return combineEnvContent(GlobalCacheIgnorePathsEnvironmentKey, values...)
+func appendCacheIgnoreItem(values []string) error {
+	return combineEnvContent(GlobalCacheIgnorePathsEnvironmentKey, values)
 }
 
-func combineEnvContent(envVar string, values ...string) error {
+func combineEnvContent(envVar string, values []string) error {
 	content := os.Getenv(envVar)
 
 	content += "\n" + strings.Join(values, "\n") + "\n"
