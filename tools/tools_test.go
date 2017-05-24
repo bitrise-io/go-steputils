@@ -27,11 +27,8 @@ func TestExportEnvironmentWithEnvman(t *testing.T) {
 
 	{
 		// envstor should be clear
-		cmd := command.New("envman", "clear")
+		cmd := command.New("envman", "print")
 		out, err := cmd.RunAndReturnTrimmedCombinedOutput()
-		require.NoError(t, err, out)
-		cmd = command.New("envman", "print")
-		out, err = cmd.RunAndReturnTrimmedCombinedOutput()
 		require.NoError(t, err, out)
 		require.Equal(t, "", out)
 	}
