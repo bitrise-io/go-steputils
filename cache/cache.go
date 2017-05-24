@@ -1,17 +1,36 @@
 package cache
 
 import "github.com/bitrise-tools/go-steputils/tools"
+import "os"
 
-// GlobalCacheEnvironmentKey ...
-const GlobalCacheEnvironmentKey = "BITRISE_GLOBAL_CACHE"
+// GlobalCachePathsEnvironmentKey ...
+const GlobalCachePathsEnvironmentKey = "BITRISE_GLOBAL_CACHE_PATHS"
+
+// GlobalCacheIgnorePathsEnvironmentKey ...
+const GlobalCacheIgnorePathsEnvironmentKey = "BITRISE_GLOBAL_CACHE_IGNORE_PATHS"
 
 // AppendCacheItem ...
 func AppendCacheItem(values ...string) error {
-	content, err := tools.GetEnvironmentValueWithEnvman(GlobalCacheEnvironmentKey)
-	if err != nil {
-		return err
-	}
+	return combineEnvContent(GlobalCachePathsEnvironmentKey, values...)
+}
 
+// AppendCacheIgnoreItem ...
+func AppendCacheIgnoreItem(values ...string) error {
+	return combineEnvContent(GlobalCacheIgnorePathsEnvironmentKey, values...)
+}
+
+// GetCacheItems ...
+func GetCacheItems() string {
+	return os.Getenv(GlobalCachePathsEnvironmentKey)
+}
+
+// GetCacheIgnoreItems ...
+func GetCacheIgnoreItems() string {
+	return os.Getenv(GlobalCacheIgnorePathsEnvironmentKey)
+}
+
+func combineEnvContent(envVar string, values ...string) error {
+	content := os.Getenv(envVar)
 	for _, line := range values {
 		if content == "" {
 			content += line
@@ -19,19 +38,8 @@ func AppendCacheItem(values ...string) error {
 			content += "\n" + line
 		}
 	}
-
-	if err := tools.ExportEnvironmentWithEnvman(GlobalCacheEnvironmentKey, content); err != nil {
+	if err := tools.ExportEnvironmentWithEnvman(envVar, content); err != nil {
 		return err
 	}
-
 	return nil
-}
-
-// GetCacheItems ...
-func GetCacheItems() (string, error) {
-	content, err := tools.GetEnvironmentValueWithEnvman(GlobalCacheEnvironmentKey)
-	if err != nil {
-		return "", err
-	}
-	return content, err
 }

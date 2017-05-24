@@ -45,36 +45,3 @@ func TestExportEnvironmentWithEnvman(t *testing.T) {
 	require.NoError(t, err, out)
 	require.Equal(t, fmt.Sprintf("%s: %s", key, value), out)
 }
-
-func TestGetEnvironmentValueWithEnvman(t *testing.T) {
-	key := "GetEnvironmentValueWithEnvman"
-
-	// envman requires an envstore path to use, or looks for default envstore path: ./.envstore.yml
-	workDir, err := pathutil.CurrentWorkingDirectoryAbsolutePath()
-	require.NoError(t, err)
-	defaultEnvstorePth := filepath.Join(workDir, ".envstore.yml")
-	require.NoError(t, fileutil.WriteStringToFile(defaultEnvstorePth, ""))
-	defer func() {
-		require.NoError(t, os.Remove(defaultEnvstorePth))
-	}()
-	//
-
-	{
-		// envstor should be clear
-		cmd := command.New("envman", "clear")
-		out, err := cmd.RunAndReturnTrimmedCombinedOutput()
-		require.NoError(t, err, out)
-		cmd = command.New("envman", "print")
-		out, err = cmd.RunAndReturnTrimmedCombinedOutput()
-		require.NoError(t, err, out)
-		require.Equal(t, "", out)
-	}
-
-	value := "test"
-	require.NoError(t, ExportEnvironmentWithEnvman(key, value))
-
-	// envstore should contain ExportEnvironmentWithEnvmanKey env var
-	out, err := GetEnvironmentValueWithEnvman(key)
-	require.NoError(t, err, out)
-	require.Equal(t, fmt.Sprintf("%s", value), out)
-}

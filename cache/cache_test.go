@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,7 +19,12 @@ const testEnvVarContent = `/tmp/mypath -> /tmp/mypath/cachefile
 /tmp/othercache
 /somewhere/else`
 
+const testIgnoreEnvVarContent = `/*.log
+/*.bin
+/*.lock`
+
 func TestCacheFunctions(t *testing.T) {
+
 	t.Log("Init envman")
 	{
 		// envman requires an envstore path to use, or looks for default envstore path: ./.envstore.yml
@@ -31,7 +38,7 @@ func TestCacheFunctions(t *testing.T) {
 		//
 
 		{
-			// envstor should be clear
+			// envstore should be clear
 			cmd := command.New("envman", "clear")
 			out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 			require.NoError(t, err, out)
@@ -44,20 +51,36 @@ func TestCacheFunctions(t *testing.T) {
 
 	t.Log("Test - AppendCacheItem")
 	{
-		err := AppendCacheItem("/tmp/mypath -> /tmp/mypath/cachefile", "/tmp/otherpath", "/tmp/anotherpath")
-		require.NoError(t, err)
-
-		err = AppendCacheItem("/tmp/othercache")
-		require.NoError(t, err)
-
-		err = AppendCacheItem("/somewhere/else")
+		err := AppendCacheItem("/tmp/mypath -> /tmp/mypath/cachefile", "/tmp/otherpath", "/tmp/anotherpath", "/tmp/othercache", "/somewhere/else")
 		require.NoError(t, err)
 	}
 
-	t.Log("Test - GetCacheItems")
+	t.Log("Test - AppendCacheIgnoreItem")
 	{
-		content, err := GetCacheItems()
+		err := AppendCacheIgnoreItem("/*.log", "/*.bin", "/*.lock")
 		require.NoError(t, err)
-		require.Equal(t, testEnvVarContent, content)
 	}
+
+	t.Log("Test - GetCacheIgnoreItems")
+	{
+		content, err := getEnvironmentValueWithEnvman(GlobalCacheIgnorePathsEnvironmentKey)
+		require.NoError(t, err)
+		require.Equal(t, testIgnoreEnvVarContent, content)
+	}
+}
+
+func getEnvironmentValueWithEnvman(key string) (string, error) {
+	cmd := command.New("envman", "print", "--format", "json")
+	output, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%s\n%s", output, err)
+	}
+
+	var data map[string]string
+	err = json.Unmarshal([]byte(output), &data)
+	if err != nil {
+		return "", fmt.Errorf("%s\n%s", output, err)
+	}
+
+	return data[key], nil
 }
