@@ -13,15 +13,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testEnvVarContent = `/tmp/mypath -> /tmp/mypath/cachefile
+const testEnvVarContent = `
+/tmp/mypath -> /tmp/mypath/cachefile
 /tmp/otherpath
 /tmp/anotherpath
 /tmp/othercache
-/somewhere/else`
+/somewhere/else
+`
 
-const testIgnoreEnvVarContent = `/*.log
+const testIgnoreEnvVarContent = `
+/*.log
 /*.bin
-/*.lock`
+/*.lock
+`
 
 func TestCacheFunctions(t *testing.T) {
 

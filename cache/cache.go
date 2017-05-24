@@ -82,13 +82,9 @@ func GetListOfExcludedPaths() string {
 
 func combineEnvContent(envVar string, values ...string) error {
 	content := os.Getenv(envVar)
-	for _, line := range values {
-		if content == "" {
-			content += line
-		} else {
-			content += "\n" + line
-		}
-	}
+
+	content += "\n" + strings.Join(values, "\n") + "\n"
+
 	if err := tools.ExportEnvironmentWithEnvman(envVar, content); err != nil {
 		return err
 	}
