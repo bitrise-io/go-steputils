@@ -4,10 +4,10 @@ import "github.com/bitrise-tools/go-steputils/tools"
 import "os"
 
 // GlobalCachePathsEnvironmentKey ...
-const GlobalCachePathsEnvironmentKey = "BITRISE_GLOBAL_CACHE_PATHS"
+const GlobalCachePathsEnvironmentKey = "BITRISE_CACHE_INCLUDE_PATHS"
 
 // GlobalCacheIgnorePathsEnvironmentKey ...
-const GlobalCacheIgnorePathsEnvironmentKey = "BITRISE_GLOBAL_CACHE_IGNORE_PATHS"
+const GlobalCacheIgnorePathsEnvironmentKey = "BITRISE_CACHE_EXCLUDE_PATHS"
 
 // AppendCacheItem ...
 func AppendCacheItem(values ...string) error {
