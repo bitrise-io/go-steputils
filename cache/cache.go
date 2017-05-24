@@ -52,34 +52,6 @@ func appendCacheIgnoreItem(values ...string) error {
 	return combineEnvContent(GlobalCacheIgnorePathsEnvironmentKey, values...)
 }
 
-// GetIncludedPaths ...
-func GetIncludedPaths() []string {
-	list := GetListOfIncludedPaths()
-	if list == "" {
-		return nil
-	}
-	return strings.Split(list, "\n")
-}
-
-// GetExcludedPaths ...
-func GetExcludedPaths() []string {
-	list := GetListOfExcludedPaths()
-	if list == "" {
-		return nil
-	}
-	return strings.Split(list, "\n")
-}
-
-// GetListOfIncludedPaths ...
-func GetListOfIncludedPaths() string {
-	return os.Getenv(GlobalCachePathsEnvironmentKey)
-}
-
-// GetListOfExcludedPaths ...
-func GetListOfExcludedPaths() string {
-	return os.Getenv(GlobalCacheIgnorePathsEnvironmentKey)
-}
-
 func combineEnvContent(envVar string, values ...string) error {
 	content := os.Getenv(envVar)
 
