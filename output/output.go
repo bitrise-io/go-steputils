@@ -1,6 +1,7 @@
 package output
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/bitrise-io/go-utils/command"
@@ -69,8 +70,20 @@ func ZipAndExportOutput(sourcePth, destinationZipPth, envKey string) error {
 	base := filepath.Base(sourcePth)
 	tmpZipFilePth := filepath.Join(tmpDir, base+".zip")
 
-	if err := ziputil.Zip(sourcePth, tmpZipFilePth); err != nil {
+	if exist, err := pathutil.IsDirExists(sourcePth); err != nil {
 		return err
+	} else if exist {
+		if err := ziputil.ZipDir(sourcePth, tmpZipFilePth, false); err != nil {
+			return err
+		}
+	} else if exist, err := pathutil.IsPathExists(sourcePth); err != nil {
+		return err
+	} else if exist {
+		if err := ziputil.ZipFile(sourcePth, tmpZipFilePth); err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("source path (%s) not exists", sourcePth)
 	}
 
 	return ExportOutputFile(tmpZipFilePth, destinationZipPth, envKey)
