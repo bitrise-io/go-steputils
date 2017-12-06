@@ -61,7 +61,7 @@ func ValidateInt(input string) (int, error) {
 	}
 	num, err := strconv.Atoi(input)
 	if err != nil {
-		return 0, fmt.Errorf("can't convert to int, error: %v", input, err)
+		return 0, fmt.Errorf("can't convert to int, error: %v", err)
 	}
 	return num, nil
 }
