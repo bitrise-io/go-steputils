@@ -135,7 +135,7 @@ func TestValidateNotExists(t *testing.T) {
 	}
 }
 
-func TestRequired(t *testing.T) {
+func TestValidateRequired(t *testing.T) {
 	type config struct {
 		Required string `env:"required" validate:"required"`
 	}
