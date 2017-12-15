@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/kdobmayer/input"
+	"github.com/bitrise-tools/go-steputils/input"
 )
 
 var invalid = map[string]string{

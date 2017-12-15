@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/kdobmayer/input"
+	"github.com/bitrise-tools/go-steputils/input"
 )
 
 type Configuration struct {
