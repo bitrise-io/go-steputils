@@ -1,75 +1,104 @@
 package input
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"reflect"
 	"strconv"
-
-	"github.com/bitrise-io/go-utils/pathutil"
+	"strings"
 )
 
-// ValidateIfNotEmpty ...
-func ValidateIfNotEmpty(input string) error {
-	if input == "" {
-		return fmt.Errorf("parameter not specified")
+// New parses a struct using `env` struct tags and loads the appropriate values from
+// environment variables. When parsing the struct fields the given validate and options
+// constraints are enforced.
+func New(i interface{}) error {
+	ptr := reflect.ValueOf(i)
+	if ptr.Kind() != reflect.Ptr {
+		return errors.New("expected a pointer")
 	}
-	return nil
-}
+	v := ptr.Elem()
+	if v.Kind() != reflect.Struct {
+		return errors.New("expected a struct")
+	}
+	t := v.Type()
+	var errs multierror
+	for i := 0; i < t.NumField(); i++ {
+		var err error
+		value := os.Getenv(t.Field(i).Tag.Get("env"))
 
-// ValidateWithOptions ...
-func ValidateWithOptions(value string, options ...string) error {
-	if err := ValidateIfNotEmpty(value); err != nil {
-		return err
-	}
-	for _, option := range options {
-		if option == value {
-			return nil
+		err = validate(t.Field(i), value)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if value != "" {
+			err = setValue(v.Field(i), value)
+			if err != nil {
+				errs = append(errs, FieldError{t.Field(i).Name, value, err})
+			}
 		}
 	}
-	return fmt.Errorf("invalid parameter: %s, available: %v", value, options)
-}
-
-// ValidateIfPathExists ...
-func ValidateIfPathExists(input string) error {
-	if err := ValidateIfNotEmpty(input); err != nil {
-		return err
-	}
-	if exist, err := pathutil.IsPathExists(input); err != nil {
-		return fmt.Errorf("failed to check if path exist at: %s, error: %s", input, err)
-	} else if !exist {
-		return fmt.Errorf("path not exist at: %s", input)
+	if len(errs) > 0 {
+		return fmt.Errorf("invalid input(s):\n%s", errs.Error())
 	}
 	return nil
 }
 
-// ValidateIfDirExists ...
-func ValidateIfDirExists(input string) error {
-	if err := ValidateIfNotEmpty(input); err != nil {
-		return err
+func validate(field reflect.StructField, value string) error {
+	var checks []validator
+
+	if tag, ok := field.Tag.Lookup("validate"); ok {
+		validates := strings.Split(tag, ",")
+		for _, v := range validates {
+			switch v {
+			case "required":
+				checks = append(checks, required())
+			case "path":
+				checks = append(checks, pathExists(false))
+			case "dir":
+				checks = append(checks, pathExists(true))
+			default:
+				return FieldError{field.Name, value, fmt.Errorf("invalid validate tag: %q", v)}
+			}
+		}
 	}
-	if exist, err := pathutil.IsDirExists(input); err != nil {
-		return fmt.Errorf("failed to check if dir exist at: %s, error: %s", input, err)
-	} else if !exist {
-		return fmt.Errorf("dir not exist at: %s", input)
+
+	if tag, ok := field.Tag.Lookup("opts"); ok {
+		opts := strings.Split(tag, ",")
+		checks = append(checks, valueOpts(opts...))
 	}
+
+	for _, c := range checks {
+		if err := c.validate(value); err != nil {
+			return FieldError{field.Name, value, err}
+		}
+	}
+
 	return nil
 }
 
-// ValidateInt ...
-func ValidateInt(input string) (int, error) {
-	if input == "" {
-		return 0, nil
+func setValue(field reflect.Value, value string) error {
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(value)
+	case reflect.Bool:
+		field.SetBool(value == "yes" || value == "Yes")
+		//		b, err := strconv.ParseBool(value)
+		//		if err != nil {
+		//			return errors.New("can't convert to int")
+		//		}
+		//		field.SetBool(b)
+	case reflect.Int:
+		n, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			return errors.New("can't convert to bool")
+		}
+		field.SetInt(n)
+	case reflect.Slice:
+		field.Set(reflect.ValueOf(strings.Split(value, "|")))
+	default:
+		return fmt.Errorf("type %q is not supported", field.Kind())
 	}
-	num, err := strconv.Atoi(input)
-	if err != nil {
-		return 0, fmt.Errorf("can't convert to int, error: %v", err)
-	}
-	return num, nil
-}
-
-// SecureInput ...
-func SecureInput(input string) string {
-	if input != "" {
-		return "***"
-	}
-	return ""
+	return nil
 }
