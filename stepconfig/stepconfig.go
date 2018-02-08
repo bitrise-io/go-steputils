@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kdobmayer/step/log"
+	"github.com/bitrise-io/go-utils/log"
 )
 
 // ErrInvalidConfig indicates that a configuration is of the wrong type.
