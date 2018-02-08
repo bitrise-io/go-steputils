@@ -141,7 +141,7 @@ func setValue(field reflect.Value, value string) error {
 	case reflect.Slice:
 		field.Set(reflect.ValueOf(strings.Split(value, "|")))
 	default:
-		return fmt.Errorf("type %q is not supported", field.Kind())
+		return fmt.Errorf("type is not supported (%s)", field.Kind())
 	}
 	return nil
 }
@@ -158,10 +158,10 @@ func checkPath(path string, dir bool) error {
 	return nil
 }
 
-func contains(s, opts string) bool {
+func contains(s, opt string) bool {
 	// TODO: improve readability.
-	for _, opt := range strings.Split(opts[strings.Index(opts, "[")+1:len(opts)-1], ",") {
-		if opt == s {
+	for _, o := range strings.Split(opt[strings.Index(opt, "[")+1:len(opt)-1], ",") {
+		if o == s {
 			return true
 		}
 	}
