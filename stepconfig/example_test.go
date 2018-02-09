@@ -15,7 +15,7 @@ type Configuration struct {
 	BuildNumber int    `env:"build_number"`
 	IsUpdate    bool   `env:"is_update"`
 
-	// List items have to be separated by pipe '|', like: "item1|item2"
+	// List items have to be separated by pipe '|', like: "item1|item2".
 	Items []string `env:"items"`
 
 	// Secrets are not shown in the output.
@@ -33,7 +33,7 @@ type Configuration struct {
 	// Dir checks if the file exists and it is a directory.
 	TempDir string `env:"tmpdir,dir"`
 
-	// Value options can be listed using the notation "opt[opt1,opt2,opt3]"
+	// Value options can be listed using the notation "opt[opt1,opt2,opt3]".
 	// The value of the env var should be one of the options.
 	ExportMethod string `env:"export_method,opt[dev,qa,prod]"`
 }

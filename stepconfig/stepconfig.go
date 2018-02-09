@@ -13,7 +13,7 @@ import (
 	"github.com/bitrise-io/go-utils/parseutil"
 )
 
-// ErrNotStructPtr indicates a type is not a pointer to a struct
+// ErrNotStructPtr indicates a type is not a pointer to a struct.
 var ErrNotStructPtr = errors.New("must be a pointer to a struct")
 
 // ParseError occurs when a struct field cannot be set.
@@ -23,7 +23,7 @@ type ParseError struct {
 	Err   error
 }
 
-// Error implements builtin errors.Error
+// Error implements builtin errors.Error.
 func (e *ParseError) Error() string {
 	segments := []string{e.Field}
 	if e.Value != "" {
@@ -33,7 +33,7 @@ func (e *ParseError) Error() string {
 	return strings.Join(segments, ": ")
 }
 
-// Secret variables are not shown in the printed output
+// Secret variables are not shown in the printed output.
 type Secret string
 
 const secret = "*****"
@@ -104,7 +104,7 @@ func Parse(conf interface{}) error {
 	return nil
 }
 
-func setField(f reflect.Value, value, constraint string) error {
+func setField(field reflect.Value, value, constraint string) error {
 	switch constraint {
 	case "":
 		break
@@ -126,13 +126,10 @@ func setField(f reflect.Value, value, constraint string) error {
 		return fmt.Errorf("invalid constraint (%s)", constraint)
 	}
 
-	if value != "" {
-		return setValue(f, value)
+	if value == "" {
+		return nil
 	}
-	return nil
-}
 
-func setValue(field reflect.Value, value string) error {
 	switch field.Kind() {
 	case reflect.String:
 		field.SetString(value)
