@@ -1,11 +1,11 @@
-package stepconfig_test
+package stepconf_test
 
 import (
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/bitrise-tools/go-steputils/stepconfig"
+	"github.com/bitrise-tools/go-steputils/stepconf"
 )
 
 type Configuration struct {
@@ -19,7 +19,7 @@ type Configuration struct {
 	Items []string `env:"items"`
 
 	// Secrets are not shown in the output.
-	Password stepconfig.Secret `env:"password"`
+	Password stepconf.Secret `env:"password"`
 
 	// If the env var is not set, the field will be set to the type's default value.
 	Empty string `env:"empty"`
@@ -63,7 +63,7 @@ func Example() {
 		}
 	}
 
-	if err := stepconfig.Parse(&c); err != nil {
+	if err := stepconf.Parse(&c); err != nil {
 		log.Fatalf("Couldn't create config: %v\n", err)
 	}
 

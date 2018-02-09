@@ -1,4 +1,4 @@
-package stepconfig
+package stepconf
 
 import (
 	"errors"

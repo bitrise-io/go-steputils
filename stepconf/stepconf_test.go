@@ -1,4 +1,4 @@
-package stepconfig_test
+package stepconf_test
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/bitrise-tools/go-steputils/stepconfig"
+	"github.com/bitrise-tools/go-steputils/stepconf"
 )
 
 var invalid = map[string]string{
@@ -47,16 +47,16 @@ func setEnvironment(envs map[string]string) {
 }
 
 type Config struct {
-	Name         string            `env:"name"`
-	BuildNumber  int               `env:"build_number"`
-	IsUpdate     bool              `env:"is_update"`
-	Items        []string          `env:"items"`
-	Password     stepconfig.Secret `env:"password"`
-	Empty        string            `env:"empty"`
-	Mandatory    string            `env:"mandatory,required"`
-	TempFile     string            `env:"file,file"`
-	TempDir      string            `env:"dir,dir"`
-	ExportMethod string            `env:"export_method,opt[dev,qa,prod]"`
+	Name         string          `env:"name"`
+	BuildNumber  int             `env:"build_number"`
+	IsUpdate     bool            `env:"is_update"`
+	Items        []string        `env:"items"`
+	Password     stepconf.Secret `env:"password"`
+	Empty        string          `env:"empty"`
+	Mandatory    string          `env:"mandatory,required"`
+	TempFile     string          `env:"file,file"`
+	TempDir      string          `env:"dir,dir"`
+	ExportMethod string          `env:"export_method,opt[dev,qa,prod]"`
 }
 
 func TestParse(t *testing.T) {
@@ -64,7 +64,7 @@ func TestParse(t *testing.T) {
 	os.Clearenv()
 	setEnvironment(valid)
 
-	err := stepconfig.Parse(&c)
+	err := stepconf.Parse(&c)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -105,14 +105,14 @@ func TestParse(t *testing.T) {
 
 func TestNotPointer(t *testing.T) {
 	var c Config
-	if err := stepconfig.Parse(c); err == nil {
+	if err := stepconf.Parse(c); err == nil {
 		t.Error("no failure when input parameter is a pointer")
 	}
 }
 
 func TestNotStruct(t *testing.T) {
 	var basicType string
-	if err := stepconfig.Parse(&basicType); err == nil {
+	if err := stepconf.Parse(&basicType); err == nil {
 		t.Error("no failure when input parameter is not a struct")
 	}
 }
@@ -120,7 +120,7 @@ func TestNotStruct(t *testing.T) {
 func TestInvalidEnvs(t *testing.T) {
 	setEnvironment(invalid)
 	var c Config
-	if err := stepconfig.Parse(&c); err == nil {
+	if err := stepconf.Parse(&c); err == nil {
 		t.Error("no failure when invalid values used")
 	}
 }
@@ -130,7 +130,7 @@ func TestValidateNotExists(t *testing.T) {
 		Length string `env:"length,length"`
 	}
 	var c invalid
-	if err := stepconfig.Parse(&c); err == nil {
+	if err := stepconf.Parse(&c); err == nil {
 		t.Error("no failure when validate tag is not exists")
 	}
 }
@@ -142,7 +142,7 @@ func TestRequired(t *testing.T) {
 	var c config
 	os.Clearenv()
 
-	if err := stepconfig.Parse(&c); err == nil {
+	if err := stepconf.Parse(&c); err == nil {
 		t.Error("no failure when required env var is missing")
 	}
 
@@ -150,7 +150,7 @@ func TestRequired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconfig.Parse(&c); err != nil {
+	if err := stepconf.Parse(&c); err != nil {
 		t.Error("failure when required env var is set")
 	}
 }
@@ -165,18 +165,18 @@ func TestValidatePath(t *testing.T) {
 	if err := os.Setenv("path", "/not/exist"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconfig.Parse(&c); err == nil {
+	if err := stepconf.Parse(&c); err == nil {
 		t.Error("no failure when path does not exist")
 	}
 
-	f, err := ioutil.TempFile("", "stepconfig_test")
+	f, err := ioutil.TempFile("", "stepconf_test")
 	if err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
 	if err := os.Setenv("path", f.Name()); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconfig.Parse(&c); err != nil {
+	if err := stepconf.Parse(&c); err != nil {
 		t.Error("failure when path is exist")
 	}
 }
@@ -191,18 +191,18 @@ func TestValidateDir(t *testing.T) {
 	if err := os.Setenv("dir", "/not/exist"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconfig.Parse(&c); err == nil {
+	if err := stepconf.Parse(&c); err == nil {
 		t.Error("no failure when dir does not exist")
 	}
 
-	dir, err := ioutil.TempDir("", "stepconfig_test")
+	dir, err := ioutil.TempDir("", "stepconf_test")
 	if err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
 	if err := os.Setenv("dir", dir); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconfig.Parse(&c); err != nil {
+	if err := stepconf.Parse(&c); err != nil {
 		t.Error("failure when dir does exist")
 	}
 }
@@ -217,14 +217,14 @@ func TestValueOptions(t *testing.T) {
 	if err := os.Setenv("option", "no-opt"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconfig.Parse(&c); err == nil {
+	if err := stepconf.Parse(&c); err == nil {
 		t.Error("no failure when value is not in value options")
 	}
 
 	if err := os.Setenv("option", "opt1"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconfig.Parse(&c); err != nil {
+	if err := stepconf.Parse(&c); err != nil {
 		t.Error("failure when value is in value options")
 	}
 }
@@ -240,7 +240,7 @@ func ExampleParse() {
 	if err := os.Setenv("ENV_NUMBER", "1548"); err != nil {
 		panic(err)
 	}
-	if err := stepconfig.Parse(&c); err != nil {
+	if err := stepconf.Parse(&c); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println(c)
