@@ -24,13 +24,13 @@ type Configuration struct {
 	// If the env var is not set, the field will be set to the type's default value.
 	Empty string `env:"empty"`
 
-	// Env vars marked as 'required' have to be set.
+	// Env vars marked as 'required' has to be set.
 	Mandatory string `env:"mandatory,required"`
 
-	// File validation is checks if the file is exist in the specified path.
+	// File validation checks if the file exists in the specified path.
 	TempFile string `env:"tmpfile,file"`
 
-	// Dir checks if the file exist and it is a directory.
+	// Dir checks if the file exists and it is a directory.
 	TempDir string `env:"tmpdir,dir"`
 
 	// Value options can be listed using the notation "opt[opt1,opt2,opt3]"

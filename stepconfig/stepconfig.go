@@ -10,10 +10,11 @@ import (
 	"strings"
 
 	"github.com/bitrise-io/go-utils/log"
+	"github.com/bitrise-io/go-utils/parseutil"
 )
 
-// ErrInvalidConfig indicates that a configuration is of the wrong type.
-var ErrInvalidConfig = errors.New("conf must be a struct pointer")
+// ErrNotStructPtr indicates a type is not a pointer to a struct
+var ErrNotStructPtr = errors.New("must be a pointer to a struct")
 
 // ParseError occurs when a struct field cannot be set.
 type ParseError struct {
@@ -35,14 +36,19 @@ func (e *ParseError) Error() string {
 // Secret variables are not shown in the printed output
 type Secret string
 
+const secret = "*****"
+
 // String implements fmt.Stringer.String.
 // When a Secret is printed, it's masking the underlying string with asterisks.
 func (s Secret) String() string {
-	return strings.Repeat("*", 5)
+	if s == "" {
+		return ""
+	}
+	return secret
 }
 
 // Print the name of the struct in blue color followed by a newline,
-// then print all fields and their respective values in separate lines.
+// then print all fields formatted as '- field name: field value` separated by newline.
 func Print(config interface{}) {
 	v := reflect.ValueOf(config)
 	t := reflect.TypeOf(config)
@@ -62,15 +68,15 @@ func parseTag(tag string) (string, string) {
 }
 
 // Parse populates a struct with the retrieved values from environment variables
-// described by struct tags.
+// described by struct tags and applies the defined validations.
 func Parse(conf interface{}) error {
 	c := reflect.ValueOf(conf)
 	if c.Kind() != reflect.Ptr {
-		return ErrInvalidConfig
+		return ErrNotStructPtr
 	}
 	c = c.Elem()
 	if c.Kind() != reflect.Struct {
-		return ErrInvalidConfig
+		return ErrNotStructPtr
 	}
 	t := c.Type()
 
@@ -131,7 +137,11 @@ func setValue(field reflect.Value, value string) error {
 	case reflect.String:
 		field.SetString(value)
 	case reflect.Bool:
-		field.SetBool(value == "yes" || value == "Yes")
+		b, err := parseutil.ParseBool(value)
+		if err != nil {
+			return errors.New("can't convert to bool")
+		}
+		field.SetBool(b)
 	case reflect.Int:
 		n, err := strconv.ParseInt(value, 10, 32)
 		if err != nil {
