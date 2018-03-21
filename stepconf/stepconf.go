@@ -53,7 +53,7 @@ func Print(config interface{}) {
 	v := reflect.ValueOf(config)
 	t := reflect.TypeOf(config)
 
-	log.Infof("%s:\n", t.Name())
+	log.Infof("%s:", t.Name())
 	for i := 0; i < t.NumField(); i++ {
 		fmt.Printf("- %s: %v\n", t.Field(i).Name, v.Field(i).Interface())
 	}
