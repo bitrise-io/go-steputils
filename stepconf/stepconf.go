@@ -174,7 +174,7 @@ func contains(s, opt string) bool {
 	if strings.Contains(opt, "'") {
 		for _, s := range strings.Split(opt, "'") {
 			switch {
-			case s == ",":
+			case s == "," || s == "":
 			case !strings.HasPrefix(s, ",") && !strings.HasSuffix(s, ","):
 				valueOpts = append(valueOpts, s)
 			default:
