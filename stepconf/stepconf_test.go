@@ -244,6 +244,12 @@ func TestValueOptionsWithComma(t *testing.T) {
 	if c.Option != "opt1,opt2" {
 		t.Errorf("expected %s, got %v", "opt1", c.Option)
 	}
+	if err := os.Setenv("option", ""); err != nil {
+		t.Fatalf("should not have error: %s", err)
+	}
+	if err := stepconf.Parse(&c); err == nil {
+		t.Errorf("no failure when value is not in value options")
+	}
 }
 
 func ExampleParse() {
