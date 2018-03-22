@@ -172,12 +172,18 @@ func contains(s, opt string) bool {
 	opt = strings.TrimSuffix(strings.TrimPrefix(opt, "opt["), "]")
 	var valueOpts []string
 	if strings.Contains(opt, "'") {
+		// The single quotes separate the options with comma and without comma
+		// Eg. "a,b,'c,d',e" will results "a,b," "c,d" and ",e" strings.
 		for _, s := range strings.Split(opt, "'") {
 			switch {
 			case s == "," || s == "":
 			case !strings.HasPrefix(s, ",") && !strings.HasSuffix(s, ","):
+				// If a string doesn't starts nor ends with a comma it means it's an option which
+				// contains comma, so we just append it to valueOpts as it is. Eg. "c,d" from above.
 				valueOpts = append(valueOpts, s)
 			default:
+				// If a string starts or ends with comma it means that it contains options without comma.
+				// So we split the string at commas to get the options. Eg. "a,b," and ",e" from above.
 				valueOpts = append(valueOpts, strings.Split(strings.Trim(s, ","), ",")...)
 			}
 		}
