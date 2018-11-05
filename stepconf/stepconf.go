@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/go-utils/parseutil"
 )
 
@@ -50,13 +49,29 @@ func (s Secret) String() string {
 // Print the name of the struct in blue color followed by a newline,
 // then print all fields formatted as '- field name: field value` separated by newline.
 func Print(config interface{}) {
+	pretty(config)
+}
+
+// returns the name of the struct in blue color followed by a newline,
+// then print all fields formatted as '- field name: field value` separated by newline.
+func pretty(config interface{}) string {
 	v := reflect.ValueOf(config)
 	t := reflect.TypeOf(config)
 
-	log.Infof("%s:", t.Name())
-	for i := 0; i < t.NumField(); i++ {
-		fmt.Printf("- %s: %v\n", t.Field(i).Name, v.Field(i).Interface())
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
 	}
+
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	str := fmt.Sprintf("%s:\n", strings.Title(t.Name()))
+	for i := 0; i < t.NumField(); i++ {
+		str += fmt.Sprintf("- %s: %v\n", t.Field(i).Name, v.Field(i).Interface())
+	}
+
+	return str
 }
 
 // parseTag splits a struct field's env tag into its name and option.
@@ -98,6 +113,8 @@ func Parse(conf interface{}) error {
 		for _, err := range errs {
 			errorString += fmt.Sprintf("\n- %s", err)
 		}
+
+		errorString += fmt.Sprint("\n\n") + pretty(conf)
 		return errors.New(errorString)
 	}
 
