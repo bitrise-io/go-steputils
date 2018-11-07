@@ -46,15 +46,15 @@ func (s Secret) String() string {
 	return secret
 }
 
-// Print the name of the struct in blue color followed by a newline,
+// Print the name of the struct with Title case in blue color with followed by a newline,
 // then print all fields formatted as '- field name: field value` separated by newline.
 func Print(config interface{}) {
-	pretty(config)
+	fmt.Printf(toString(config))
 }
 
-// returns the name of the struct in blue color followed by a newline,
+// returns the name of the struct with Title case in blue color followed by a newline,
 // then print all fields formatted as '- field name: field value` separated by newline.
-func pretty(config interface{}) string {
+func toString(config interface{}) string {
 	v := reflect.ValueOf(config)
 	t := reflect.TypeOf(config)
 
@@ -114,7 +114,7 @@ func Parse(conf interface{}) error {
 			errorString += fmt.Sprintf("\n- %s", err)
 		}
 
-		errorString += fmt.Sprint("\n\n") + pretty(conf)
+		errorString += fmt.Sprint("\n\n") + toString(conf)
 		return errors.New(errorString)
 	}
 
