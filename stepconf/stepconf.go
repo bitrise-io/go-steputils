@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/parseutil"
 )
 
@@ -66,7 +67,7 @@ func toString(config interface{}) string {
 		t = t.Elem()
 	}
 
-	str := fmt.Sprintf("%s:\n", strings.Title(t.Name()))
+	str := fmt.Sprintf(colorstring.Bluef("%s:\n", strings.Title(t.Name())))
 	for i := 0; i < t.NumField(); i++ {
 		str += fmt.Sprintf("- %s: %v\n", t.Field(i).Name, v.Field(i).Interface())
 	}
@@ -114,7 +115,7 @@ func Parse(conf interface{}) error {
 			errorString += fmt.Sprintf("\n- %s", err)
 		}
 
-		errorString += fmt.Sprint("\n\n") + toString(conf)
+		errorString += fmt.Sprintf("\n\n%s", toString(conf))
 		return errors.New(errorString)
 	}
 
