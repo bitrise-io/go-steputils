@@ -269,3 +269,56 @@ func ExampleParse() {
 	fmt.Println(c)
 	// Output: {example 1548}
 }
+
+func Test_getMinMaxValue(t *testing.T) {
+	tests := []struct {
+		value   string
+		name    string
+		wantMin string
+		wantMax string
+		wantErr bool
+	}{
+		{"min=6", "MinIntPositive", "6", "", false},
+		{"min=-6", "MinIntNegative", "-6", "", false},
+		{"min=3.0", "MinFloatPositive", "3.0", "", false},
+		{"min=-3.0", "MinFloatNegative", "-3.0", "", false},
+
+		{"max=6", "MaxIntPositive", "", "6", false},
+		{"max=-6", "MaxIntNegative", "", "-6", false},
+		{"max=3.0", "MaxFloatPositive", "", "3.0", false},
+		{"max=-3.0", "MaxFloatNegative", "", "-3.0", false},
+
+		{"min=3,max=6", "MinMaxIntInt", "3", "6", false},
+		{"min=3,max=6.0", "MinMaxIntFloat", "3", "6.0", false},
+		{"min=3.0,max=6", "MinMaxFloatInt", "3.0", "6", false},
+		{"min=3.0,max=6.0", "MinMaxFloatFloat", "3.0", "6.0", false},
+
+		{"max=6,min=3", "MaxMinIntInt", "3", "6", false},
+		{"max=6.0,min=3", "MaxMinIntFloat", "3", "6.0", false},
+		{"max=6,min=3.0", "MaxMinFloatInt", "3.0", "6", false},
+		{"max=6.0,min=3.0", "MaxMinFloatFloat", "3.0", "6.0", false},
+
+		{"invalid", "Invalid1", "", "", true},
+		{"max=", "Invalid2", "", "", true},
+		{"min=,max=-3.0", "PartiallyValid1", "", "-3.0", false},
+		{"min=5,max=", "PartiallyValid2", "5", "", false},
+
+		{"max=5,max3", "DoubleMax", "", "5", false},
+		{"min=5,min3", "DoubleMin", "5", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotMin, gotMax, err := stepconf.GetMinMaxValue(tt.value)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getMinMaxValue() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotMin != tt.wantMin {
+				t.Errorf("getMinMaxValue() gotMin = %v, want %v", gotMin, tt.wantMin)
+			}
+			if gotMax != tt.wantMax {
+				t.Errorf("getMinMaxValue() gotMax = %v, want %v", gotMax, tt.wantMax)
+			}
+		})
+	}
+}
