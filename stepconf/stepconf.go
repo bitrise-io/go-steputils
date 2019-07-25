@@ -23,6 +23,8 @@ type ParseError struct {
 	Err   error
 }
 
+const rangeRegex = `range\[(([\d]+|-[\d]+|)|([\d]+\.[\d]+|-[\d]+\.[\d]+))\.\.(([\d]+|-[\d]+|)|([\d]+\.[\d]+|-[\d]+\.[\d]+))\]$`
+
 // Error implements builtin errors.Error.
 func (e *ParseError) Error() string {
 	segments := []string{e.Field}
@@ -135,21 +137,13 @@ func setField(field reflect.Value, value, constraint string) error {
 			return err
 		}
 	// TODO: use FindStringSubmatch to distinguish no match and match for empty string.
-	case regexp.MustCompile(`^opt\[.*\]$`).FindString(constraint):
+	case regexp.MustCompile(`^opt\[.*]$`).FindString(constraint):
 		if !contains(value, constraint) {
 			// TODO: print only the value options, not the whole string.
 			return fmt.Errorf("value is not in value options (%s)", constraint)
 		}
-	case regexp.MustCompile(`min=(.*),max=(.*)`).FindString(constraint):
-		if err := validateMinMaxFields(value, constraint); err != nil {
-			return err
-		}
-	case regexp.MustCompile(`min=(.*)`).FindString(constraint):
-		if err := validateMinMaxFields(value, constraint); err != nil {
-			return err
-		}
-	case regexp.MustCompile(`max=(.*)`).FindString(constraint):
-		if err := validateMinMaxFields(value, constraint); err != nil {
+	case regexp.MustCompile(rangeRegex).FindString(constraint):
+		if err := ValidateRangeFields(value, constraint); err != nil {
 			return err
 		}
 	default:
@@ -183,95 +177,227 @@ func setField(field reflect.Value, value, constraint string) error {
 	return nil
 }
 
-func validateMinMaxFields(valueStr, constraint string) error {
+//ValidateRangeFields validates if the given range is proper.
+func ValidateRangeFields(valueStr, constraint string) error {
 	var constraintMin string
 	var constraintMax string
 	var err error
 
-	var value float64
-	if value, err = strconv.ParseFloat(valueStr, 64); err != nil {
+	if constraintMin, constraintMax, err = GetRangeValues(constraint); err != nil {
+		return err
+	}
+	var min interface{}
+	if min, err = parseValueStr(constraintMin); err != nil {
+		return fmt.Errorf("failed to parse min value: %s", err)
+	}
+	var max interface{}
+	if max, err = parseValueStr(constraintMax); err != nil {
+		return fmt.Errorf("failed to parse max value: %s", err)
+	}
+	var value interface{}
+	if value, err = parseValueStr(valueStr); err != nil {
+		return fmt.Errorf("failed to parse value: %s", err)
+	}
+	if err := validateRangeFieldValues(min, max, value); err != nil {
+		return err
+	}
+	if err := validateRangeFieldTypes(min, max, value); err != nil {
 		return err
 	}
 
-	if constraintMin, constraintMax, err = GetMinMaxValue(constraint); err != nil {
+	return nil
+}
+
+func validateRangeFieldValues(min interface{}, max interface{}, value interface{}) error {
+	if value == nil {
+		return fmt.Errorf("value is not present")
+	}
+	var err error
+	var valueFloat float64
+	if valueFloat, err = getFloatValue(value); err != nil {
 		return err
 	}
-	minErr := validateMinField(constraintMin, value)
-	maxErr := validateMaxField(constraintMax, value)
-	if constraintMin == "" {
+
+	var minErr error
+	var minFloat float64
+	if min != nil {
+		if minFloat, err = getFloatValue(min); err != nil {
+			return err
+		}
+		minErr = validateRangeMinFieldValue(minFloat, valueFloat)
+	}
+
+	var maxErr error
+	var maxFloat float64
+	if max != nil {
+		var err error
+		if maxFloat, err = getFloatValue(max); err != nil {
+			return err
+		}
+		maxErr = validateRangeMaxFieldValue(maxFloat, valueFloat)
+	}
+
+	if min != nil && max != nil {
+		if minFloat > maxFloat {
+			return fmt.Errorf("constraint logic is wrong, minimum value %f is bigger than maximum %f", minFloat, maxFloat)
+		}
+		if minFloat == maxFloat {
+			return fmt.Errorf("minimum value %f is equal to maximum %f, for this case use optional value", minFloat, maxFloat)
+		}
+	}
+
+	if min == nil {
 		return maxErr
-	} else if constraintMax == "" {
+	} else if max == nil {
 		return minErr
 	}
 	if minErr != nil || maxErr != nil {
-		return fmt.Errorf("value %f is out of range %s-%s", value, constraintMin, constraintMax)
+		return fmt.Errorf("value %f is out of range %f-%f", value, minFloat, maxFloat)
 	}
 	return nil
 }
 
-func validateMinField(minStr string, value float64) error {
-	var min float64
-	var err error
-	if min, err = strconv.ParseFloat(minStr, 64); err != nil {
-		return fmt.Errorf("failed to parse min value: %s", err)
+func validateRangeFieldTypes(min interface{}, max interface{}, value interface{}) error {
+	if value == nil {
+		return fmt.Errorf("value cannot be nil")
 	}
+	var minType string
+	var maxType string
+	var valueType string
+	var err error
+
+	if valueType, err = getTypeOf(value); err != nil {
+		return err
+	}
+	if min != nil {
+		if minType, err = getTypeOf(min); err != nil {
+			return err
+		}
+	}
+	if max != nil {
+		if maxType, err = getTypeOf(max); err != nil {
+			return err
+		}
+	}
+
+	if maxType != "" && minType != "" && !hasSameContent(minType, maxType, valueType) {
+		return fmt.Errorf("invalid constraint and value combination, minimum is %s, maximum is %s, value is %s, but they should be the same", minType, maxType, valueType)
+	}
+
+	if maxType != "" && !hasSameContent(maxType, valueType) {
+		return fmt.Errorf("invalid constraint and value combination, maximum is %s, value is %s, but they should be the same", maxType, valueType)
+	}
+
+	if minType != "" && !hasSameContent(minType, valueType) {
+		return fmt.Errorf("invalid constraint and value combination, minimum is %s, value is %s, but they should be the same", minType, valueType)
+	}
+	return nil
+}
+
+func hasSameContent(strs ...string) bool {
+	length := len(strs)
+	if length == 1 {
+		return true
+	}
+	firstItem := strs[0]
+	for i := 1; i < length; i++ {
+		if strings.Compare(firstItem, strs[i]) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func getTypeOf(v interface{}) (string, error) {
+	switch v.(type) {
+	case int64:
+		return "int64", nil
+	case float64:
+		return "float64", nil
+	default:
+		return "unknown", fmt.Errorf("could not find type for %v", v)
+	}
+}
+
+func parseValueStr(value string) (interface{}, error) {
+	var err error
+	var parsedInt int64
+	var parsedFloat float64
+	if parsedInt, err = strconv.ParseInt(value, 10, 64); err != nil {
+		// Could be float
+		if parsedFloat, err = strconv.ParseFloat(value, 64); err != nil {
+			// It is invalid.
+			return nil, fmt.Errorf("value %s is could not be parsed", value)
+		}
+		return parsedFloat, nil
+	}
+	return parsedInt, nil
+}
+
+func getFloatValue(value interface{}) (float64, error) {
+	switch i := value.(type) {
+	case int64:
+		return float64(i), nil
+	case float64:
+		return i, nil
+	case string:
+		var parsedValue interface{}
+		var err error
+		if parsedValue, err = parseValueStr(i); err != nil {
+			return 0, err
+		}
+		return getFloatValue(parsedValue)
+	default:
+		return 0, fmt.Errorf("not supported type %T", value)
+	}
+}
+
+func validateRangeMinFieldValue(min float64, value float64) error {
 	if min > value {
 		return fmt.Errorf("value %f is out of range, lesser than minimum %f", value, min)
 	}
 	return nil
 }
 
-func validateMaxField(maxStr string, value float64) error {
-	var max float64
-	var err error
-	if max, err = strconv.ParseFloat(maxStr, 64); err != nil {
-		return fmt.Errorf("failed to parse min value: %s", err)
-	}
+func validateRangeMaxFieldValue(max float64, value float64) error {
 	if max < value {
 		return fmt.Errorf("value %f is out of range, greater than maximum %f", value, max)
 	}
 	return nil
 }
 
-// GetMinMaxValue reads up the given min-max constraint and returns the values, or an error if the constraint is malformed or could not be parsed.
-func GetMinMaxValue(value string) (string, string, error) {
-	groups := regexp.MustCompile(`min=([\d]+\.[\d]+)|min=(\d+)|max=([\d]+\.[\d]+)|max=(\d+)|min=(-[\d]+\.[\d]+)|min=(-\d+)|max=(-[\d]+\.[\d]+)|max=(-\d+)`).FindAllStringSubmatch(value, len(value))
+// GetRangeValues reads up the given range constraint and returns the values, or an error if the constraint is malformed or could not be parsed.
+func GetRangeValues(value string) (string, string, error) {
+	groups := regexp.MustCompile(rangeRegex).FindAllStringSubmatch(value, len(value))
 	if len(groups) < 1 {
 		return "", "", fmt.Errorf("value in value options is malformed (%s)", value)
 	}
-
-	var minStr string
-	var maxStr string
-	var err error
-	if minStr, err = getMinValueStr(groups); err != nil {
-		return "", "", err
+	minStr := getMinValueStr(groups)
+	maxStr := getMaxValueStr(groups)
+	if minStr == "" && maxStr == "" {
+		return "", "", fmt.Errorf("constraint contains no limits")
 	}
-
-	if maxStr, err = getMaxValueStr(groups); err != nil {
-		return "", "", err
-	}
-
 	return minStr, maxStr, nil
 }
 
-func getMinValueStr(groups [][]string) (string, error) {
-	return getRangeValueStr(groups, [4]int{1, 2, 5, 6})
+func getMinValueStr(groups [][]string) string {
+	return getRangeValueStrAt(groups, [2]int{2, 3})
 }
 
-func getMaxValueStr(groups [][]string) (string, error) {
-	return getRangeValueStr(groups, [4]int{3, 4, 7, 8})
+func getMaxValueStr(groups [][]string) string {
+	return getRangeValueStrAt(groups, [2]int{5, 6})
 }
 
-func getRangeValueStr(groups [][]string, indexes [4]int) (string, error) {
+func getRangeValueStrAt(groups [][]string, indexes [2]int) string {
 	for _, row := range groups {
 		for i := 0; i < len(indexes); i++ {
 			if row[indexes[i]] != "" {
-				return row[(indexes)[i]], nil
+				return row[(indexes)[i]]
 			}
 		}
 
 	}
-	return "", nil
+	return ""
 }
 
 func checkPath(path string, dir bool) error {
