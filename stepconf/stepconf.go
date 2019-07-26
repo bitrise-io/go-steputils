@@ -23,7 +23,9 @@ type ParseError struct {
 	Err   error
 }
 
-const rangeRegex = `range\[(?P<min>.*?)\.\.(?P<max>.*?)\]`
+const rangeMinimumGroupName = "min"
+const rangeMaximumGroupName = "max"
+const rangeRegex = `range\[(?P<` + rangeMinimumGroupName + `>.*?)\.\.(?P<` + rangeMaximumGroupName + `>.*?)\]`
 
 // Error implements builtin errors.Error.
 func (e *ParseError) Error() string {
@@ -169,6 +171,12 @@ func setField(field reflect.Value, value, constraint string) error {
 			return errors.New("can't convert to int")
 		}
 		field.SetInt(n)
+	case reflect.Float64:
+		f, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return errors.New("can't convert to float")
+		}
+		field.SetFloat(f)
 	case reflect.Slice:
 		field.Set(reflect.ValueOf(strings.Split(value, "|")))
 	default:
@@ -352,7 +360,7 @@ func getFloatValue(value interface{}) (float64, error) {
 
 func validateRangeMinFieldValue(min float64, value float64) error {
 	if min > value {
-		return fmt.Errorf("value %f is out of range, lesser than minimum %f", value, min)
+		return fmt.Errorf("value %f is out of range, less than minimum %f", value, min)
 	}
 	return nil
 }
@@ -366,36 +374,29 @@ func validateRangeMaxFieldValue(max float64, value float64) error {
 
 // GetRangeValues reads up the given range constraint and returns the values, or an error if the constraint is malformed or could not be parsed.
 func GetRangeValues(value string) (string, string, error) {
-	groups := regexp.MustCompile(rangeRegex).FindAllStringSubmatch(value, len(value))
+	regex := regexp.MustCompile(rangeRegex)
+	groups := regex.FindStringSubmatch(value)
 	if len(groups) < 1 {
 		return "", "", fmt.Errorf("value in value options is malformed (%s)", value)
 	}
-	minStr := getMinValueStr(groups)
-	maxStr := getMaxValueStr(groups)
+
+	groupMap := getRegexGroupMap(groups, regex)
+	minStr := groupMap[rangeMinimumGroupName]
+	maxStr := groupMap[rangeMaximumGroupName]
 	if minStr == "" && maxStr == "" {
 		return "", "", fmt.Errorf("constraint contains no limits")
 	}
 	return minStr, maxStr, nil
 }
 
-func getMinValueStr(groups [][]string) string {
-	return getRegexGroupsAt(groups, [1]int{1})
-}
-
-func getMaxValueStr(groups [][]string) string {
-	return getRegexGroupsAt(groups, [1]int{2})
-}
-
-func getRegexGroupsAt(groups [][]string, indexes [1]int) string {
-	for _, row := range groups {
-		for i := 0; i < len(indexes); i++ {
-			if row[indexes[i]] != "" {
-				return row[(indexes)[i]]
-			}
+func getRegexGroupMap(groups []string, regex *regexp.Regexp) map[string]string {
+	result := make(map[string]string)
+	for i, value := range regex.SubexpNames() {
+		if i != 0 && value != "" {
+			result[value] = groups[i]
 		}
-
 	}
-	return ""
+	return result
 }
 
 func checkPath(path string, dir bool) error {
