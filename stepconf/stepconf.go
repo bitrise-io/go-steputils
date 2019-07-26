@@ -25,7 +25,9 @@ type ParseError struct {
 
 const rangeMinimumGroupName = "min"
 const rangeMaximumGroupName = "max"
-const rangeRegex = `range\[(?P<` + rangeMinimumGroupName + `>.*?)\.\.(?P<` + rangeMaximumGroupName + `>.*?)\]`
+const rangeMinBracketGroupName = "minbr"
+const rangeMaxBracketGroupName = "maxbr"
+const rangeRegex = `range(?P<` + rangeMinBracketGroupName + `>\[|\])(?P<` + rangeMinimumGroupName + `>.*?)\.\.(?P<` + rangeMaximumGroupName + `>.*?)(?P<` + rangeMaxBracketGroupName + `>\[|\])`
 
 // Error implements builtin errors.Error.
 func (e *ParseError) Error() string {
@@ -187,7 +189,7 @@ func setField(field reflect.Value, value, constraint string) error {
 
 //ValidateRangeFields validates if the given range is proper.
 func ValidateRangeFields(valueStr, constraint string) error {
-	constraintMin, constraintMax, err := GetRangeValues(constraint)
+	constraintMin, constraintMax, constraintMinBr, constraintMaxBr, err := GetRangeValues(constraint)
 	if err != nil {
 		return err
 	}
@@ -203,8 +205,16 @@ func ValidateRangeFields(valueStr, constraint string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse value: %s", err)
 	}
+	isMinInclusiveBool, err := isMinInclusive(constraintMinBr)
+	if err != nil {
+		return err
+	}
+	isMaxInclusiveBool, err := isMaxInclusive(constraintMaxBr)
+	if err != nil {
+		return err
+	}
 
-	if err := validateRangeFieldValues(min, max, value); err != nil {
+	if err := validateRangeFieldValues(min, max, isMinInclusiveBool, isMaxInclusiveBool, value); err != nil {
 		return err
 	}
 	if err := validateRangeFieldTypes(min, max, value); err != nil {
@@ -214,7 +224,25 @@ func ValidateRangeFields(valueStr, constraint string) error {
 	return nil
 }
 
-func validateRangeFieldValues(min interface{}, max interface{}, value interface{}) error {
+func isMinInclusive(bracket string) (bool, error) {
+	if bracket == "[" {
+		return true, nil
+	} else if bracket == "]" {
+		return false, nil
+	}
+	return false, fmt.Errorf("invalid string found for bracket: %s", bracket)
+}
+
+func isMaxInclusive(bracket string) (bool, error) {
+	if bracket == "[" {
+		return false, nil
+	} else if bracket == "]" {
+		return true, nil
+	}
+	return false, fmt.Errorf("invalid string found for bracket: %s", bracket)
+}
+
+func validateRangeFieldValues(min interface{}, max interface{}, minInclusive bool, maxInclusive bool, value interface{}) error {
 	if value == nil {
 		return fmt.Errorf("value is not present")
 	}
@@ -230,7 +258,7 @@ func validateRangeFieldValues(min interface{}, max interface{}, value interface{
 		if minFloat, err = getFloatValue(min); err != nil {
 			return err
 		}
-		minErr = validateRangeMinFieldValue(minFloat, valueFloat)
+		minErr = validateRangeMinFieldValue(minFloat, valueFloat, minInclusive)
 	}
 
 	var maxErr error
@@ -240,7 +268,7 @@ func validateRangeFieldValues(min interface{}, max interface{}, value interface{
 		if maxFloat, err = getFloatValue(max); err != nil {
 			return err
 		}
-		maxErr = validateRangeMaxFieldValue(maxFloat, valueFloat)
+		maxErr = validateRangeMaxFieldValue(maxFloat, valueFloat, maxInclusive)
 	}
 
 	if min != nil && max != nil {
@@ -358,35 +386,49 @@ func getFloatValue(value interface{}) (float64, error) {
 	}
 }
 
-func validateRangeMinFieldValue(min float64, value float64) error {
-	if min > value {
-		return fmt.Errorf("value %f is out of range, less than minimum %f", value, min)
+func validateRangeMinFieldValue(min float64, value float64, inclusive bool) error {
+	if inclusive {
+		if min > value {
+			return fmt.Errorf("value %f is out of range, less than minimum %f", value, min)
+		}
+	} else {
+		if min >= value {
+			return fmt.Errorf("value %f is out of range, greater or equal than maximum %f", value, min)
+		}
 	}
 	return nil
 }
 
-func validateRangeMaxFieldValue(max float64, value float64) error {
-	if max < value {
-		return fmt.Errorf("value %f is out of range, greater than maximum %f", value, max)
+func validateRangeMaxFieldValue(max float64, value float64, inclusive bool) error {
+	if inclusive {
+		if max < value {
+			return fmt.Errorf("value %f is out of range, greater than maximum %f", value, max)
+		}
+	} else {
+		if max <= value {
+			return fmt.Errorf("value %f is out of range, greater or equal than maximum %f", value, max)
+		}
 	}
 	return nil
 }
 
 // GetRangeValues reads up the given range constraint and returns the values, or an error if the constraint is malformed or could not be parsed.
-func GetRangeValues(value string) (string, string, error) {
+func GetRangeValues(value string) (min string, max string, minBracket string, maxBracket string, err error) {
 	regex := regexp.MustCompile(rangeRegex)
 	groups := regex.FindStringSubmatch(value)
 	if len(groups) < 1 {
-		return "", "", fmt.Errorf("value in value options is malformed (%s)", value)
+		return "", "", "", "", fmt.Errorf("value in value options is malformed (%s)", value)
 	}
 
 	groupMap := getRegexGroupMap(groups, regex)
 	minStr := groupMap[rangeMinimumGroupName]
 	maxStr := groupMap[rangeMaximumGroupName]
+	minBr := groupMap[rangeMinBracketGroupName]
+	maxBr := groupMap[rangeMaxBracketGroupName]
 	if minStr == "" && maxStr == "" {
-		return "", "", fmt.Errorf("constraint contains no limits")
+		return "", "", "", "", fmt.Errorf("constraint contains no limits")
 	}
-	return minStr, maxStr, nil
+	return minStr, maxStr, minBr, maxBr, nil
 }
 
 func getRegexGroupMap(groups []string, regex *regexp.Regexp) map[string]string {
