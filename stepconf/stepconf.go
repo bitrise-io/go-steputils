@@ -23,7 +23,7 @@ type ParseError struct {
 	Err   error
 }
 
-const rangeRegex = `range\[(([\d]+|-[\d]+|)|([\d]+\.[\d]+|-[\d]+\.[\d]+))\.\.(([\d]+|-[\d]+|)|([\d]+\.[\d]+|-[\d]+\.[\d]+))\]$`
+const rangeRegex = `range\[(?P<min>.*?)\.\.(?P<max>.*?)\]`
 
 // Error implements builtin errors.Error.
 func (e *ParseError) Error() string {
@@ -137,7 +137,7 @@ func setField(field reflect.Value, value, constraint string) error {
 			return err
 		}
 	// TODO: use FindStringSubmatch to distinguish no match and match for empty string.
-	case regexp.MustCompile(`^opt\[.*]$`).FindString(constraint):
+	case regexp.MustCompile(`^opt\[.*\]$`).FindString(constraint):
 		if !contains(value, constraint) {
 			// TODO: print only the value options, not the whole string.
 			return fmt.Errorf("value is not in value options (%s)", constraint)
@@ -179,25 +179,23 @@ func setField(field reflect.Value, value, constraint string) error {
 
 //ValidateRangeFields validates if the given range is proper.
 func ValidateRangeFields(valueStr, constraint string) error {
-	var constraintMin string
-	var constraintMax string
-	var err error
-
-	if constraintMin, constraintMax, err = GetRangeValues(constraint); err != nil {
+	constraintMin, constraintMax, err := GetRangeValues(constraint)
+	if err != nil {
 		return err
 	}
-	var min interface{}
-	if min, err = parseValueStr(constraintMin); err != nil {
+	min, err := parseValueStr(constraintMin)
+	if err != nil {
 		return fmt.Errorf("failed to parse min value: %s", err)
 	}
-	var max interface{}
-	if max, err = parseValueStr(constraintMax); err != nil {
+	max, err := parseValueStr(constraintMax)
+	if err != nil {
 		return fmt.Errorf("failed to parse max value: %s", err)
 	}
-	var value interface{}
-	if value, err = parseValueStr(valueStr); err != nil {
+	value, err := parseValueStr(valueStr)
+	if err != nil {
 		return fmt.Errorf("failed to parse value: %s", err)
 	}
+
 	if err := validateRangeFieldValues(min, max, value); err != nil {
 		return err
 	}
@@ -381,14 +379,14 @@ func GetRangeValues(value string) (string, string, error) {
 }
 
 func getMinValueStr(groups [][]string) string {
-	return getRangeValueStrAt(groups, [2]int{2, 3})
+	return getRegexGroupsAt(groups, [1]int{1})
 }
 
 func getMaxValueStr(groups [][]string) string {
-	return getRangeValueStrAt(groups, [2]int{5, 6})
+	return getRegexGroupsAt(groups, [1]int{2})
 }
 
-func getRangeValueStrAt(groups [][]string, indexes [2]int) string {
+func getRegexGroupsAt(groups [][]string, indexes [1]int) string {
 	for _, row := range groups {
 		for i := 0; i < len(indexes); i++ {
 			if row[indexes[i]] != "" {

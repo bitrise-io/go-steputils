@@ -294,13 +294,7 @@ func Test_GetRangeValues(t *testing.T) {
 		{"range[3.14..6.0]", "MinMaxFloatDouble", "3.14", "6.0", false},
 
 		{"invalid", "Invalid1", "", "", true},
-		{"range[5...15]", "Invalid2", "", "", true},
-		{"range[5..15]]", "Invalid3", "", "", true},
-		{"range[[5..15]", "Invalid4", "", "", true},
-		{"range[5..1 5]", "Invalid5", "", "", true},
-		{"range[5..15t]", "Invalid6", "", "", true},
-		{"range[5.e..15]", "Invalid7", "", "", true},
-		{"range[..]", "Invalid8", "", "", true},
+		{"range[..]", "Invalid2", "", "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
