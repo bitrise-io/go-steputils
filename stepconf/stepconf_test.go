@@ -368,6 +368,8 @@ func Test_ValidateRangeFields(t *testing.T) {
 		{"InvalidRange", "5", "range[9..8]", true},
 		{"InvalidValue1", "15", "range[4..8]", true},
 		{"InvalidValue2", "5", "range[5..5]", true},
+
+		{"OptionalValue", "", "range[5..6]", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
