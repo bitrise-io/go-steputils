@@ -129,29 +129,8 @@ func Parse(conf interface{}) error {
 }
 
 func setField(field reflect.Value, value, constraint string) error {
-	switch constraint {
-	case "":
-		break
-	case "required":
-		if value == "" {
-			return errors.New("required variable is not present")
-		}
-	case "file", "dir":
-		if err := checkPath(value, constraint == "dir"); err != nil {
-			return err
-		}
-	// TODO: use FindStringSubmatch to distinguish no match and match for empty string.
-	case regexp.MustCompile(`^opt\[.*\]$`).FindString(constraint):
-		if !contains(value, constraint) {
-			// TODO: print only the value options, not the whole string.
-			return fmt.Errorf("value is not in value options (%s)", constraint)
-		}
-	case regexp.MustCompile(rangeRegex).FindString(constraint):
-		if err := ValidateRangeFields(value, constraint); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("invalid constraint (%s)", constraint)
+	if err := validateConstraint(value, constraint); err != nil {
+		return err
 	}
 
 	if value == "" {
@@ -183,6 +162,34 @@ func setField(field reflect.Value, value, constraint string) error {
 		field.Set(reflect.ValueOf(strings.Split(value, "|")))
 	default:
 		return fmt.Errorf("type is not supported (%s)", field.Kind())
+	}
+	return nil
+}
+
+func validateConstraint(value, constraint string) error {
+	switch constraint {
+	case "":
+		break
+	case "required":
+		if value == "" {
+			return errors.New("required variable is not present")
+		}
+	case "file", "dir":
+		if err := checkPath(value, constraint == "dir"); err != nil {
+			return err
+		}
+	// TODO: use FindStringSubmatch to distinguish no match and match for empty string.
+	case regexp.MustCompile(`^opt\[.*\]$`).FindString(constraint):
+		if !contains(value, constraint) {
+			// TODO: print only the value options, not the whole string.
+			return fmt.Errorf("value is not in value options (%s)", constraint)
+		}
+	case regexp.MustCompile(rangeRegex).FindString(constraint):
+		if err := ValidateRangeFields(value, constraint); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("invalid constraint (%s)", constraint)
 	}
 	return nil
 }
