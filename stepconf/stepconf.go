@@ -195,15 +195,18 @@ func ValidateRangeFields(valueStr, constraint string) error {
 	}
 	min, err := parseValueStr(constraintMin)
 	if err != nil {
-		return fmt.Errorf("failed to parse min value: %s", err)
+		return fmt.Errorf("failed to parse min value %s: %s", constraintMin, err)
 	}
 	max, err := parseValueStr(constraintMax)
 	if err != nil {
-		return fmt.Errorf("failed to parse max value: %s", err)
+		return fmt.Errorf("failed to parse max value %s: %s", constraintMax, err)
+	}
+	if valueStr == "" {
+		return nil
 	}
 	value, err := parseValueStr(valueStr)
 	if err != nil {
-		return fmt.Errorf("failed to parse value: %s", err)
+		return fmt.Errorf("failed to parse value %s: %s", valueStr, err)
 	}
 	isMinInclusiveBool, err := isMinInclusive(constraintMinBr)
 	if err != nil {
