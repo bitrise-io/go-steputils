@@ -225,21 +225,25 @@ func ValidateRangeFields(valueStr, constraint string) error {
 }
 
 func isMinInclusive(bracket string) (bool, error) {
-	if bracket == "[" {
+	switch bracket {
+	case "[":
 		return true, nil
-	} else if bracket == "]" {
+	case "]":
 		return false, nil
+	default:
+		return false, fmt.Errorf("invalid string found for bracket: %s", bracket)
 	}
-	return false, fmt.Errorf("invalid string found for bracket: %s", bracket)
 }
 
 func isMaxInclusive(bracket string) (bool, error) {
-	if bracket == "[" {
+	switch bracket {
+	case "[":
 		return false, nil
-	} else if bracket == "]" {
+	case "]":
 		return true, nil
+	default:
+		return false, fmt.Errorf("invalid string found for bracket: %s", bracket)
 	}
-	return false, fmt.Errorf("invalid string found for bracket: %s", bracket)
 }
 
 func validateRangeFieldValues(min interface{}, max interface{}, minInclusive bool, maxInclusive bool, value interface{}) error {
@@ -387,27 +391,20 @@ func getFloatValue(value interface{}) (float64, error) {
 }
 
 func validateRangeMinFieldValue(min float64, value float64, inclusive bool) error {
-	if inclusive {
-		if min > value {
-			return fmt.Errorf("value %f is out of range, less than minimum %f", value, min)
-		}
-	} else {
-		if min >= value {
-			return fmt.Errorf("value %f is out of range, greater or equal than maximum %f", value, min)
-		}
+	if inclusive && min > value {
+		return fmt.Errorf("value %f is out of range, less than minimum %f", value, min)
+	} else if !inclusive && min >= value {
+		return fmt.Errorf("value %f is out of range, greater or equal than maximum %f", value, min)
 	}
 	return nil
 }
 
 func validateRangeMaxFieldValue(max float64, value float64, inclusive bool) error {
-	if inclusive {
-		if max < value {
-			return fmt.Errorf("value %f is out of range, greater than maximum %f", value, max)
-		}
-	} else {
-		if max <= value {
-			return fmt.Errorf("value %f is out of range, greater or equal than maximum %f", value, max)
-		}
+	if inclusive && max < value {
+		return fmt.Errorf("value %f is out of range, greater than maximum %f", value, max)
+
+	} else if !inclusive && max <= value {
+		return fmt.Errorf("value %f is out of range, greater or equal than maximum %f", value, max)
 	}
 	return nil
 }
