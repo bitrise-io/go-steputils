@@ -194,8 +194,11 @@ func validateConstraint(value, constraint string) error {
 	return nil
 }
 
-//ValidateRangeFields validates if the given range is proper.
+//ValidateRangeFields validates if the given range is proper. Ranges are optional, empty values are valid.
 func ValidateRangeFields(valueStr, constraint string) error {
+	if valueStr == "" {
+		return nil
+	}
 	constraintMin, constraintMax, constraintMinBr, constraintMaxBr, err := GetRangeValues(constraint)
 	if err != nil {
 		return err
@@ -207,9 +210,6 @@ func ValidateRangeFields(valueStr, constraint string) error {
 	max, err := parseValueStr(constraintMax)
 	if err != nil {
 		return fmt.Errorf("failed to parse max value %s: %s", constraintMax, err)
-	}
-	if valueStr == "" {
-		return nil
 	}
 	value, err := parseValueStr(valueStr)
 	if err != nil {
