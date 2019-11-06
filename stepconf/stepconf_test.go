@@ -279,6 +279,116 @@ func ExampleParse() {
 	// Output: {example 1548}
 }
 
+func Test_GetRangeValues(t *testing.T) {
+	tests := []struct {
+		value     string
+		name      string
+		wantMin   string
+		wantMax   string
+		wantMinBr string
+		wantMaxBr string
+		wantErr   bool
+	}{
+		{"range[6..]", "MinIntPositive", "6", "", "[", "]", false},
+		{"range[-6..]", "MinIntNegative", "-6", "", "[", "]", false},
+		{"range[3.14..]", "MinDoublePositive", "3.14", "", "[", "]", false},
+		{"range[-3.14..]", "MinDoubleNegative", "-3.14", "", "[", "]", false},
+
+		{"range[..6]", "MaxIntPositive", "", "6", "[", "]", false},
+		{"range[..-6]", "MaxIntNegative", "", "-6", "[", "]", false},
+		{"range[..3.14]", "MaxDoublePositive", "", "3.14", "[", "]", false},
+		{"range[..-3.14]", "MaxDoubleNegative", "", "-3.14", "[", "]", false},
+
+		{"range[3..6]", "MinMaxIntInt", "3", "6", "[", "]", false},
+		{"range[3..6.0]", "MinMaxIntDouble", "3", "6.0", "[", "]", false},
+		{"range[3.14..6]", "MinMaxDoubleInt", "3.14", "6", "[", "]", false},
+		{"range[3.14..6.0]", "MinMaxFloatDouble", "3.14", "6.0", "[", "]", false},
+
+		{"invalid", "Invalid1", "", "", "", "", true},
+		{"range[..]", "Invalid2", "", "", "", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotMin, gotMax, gotMinBr, gotMaxBr, err := stepconf.GetRangeValues(tt.value)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetRangeValues() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotMin != tt.wantMin {
+				t.Errorf("GetRangeValues() gotMin = %v, want %v", gotMin, tt.wantMin)
+			}
+			if gotMax != tt.wantMax {
+				t.Errorf("GetRangeValues() gotMax = %v, want %v", gotMax, tt.wantMax)
+			}
+			if gotMinBr != tt.wantMinBr {
+				t.Errorf("GetRangeValues() gotMinBr = %v, want %v", gotMinBr, tt.wantMinBr)
+			}
+			if gotMaxBr != tt.wantMaxBr {
+				t.Errorf("GetRangeValues() gotMaxBr = %v, want %v", gotMaxBr, tt.wantMaxBr)
+			}
+		})
+	}
+}
+
+func Test_ValidateRangeFields(t *testing.T) {
+	tests := []struct {
+		name       string
+		valueStr   string
+		constraint string
+		wantErr    bool
+	}{
+		{"ValidIntIntInclIncl1", "3", "range[3..8]", false},
+		{"ValidIntIntInclIncl2", "5", "range[3..8]", false},
+		{"ValidIntIntInclIncl3", "8", "range[3..8]", false},
+
+		{"ValidIntIntExclIncl1", "3", "range]3..8]", true},
+		{"ValidIntIntExclIncl2", "5", "range]3..8]", false},
+		{"ValidIntIntExclIncl3", "8", "range]3..8]", false},
+
+		{"ValidIntIntInclExcl1", "3", "range[3..8[", false},
+		{"ValidIntIntInclExcl2", "5", "range[3..8[", false},
+		{"ValidIntIntInclExcl3", "8", "range[3..8[", true},
+
+		{"ValidIntIntExclExcl1", "3", "range]3..8[", true},
+		{"ValidIntIntExclExcl2", "5", "range]3..8[", false},
+		{"ValidIntIntExclExcl3", "8", "range]3..8[", true},
+
+		{"ValidDoubleDoubleInclIncl", "3.14", "range[3.14..8.5]", false},
+		{"ValidDoubleDoubleInclIncl2", "5.0", "range[3.14..8.5]", false},
+		{"ValidDoubleDoubleInclIncl3", "8.5", "range[3.14..8.5]", false},
+
+		{"ValidDoubleDoubleExclIncl1", "3.14", "range]3.14..8.5]", true},
+		{"ValidDoubleDoubleExclIncl2", "5.0", "range]3.14..8.5]", false},
+		{"ValidDoubleDoubleExclIncl3", "8.5", "range]3.14..8.5]", false},
+
+		{"ValidDoubleDoubleInclExcl1", "3.14", "range[3.14..8.5[", false},
+		{"ValidDoubleDoubleInclExcl2", "5.0", "range[3.14..8.5[", false},
+		{"ValidDoubleDoubleInclExcl3", "8.5", "range[3.14..8.5[", true},
+
+		{"ValidDoubleDoubleExclExcl1", "3.14", "range]3.14..8.5[", true},
+		{"ValidDoubleDoubleExclExcl2", "5.0", "range]3.14..8.5[", false},
+		{"ValidDoubleDoubleExclExcl3", "8.5", "range]3.14..8.5[", true},
+
+		{"InvalidCombination1", "3", "range[1..5.5]", true},
+		{"InvalidCombination2", "3", "range[1.0..5.5]", true},
+		{"InvalidCombination3", "3.14", "range[3.14..8]", true},
+		{"InvalidCombination4", "3.14", "range[3..8.5]", true},
+
+		{"InvalidRange", "5", "range[9..8]", true},
+		{"InvalidValue1", "15", "range[4..8]", true},
+		{"InvalidValue2", "5", "range[5..5]", true},
+
+		{"OptionalValue", "", "range[5..6]", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := stepconf.ValidateRangeFields(tt.valueStr, tt.constraint); (err != nil) != tt.wantErr {
+				t.Errorf("ValidateRangeFields() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func Test_valueString(t *testing.T) {
 	var (
 		s = "test"
