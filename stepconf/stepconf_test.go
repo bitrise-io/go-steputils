@@ -1,13 +1,12 @@
-package stepconf_test
+package stepconf
 
 import (
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"reflect"
 	"testing"
-
-	"github.com/bitrise-io/go-steputils/stepconf"
 )
 
 var invalid = map[string]string{
@@ -34,6 +33,8 @@ var valid = map[string]string{
 	"file":          "/etc/hosts",
 	"dir":           "/tmp",
 	"export_method": "dev",
+	"emptyptr":      "",
+	"ptr":           "test",
 }
 
 func setEnvironment(envs map[string]string) {
@@ -47,16 +48,18 @@ func setEnvironment(envs map[string]string) {
 }
 
 type Config struct {
-	Name         string          `env:"name"`
-	BuildNumber  int             `env:"build_number"`
-	IsUpdate     bool            `env:"is_update"`
-	Items        []string        `env:"items"`
-	Password     stepconf.Secret `env:"password"`
-	Empty        string          `env:"empty"`
-	Mandatory    string          `env:"mandatory,required"`
-	TempFile     string          `env:"file,file"`
-	TempDir      string          `env:"dir,dir"`
-	ExportMethod string          `env:"export_method,opt[dev,qa,prod]"`
+	Name         string   `env:"name"`
+	BuildNumber  int      `env:"build_number"`
+	IsUpdate     bool     `env:"is_update"`
+	Items        []string `env:"items"`
+	Password     Secret   `env:"password"`
+	Empty        string   `env:"empty"`
+	Mandatory    string   `env:"mandatory,required"`
+	TempFile     string   `env:"file,file"`
+	TempDir      string   `env:"dir,dir"`
+	ExportMethod string   `env:"export_method,opt[dev,qa,prod]"`
+	EmptyPtr     *string  `env:"emptyptr"`
+	Ptr          *string  `env:"ptr"`
 }
 
 func TestParse(t *testing.T) {
@@ -64,7 +67,7 @@ func TestParse(t *testing.T) {
 	os.Clearenv()
 	setEnvironment(valid)
 
-	err := stepconf.Parse(&c)
+	err := Parse(&c)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -101,18 +104,24 @@ func TestParse(t *testing.T) {
 	if c.ExportMethod != "dev" {
 		t.Errorf("expected %s, got %v", "dev", c.ExportMethod)
 	}
+	if c.EmptyPtr != nil {
+		t.Errorf("expected %s, got %v", "nil", c.ExportMethod)
+	}
+	if c.Ptr == nil || *c.Ptr != "test" {
+		t.Errorf("expected %s, got %v", "test", c.ExportMethod)
+	}
 }
 
 func TestNotPointer(t *testing.T) {
 	var c Config
-	if err := stepconf.Parse(c); err == nil {
+	if err := Parse(c); err == nil {
 		t.Error("no failure when input parameter is a pointer")
 	}
 }
 
 func TestNotStruct(t *testing.T) {
 	var basicType string
-	if err := stepconf.Parse(&basicType); err == nil {
+	if err := Parse(&basicType); err == nil {
 		t.Error("no failure when input parameter is not a struct")
 	}
 }
@@ -120,7 +129,7 @@ func TestNotStruct(t *testing.T) {
 func TestInvalidEnvs(t *testing.T) {
 	setEnvironment(invalid)
 	var c Config
-	if err := stepconf.Parse(&c); err == nil {
+	if err := Parse(&c); err == nil {
 		t.Error("no failure when invalid values used")
 	}
 }
@@ -130,7 +139,7 @@ func TestValidateNotExists(t *testing.T) {
 		Length string `env:"length,length"`
 	}
 	var c invalid
-	if err := stepconf.Parse(&c); err == nil {
+	if err := Parse(&c); err == nil {
 		t.Error("no failure when validate tag is not exists")
 	}
 }
@@ -142,7 +151,7 @@ func TestRequired(t *testing.T) {
 	var c config
 	os.Clearenv()
 
-	if err := stepconf.Parse(&c); err == nil {
+	if err := Parse(&c); err == nil {
 		t.Error("no failure when required env var is missing")
 	}
 
@@ -150,7 +159,7 @@ func TestRequired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconf.Parse(&c); err != nil {
+	if err := Parse(&c); err != nil {
 		t.Error("failure when required env var is set")
 	}
 }
@@ -165,7 +174,7 @@ func TestValidatePath(t *testing.T) {
 	if err := os.Setenv("path", "/not/exist"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconf.Parse(&c); err == nil {
+	if err := Parse(&c); err == nil {
 		t.Error("no failure when path does not exist")
 	}
 
@@ -176,7 +185,7 @@ func TestValidatePath(t *testing.T) {
 	if err := os.Setenv("path", f.Name()); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconf.Parse(&c); err != nil {
+	if err := Parse(&c); err != nil {
 		t.Error("failure when path is exist")
 	}
 }
@@ -191,7 +200,7 @@ func TestValidateDir(t *testing.T) {
 	if err := os.Setenv("dir", "/not/exist"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconf.Parse(&c); err == nil {
+	if err := Parse(&c); err == nil {
 		t.Error("no failure when dir does not exist")
 	}
 
@@ -202,7 +211,7 @@ func TestValidateDir(t *testing.T) {
 	if err := os.Setenv("dir", dir); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconf.Parse(&c); err != nil {
+	if err := Parse(&c); err != nil {
 		t.Error("failure when dir does exist")
 	}
 }
@@ -217,14 +226,14 @@ func TestValueOptions(t *testing.T) {
 	if err := os.Setenv("option", "no-opt"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconf.Parse(&c); err == nil {
+	if err := Parse(&c); err == nil {
 		t.Error("no failure when value is not in value options")
 	}
 
 	if err := os.Setenv("option", "opt1"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconf.Parse(&c); err != nil {
+	if err := Parse(&c); err != nil {
 		t.Error("failure when value is in value options")
 	}
 }
@@ -238,7 +247,7 @@ func TestValueOptionsWithComma(t *testing.T) {
 	if err := os.Setenv("option", "opt1,opt2"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconf.Parse(&c); err != nil {
+	if err := Parse(&c); err != nil {
 		t.Errorf("failure when value is in value options: %s", err)
 	}
 	if c.Option != "opt1,opt2" {
@@ -247,7 +256,7 @@ func TestValueOptionsWithComma(t *testing.T) {
 	if err := os.Setenv("option", ""); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := stepconf.Parse(&c); err == nil {
+	if err := Parse(&c); err == nil {
 		t.Errorf("no failure when value is not in value options")
 	}
 }
@@ -263,7 +272,7 @@ func ExampleParse() {
 	if err := os.Setenv("ENV_NUMBER", "1548"); err != nil {
 		panic(err)
 	}
-	if err := stepconf.Parse(&c); err != nil {
+	if err := Parse(&c); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println(c)
@@ -272,35 +281,39 @@ func ExampleParse() {
 
 func Test_GetRangeValues(t *testing.T) {
 	tests := []struct {
-		value     string
-		name      string
-		wantMin   string
-		wantMax   string
-		wantMinBr string
-		wantMaxBr string
-		wantErr   bool
+		value   string
+		name    string
+		wantMin string
+		wantMax string
+		wantErr bool
 	}{
-		{"range[6..]", "MinIntPositive", "6", "", "[", "]", false},
-		{"range[-6..]", "MinIntNegative", "-6", "", "[", "]", false},
-		{"range[3.14..]", "MinDoublePositive", "3.14", "", "[", "]", false},
-		{"range[-3.14..]", "MinDoubleNegative", "-3.14", "", "[", "]", false},
+		{"range[6..]", "MinIntPositive", "6", "", false},
+		{"range[-6..]", "MinIntNegative", "-6", "", false},
+		{"range[3.14..]", "MinDoublePositive", "3.14", "", false},
+		{"range[-3.14..]", "MinDoubleNegative", "-3.14", "", false},
 
-		{"range[..6]", "MaxIntPositive", "", "6", "[", "]", false},
-		{"range[..-6]", "MaxIntNegative", "", "-6", "[", "]", false},
-		{"range[..3.14]", "MaxDoublePositive", "", "3.14", "[", "]", false},
-		{"range[..-3.14]", "MaxDoubleNegative", "", "-3.14", "[", "]", false},
+		{"range[..6]", "MaxIntPositive", "", "6", false},
+		{"range[..-6]", "MaxIntNegative", "", "-6", false},
+		{"range[..3.14]", "MaxDoublePositive", "", "3.14", false},
+		{"range[..-3.14]", "MaxDoubleNegative", "", "-3.14", false},
 
-		{"range[3..6]", "MinMaxIntInt", "3", "6", "[", "]", false},
-		{"range[3..6.0]", "MinMaxIntDouble", "3", "6.0", "[", "]", false},
-		{"range[3.14..6]", "MinMaxDoubleInt", "3.14", "6", "[", "]", false},
-		{"range[3.14..6.0]", "MinMaxFloatDouble", "3.14", "6.0", "[", "]", false},
+		{"range[3..6]", "MinMaxIntInt", "3", "6", false},
+		{"range[3..6.0]", "MinMaxIntDouble", "3", "6.0", false},
+		{"range[3.14..6]", "MinMaxDoubleInt", "3.14", "6", false},
+		{"range[3.14..6.0]", "MinMaxFloatDouble", "3.14", "6.0", false},
 
-		{"invalid", "Invalid1", "", "", "", "", true},
-		{"range[..]", "Invalid2", "", "", "", "", true},
+		{"invalid", "Invalid1", "", "", true},
+		{"range[5...15]", "Invalid2", "", "", true},
+		{"range[5..15]]", "Invalid3", "", "", true},
+		{"range[[5..15]", "Invalid4", "", "", true},
+		{"range[5..1 5]", "Invalid5", "", "", true},
+		{"range[5..15t]", "Invalid6", "", "", true},
+		{"range[5.e..15]", "Invalid7", "", "", true},
+		{"range[..]", "Invalid8", "", "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotMin, gotMax, gotMinBr, gotMaxBr, err := stepconf.GetRangeValues(tt.value)
+			gotMin, gotMax, err := GetRangeValues(tt.value)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetRangeValues() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -310,12 +323,6 @@ func Test_GetRangeValues(t *testing.T) {
 			}
 			if gotMax != tt.wantMax {
 				t.Errorf("GetRangeValues() gotMax = %v, want %v", gotMax, tt.wantMax)
-			}
-			if gotMinBr != tt.wantMinBr {
-				t.Errorf("GetRangeValues() gotMinBr = %v, want %v", gotMinBr, tt.wantMinBr)
-			}
-			if gotMaxBr != tt.wantMaxBr {
-				t.Errorf("GetRangeValues() gotMaxBr = %v, want %v", gotMaxBr, tt.wantMaxBr)
 			}
 		})
 	}
@@ -328,37 +335,8 @@ func Test_ValidateRangeFields(t *testing.T) {
 		constraint string
 		wantErr    bool
 	}{
-		{"ValidIntIntInclIncl1", "3", "range[3..8]", false},
-		{"ValidIntIntInclIncl2", "5", "range[3..8]", false},
-		{"ValidIntIntInclIncl3", "8", "range[3..8]", false},
-
-		{"ValidIntIntExclIncl1", "3", "range]3..8]", true},
-		{"ValidIntIntExclIncl2", "5", "range]3..8]", false},
-		{"ValidIntIntExclIncl3", "8", "range]3..8]", false},
-
-		{"ValidIntIntInclExcl1", "3", "range[3..8[", false},
-		{"ValidIntIntInclExcl2", "5", "range[3..8[", false},
-		{"ValidIntIntInclExcl3", "8", "range[3..8[", true},
-
-		{"ValidIntIntExclExcl1", "3", "range]3..8[", true},
-		{"ValidIntIntExclExcl2", "5", "range]3..8[", false},
-		{"ValidIntIntExclExcl3", "8", "range]3..8[", true},
-
-		{"ValidDoubleDoubleInclIncl", "3.14", "range[3.14..8.5]", false},
-		{"ValidDoubleDoubleInclIncl2", "5.0", "range[3.14..8.5]", false},
-		{"ValidDoubleDoubleInclIncl3", "8.5", "range[3.14..8.5]", false},
-
-		{"ValidDoubleDoubleExclIncl1", "3.14", "range]3.14..8.5]", true},
-		{"ValidDoubleDoubleExclIncl2", "5.0", "range]3.14..8.5]", false},
-		{"ValidDoubleDoubleExclIncl3", "8.5", "range]3.14..8.5]", false},
-
-		{"ValidDoubleDoubleInclExcl1", "3.14", "range[3.14..8.5[", false},
-		{"ValidDoubleDoubleInclExcl2", "5.0", "range[3.14..8.5[", false},
-		{"ValidDoubleDoubleInclExcl3", "8.5", "range[3.14..8.5[", true},
-
-		{"ValidDoubleDoubleExclExcl1", "3.14", "range]3.14..8.5[", true},
-		{"ValidDoubleDoubleExclExcl2", "5.0", "range]3.14..8.5[", false},
-		{"ValidDoubleDoubleExclExcl3", "8.5", "range]3.14..8.5[", true},
+		{"ValidIntInt", "5", "range[3..8]", false},
+		{"ValidDoubleDouble", "3.14", "range[3.14..8.5]", false},
 
 		{"InvalidCombination1", "3", "range[1..5.5]", true},
 		{"InvalidCombination2", "3", "range[1.0..5.5]", true},
@@ -368,13 +346,52 @@ func Test_ValidateRangeFields(t *testing.T) {
 		{"InvalidRange", "5", "range[9..8]", true},
 		{"InvalidValue1", "15", "range[4..8]", true},
 		{"InvalidValue2", "5", "range[5..5]", true},
-
-		{"OptionalValue", "", "range[5..6]", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := stepconf.ValidateRangeFields(tt.valueStr, tt.constraint); (err != nil) != tt.wantErr {
+			if err := ValidateRangeFields(tt.valueStr, tt.constraint); (err != nil) != tt.wantErr {
 				t.Errorf("ValidateRangeFields() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_valueString(t *testing.T) {
+	var (
+		s = "test"
+		i = 99
+		b = true
+	)
+	var (
+		sPtr = &s
+		iPtr = &i
+		bPtr = &b
+	)
+	var (
+		sNilPtr *string
+		iNilPtr *int64
+		bNilPtr *bool
+	)
+
+	tests := []struct {
+		name string
+		v    reflect.Value
+		want string
+	}{
+		{"string", reflect.ValueOf(s), "test"},
+		{"string ptr", reflect.ValueOf(sPtr), "test"},
+		{"string nil-ptr", reflect.ValueOf(sNilPtr), ""},
+		{"int64", reflect.ValueOf(i), "99"},
+		{"int64 ptr", reflect.ValueOf(iPtr), "99"},
+		{"int64 nil-ptr", reflect.ValueOf(iNilPtr), "0"},
+		{"bool", reflect.ValueOf(b), "true"},
+		{"bool ptr", reflect.ValueOf(bPtr), "true"},
+		{"bool nil-ptr", reflect.ValueOf(bNilPtr), "false"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := valueString(tt.v); got != tt.want {
+				t.Errorf("valueString() = %v, want %v", got, tt.want)
 			}
 		})
 	}
