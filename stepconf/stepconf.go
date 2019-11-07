@@ -64,11 +64,11 @@ func valueString(v reflect.Value) string {
 		return fmt.Sprintf("%v", v.Interface())
 	}
 
-	if v.IsNil() {
-		v = reflect.New(v.Type().Elem())
+	if !v.IsNil() {
+		return fmt.Sprintf("%v", v.Elem().Interface())
 	}
 
-	return fmt.Sprintf("%v", v.Elem().Interface())
+	return ""
 }
 
 // returns the name of the struct with Title case in blue color followed by a newline,

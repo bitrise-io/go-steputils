@@ -309,7 +309,7 @@ func Test_GetRangeValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotMin, gotMax, gotMinBr, gotMaxBr, err := stepconf.GetRangeValues(tt.value)
+			gotMin, gotMax, gotMinBr, gotMaxBr, err := GetRangeValues(tt.value)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetRangeValues() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -382,7 +382,7 @@ func Test_ValidateRangeFields(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := stepconf.ValidateRangeFields(tt.valueStr, tt.constraint); (err != nil) != tt.wantErr {
+			if err := ValidateRangeFields(tt.valueStr, tt.constraint); (err != nil) != tt.wantErr {
 				t.Errorf("ValidateRangeFields() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -416,10 +416,10 @@ func Test_valueString(t *testing.T) {
 		{"string nil-ptr", reflect.ValueOf(sNilPtr), ""},
 		{"int64", reflect.ValueOf(i), "99"},
 		{"int64 ptr", reflect.ValueOf(iPtr), "99"},
-		{"int64 nil-ptr", reflect.ValueOf(iNilPtr), "0"},
+		{"int64 nil-ptr", reflect.ValueOf(iNilPtr), ""},
 		{"bool", reflect.ValueOf(b), "true"},
 		{"bool ptr", reflect.ValueOf(bPtr), "true"},
-		{"bool nil-ptr", reflect.ValueOf(bNilPtr), "false"},
+		{"bool nil-ptr", reflect.ValueOf(bNilPtr), ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
