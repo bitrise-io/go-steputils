@@ -33,8 +33,11 @@ var valid = map[string]string{
 	"file":          "/etc/hosts",
 	"dir":           "/tmp",
 	"export_method": "dev",
-	"emptyptr":      "",
-	"ptr":           "test",
+	"emptyptrstr":   "",
+	"ptrstr":        "test",
+	"emptyptrint":   "",
+	"ptrint":        "5",
+	"myfloat64":     "0.3",
 }
 
 func setEnvironment(envs map[string]string) {
@@ -51,6 +54,7 @@ type Config struct {
 	Name         string   `env:"name"`
 	BuildNumber  int      `env:"build_number"`
 	IsUpdate     bool     `env:"is_update"`
+	Testfloat64  float64  `env:"myfloat64"`
 	Items        []string `env:"items"`
 	Password     Secret   `env:"password"`
 	Empty        string   `env:"empty"`
@@ -58,8 +62,10 @@ type Config struct {
 	TempFile     string   `env:"file,file"`
 	TempDir      string   `env:"dir,dir"`
 	ExportMethod string   `env:"export_method,opt[dev,qa,prod]"`
-	EmptyPtr     *string  `env:"emptyptr"`
-	Ptr          *string  `env:"ptr"`
+	EmptyPtrStr  *string  `env:"emptyptrstr"`
+	PtrStr       *string  `env:"ptrstr"`
+	EmptyPtrInt  *int     `env:"emptyptrint"`
+	PtrInt       *int     `env:"ptrint"`
 }
 
 func TestParse(t *testing.T) {
@@ -104,10 +110,16 @@ func TestParse(t *testing.T) {
 	if c.ExportMethod != "dev" {
 		t.Errorf("expected %s, got %v", "dev", c.ExportMethod)
 	}
-	if c.EmptyPtr != nil {
+	if c.EmptyPtrStr != nil {
 		t.Errorf("expected %s, got %v", "nil", c.ExportMethod)
 	}
-	if c.Ptr == nil || *c.Ptr != "test" {
+	if c.PtrStr == nil || *c.PtrStr != "test" {
+		t.Errorf("expected %s, got %v", "test", c.ExportMethod)
+	}
+	if c.EmptyPtrInt != nil {
+		t.Errorf("expected %s, got %v", "nil", c.ExportMethod)
+	}
+	if c.PtrInt == nil || *c.PtrInt != 5 {
 		t.Errorf("expected %s, got %v", "test", c.ExportMethod)
 	}
 }

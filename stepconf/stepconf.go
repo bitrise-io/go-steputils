@@ -149,6 +149,14 @@ func setField(field reflect.Value, value, constraint string) error {
 		return nil
 	}
 
+	if field.Kind() == reflect.Ptr {
+		// If field is a pointer type, then set its value to be a pointer to a new zero value, matching field underlying type.
+		var dePtrdType = field.Type().Elem()     // get the type field can point to
+		var newPtrType = reflect.New(dePtrdType) // create new ptr address for type with non-nil zero value
+		field.Set(newPtrType)                    // assign value to pointer
+		field = field.Elem()
+	}
+
 	switch field.Kind() {
 	case reflect.String:
 		field.SetString(value)
@@ -172,15 +180,6 @@ func setField(field reflect.Value, value, constraint string) error {
 		field.SetFloat(f)
 	case reflect.Slice:
 		field.Set(reflect.ValueOf(strings.Split(value, "|")))
-	case reflect.Ptr:
-		// if the field is a ptr type then we need to initialize a pointer address first
-		// and then get the type the address points to and set a new non-nil zero type to it
-		var dePtrdType = field.Type().Elem()     // get ptr-less type of the field
-		var newPtrType = reflect.New(dePtrdType) // create new ptr address for type with non-nil zero value
-		field.Set(newPtrType)                    // assign address to the field's ptr
-
-		// setField will do the type dependent value assignment without the ptr
-		return setField(field.Elem(), value, constraint)
 	default:
 		return fmt.Errorf("type is not supported (%s)", field.Kind())
 	}
