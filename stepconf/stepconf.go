@@ -58,7 +58,7 @@ func (s Secret) String() string {
 // then print all fields formatted as '- field name: field value` separated by newline.
 func Print(config interface{}, out ...io.Writer) {
 	var outWriter io.Writer = os.Stdout
-	if len(out) == 0 {
+	if len(out) > 0 {
 		outWriter = out[0]
 	}
 	if _, err := fmt.Fprintf(outWriter, toString(config)); err != nil {
