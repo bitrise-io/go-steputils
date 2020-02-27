@@ -3,7 +3,6 @@ package stepconf
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"reflect"
 	"regexp"
@@ -56,7 +55,7 @@ func (s Secret) String() string {
 
 // Print the name of the struct with Title case in blue color with followed by a newline,
 // then print all fields formatted as '- field name: field value` separated by newline.
-func Print(config interface{}, out ...io.Writer) {
+func Print(config interface{}) {
 	fmt.Print(toString(config))
 }
 
