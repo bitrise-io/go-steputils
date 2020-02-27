@@ -1,6 +1,7 @@
 package stepconf
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -439,5 +440,22 @@ func Test_valueString(t *testing.T) {
 				t.Errorf("valueString() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func Test_Print(t *testing.T) {
+	type printTestCfg struct {
+		MyPassword string
+	}
+
+	cfg := printTestCfg{
+		MyPassword: "%dorfmtpass%f",
+	}
+
+	var b bytes.Buffer
+	Print(cfg, &b)
+
+	if got, want := b.String(), toString(cfg); got != want {
+		t.Errorf("expected %s, got %v", want, got)
 	}
 }
