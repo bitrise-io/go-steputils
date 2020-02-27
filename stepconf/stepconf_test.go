@@ -7,6 +7,8 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 var invalid = map[string]string{
@@ -440,4 +442,30 @@ func Test_valueString(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_Print(t *testing.T) {
+	type printTestCfg struct {
+		MyPassword string
+	}
+
+	cfg := printTestCfg{
+		MyPassword: "%dorfmtpass%f",
+	}
+
+	reader, writer, err := os.Pipe()
+	assert.NoError(t, err)
+
+	origStdout := os.Stdout
+	os.Stdout = writer
+
+	Print(cfg)
+
+	os.Stdout = origStdout
+	assert.NoError(t, writer.Close())
+
+	content, err := ioutil.ReadAll(reader)
+	assert.NoError(t, err)
+
+	assert.Equal(t, toString(cfg), string(content))
 }
