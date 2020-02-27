@@ -61,7 +61,7 @@ func Print(config interface{}, out ...io.Writer) {
 	if len(out) > 0 {
 		outWriter = out[0]
 	}
-	if _, err := fmt.Fprintf(outWriter, toString(config)); err != nil {
+	if _, err := fmt.Fprint(outWriter, toString(config)); err != nil {
 		fmt.Println("failed to write")
 	}
 }
