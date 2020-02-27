@@ -1,13 +1,14 @@
 package stepconf
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 var invalid = map[string]string{
@@ -452,10 +453,19 @@ func Test_Print(t *testing.T) {
 		MyPassword: "%dorfmtpass%f",
 	}
 
-	var b bytes.Buffer
-	Print(cfg, &b)
+	reader, writer, err := os.Pipe()
+	assert.NoError(t, err)
 
-	if got, want := b.String(), toString(cfg); got != want {
-		t.Errorf("expected %s, got %v", want, got)
-	}
+	origStdout := os.Stdout
+	os.Stdout = writer
+
+	Print(cfg)
+
+	os.Stdout = origStdout
+	assert.NoError(t, writer.Close())
+
+	content, err := ioutil.ReadAll(reader)
+	assert.NoError(t, err)
+
+	assert.Equal(t, toString(cfg), string(content))
 }

@@ -57,13 +57,7 @@ func (s Secret) String() string {
 // Print the name of the struct with Title case in blue color with followed by a newline,
 // then print all fields formatted as '- field name: field value` separated by newline.
 func Print(config interface{}, out ...io.Writer) {
-	var outWriter io.Writer = os.Stdout
-	if len(out) > 0 {
-		outWriter = out[0]
-	}
-	if _, err := fmt.Fprint(outWriter, toString(config)); err != nil {
-		fmt.Println("failed to write")
-	}
+	fmt.Print(toString(config))
 }
 
 func valueString(v reflect.Value) string {
