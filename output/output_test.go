@@ -20,7 +20,10 @@ func TestZipAndExportOutputDir(t *testing.T) {
 	require.NoError(t, err)
 
 	envmanStorePath, envmanClearFn := givenEnvmanIsSetup(t)
-	defer envmanClearFn()
+	defer func() {
+		err := envmanClearFn()
+		require.NoError(t, err)
+	}()
 
 	sourceDir := filepath.Join(tmpDir, "source")
 	require.NoError(t, os.MkdirAll(sourceDir, 0777))
@@ -44,7 +47,10 @@ func TestExportOutputFileContent(t *testing.T) {
 	require.NoError(t, err)
 
 	envmanStorePath, envmanClearFn := givenEnvmanIsSetup(t)
-	defer envmanClearFn()
+	defer func() {
+		err := envmanClearFn()
+		require.NoError(t, err)
+	}()
 
 	sourceFileContent := "test"
 
@@ -72,7 +78,10 @@ func TestExportOutputFile(t *testing.T) {
 	require.NoError(t, err)
 
 	envmanStorePath, envmanClearFn := givenEnvmanIsSetup(t)
-	defer envmanClearFn()
+	defer func() {
+		err := envmanClearFn()
+		require.NoError(t, err)
+	}()
 
 	sourceFile := filepath.Join(tmpDir, "source")
 	require.NoError(t, fileutil.WriteStringToFile(sourceFile, ""))
@@ -96,7 +105,10 @@ func TestExportOutputDir(t *testing.T) {
 	require.NoError(t, err)
 
 	envmanStorePath, envmanClearFn := givenEnvmanIsSetup(t)
-	defer envmanClearFn()
+	defer func() {
+		err := envmanClearFn()
+		require.NoError(t, err)
+	}()
 
 	sourceDir := filepath.Join(tmpDir, "source")
 	require.NoError(t, os.MkdirAll(sourceDir, 0777))
@@ -147,14 +159,19 @@ func Test_RunAndExportOutput(t *testing.T) {
 		logFilePath := givenTmpLogFilePath(t)
 		envKey := "TEST_OUTPUT_KEY"
 		envmanStorePath, envmanClearFn := givenEnvmanIsSetup(t)
-		defer envmanClearFn()
+		defer func() {
+			err := envmanClearFn()
+			require.NoError(t, err)
+		}()
 
 		// When
+		var cmdErr error
 		output := captureOuput(t, func() {
-			RunAndExportOutput(scenario.cmd, logFilePath, envKey, scenario.numberOfLines)
+			cmdErr = RunAndExportOutput(scenario.cmd, logFilePath, envKey, scenario.numberOfLines)
 		})
 
 		// Then
+		require.NoError(t, cmdErr)
 		requireFileContents(t, scenario.expectedLogOutput, logFilePath)
 		require.Equal(t, scenario.expectedConsoleOutput, output)
 		requireEnvmanContainsValueForKey(t, envKey, logFilePath, envmanStorePath)
