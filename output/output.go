@@ -1,14 +1,19 @@
 package output
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 
+	"github.com/bitrise-io/go-steputils/tools"
+	"github.com/bitrise-io/go-utils/colorstring"
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/fileutil"
+	"github.com/bitrise-io/go-utils/log"
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/go-utils/stringutil"
 	"github.com/bitrise-io/go-utils/ziputil"
-	"github.com/bitrise-io/go-steputils/tools"
+	"github.com/bitrise-tools/go-steputils/output"
 )
 
 // ExportOutputDir ...
@@ -87,4 +92,40 @@ func ZipAndExportOutput(sourcePth, destinationZipPth, envKey string) error {
 	}
 
 	return ExportOutputFile(tmpZipFilePth, destinationZipPth, envKey)
+}
+
+// RunAndExportOutput runs a command.Model and directs its ouput to a log file
+// and keeps only the last N lines of the output.
+func RunAndExportOutput(cmd *command.Model, outputPath, envkey string, outputLastLinesOfCode int) error {
+	var outBuffer bytes.Buffer
+	cmd.SetStdout(&outBuffer)
+	cmd.SetStderr(&outBuffer)
+
+	cmdError := cmd.Run()
+	rawOutput := outBuffer.String()
+
+	if err := output.ExportOutputFileContent(rawOutput, outputPath, envkey); err != nil {
+		log.Warnf("Failed to export %s, error: %s", envkey, err)
+		return cmdError
+	}
+
+	if outputLastLinesOfCode > 0 {
+		log.Infof(colorstring.Magenta(fmt.Sprintf(`You can find the last couple of lines of output below.`)))
+
+		lastLines := "Last lines of the output:"
+		if cmdError != nil {
+			log.Errorf(lastLines)
+		} else {
+			log.Infof(lastLines)
+		}
+		fmt.Println(stringutil.LastNLines(rawOutput, outputLastLinesOfCode))
+
+		if cmdError != nil {
+			log.Warnf("If you can't find the reason of the error in the log, please check the %s.", outputPath)
+		}
+	}
+
+	log.Infof(colorstring.Magenta(fmt.Sprintf(`The log file is stored in %s, and its full path is available in the $%s environment variable.`, outputPath, envkey)))
+
+	return cmdError
 }
