@@ -13,7 +13,6 @@ import (
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/stringutil"
 	"github.com/bitrise-io/go-utils/ziputil"
-	"github.com/bitrise-tools/go-steputils/output"
 )
 
 // ExportOutputDir ...
@@ -104,7 +103,7 @@ func RunAndExportOutput(cmd *command.Model, outputPath, envkey string, outputLas
 	cmdError := cmd.Run()
 	rawOutput := outBuffer.String()
 
-	if err := output.ExportOutputFileContent(rawOutput, outputPath, envkey); err != nil {
+	if err := ExportOutputFileContent(rawOutput, outputPath, envkey); err != nil {
 		log.Warnf("Failed to export %s, error: %s", envkey, err)
 		return cmdError
 	}
