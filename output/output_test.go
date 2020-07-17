@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/envutil"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
@@ -127,30 +126,26 @@ func TestExportOutputDir(t *testing.T) {
 	requireEnvmanContainsValueForKey(t, envKey, destinationDir, envmanStorePath)
 }
 
-func Test_RunAndExportOutput(t *testing.T) {
+func Test_ExportOutputFileContentAndReturnLastNLines(t *testing.T) {
 	scenarios := []struct {
-		cmd                   *command.Model
-		numberOfLines         int
-		expectedConsoleOutput string
-		expectedLogOutput     string
+		content        string
+		numberOfLines  int
+		expectedOutput string
 	}{
 		{
-			cmd:                   command.New("echo", "testing"),
-			numberOfLines:         0,
-			expectedConsoleOutput: "",
-			expectedLogOutput:     "testing\n",
+			content:        "wow\ncontent",
+			numberOfLines:  0,
+			expectedOutput: "",
 		},
 		{
-			cmd:                   command.New("echo", "testing"),
-			numberOfLines:         1,
-			expectedConsoleOutput: "testing\n",
-			expectedLogOutput:     "testing\n",
+			content:        "wow",
+			numberOfLines:  1,
+			expectedOutput: "wow",
 		},
 		{
-			cmd:                   command.New("echo", "testing\ntesting"),
-			numberOfLines:         1,
-			expectedConsoleOutput: "testing\n",
-			expectedLogOutput:     "testing\ntesting\n",
+			content:        "wow\ncontent",
+			numberOfLines:  1,
+			expectedOutput: "content",
 		},
 	}
 
@@ -165,15 +160,12 @@ func Test_RunAndExportOutput(t *testing.T) {
 		}()
 
 		// When
-		var cmdErr error
-		output := captureOuput(t, func() {
-			cmdErr = RunAndExportOutput(scenario.cmd, logFilePath, envKey, scenario.numberOfLines)
-		})
+		output, err := ExportOutputFileContentAndReturnLastNLines(scenario.content, logFilePath, envKey, scenario.numberOfLines)
 
 		// Then
-		require.NoError(t, cmdErr)
-		requireFileContents(t, scenario.expectedLogOutput, logFilePath)
-		require.Equal(t, scenario.expectedConsoleOutput, output)
+		require.NoError(t, err)
+		requireFileContents(t, scenario.content, logFilePath)
+		require.Equal(t, scenario.expectedOutput, output)
 		requireEnvmanContainsValueForKey(t, envKey, logFilePath, envmanStorePath)
 	}
 }
@@ -183,25 +175,6 @@ func givenTmpLogFilePath(t *testing.T) string {
 	require.NoError(t, err)
 
 	return path.Join(tmp, "log.txt")
-}
-
-func captureOuput(t *testing.T, fn func()) string {
-	tmp, err := ioutil.TempDir("", "log")
-	require.NoError(t, err)
-
-	pth := path.Join(tmp, "output")
-	fi, err := os.Create(pth)
-	require.NoError(t, err)
-
-	pre := os.Stdout
-	os.Stdout = fi
-	fn()
-	defer func() { os.Stdout = pre }()
-
-	b, err := ioutil.ReadFile(pth)
-	require.NoError(t, err)
-
-	return string(b)
 }
 
 func requireFileContents(t *testing.T, contents, filePath string) {

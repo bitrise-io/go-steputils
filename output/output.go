@@ -61,6 +61,19 @@ func ExportOutputFileContent(content, destinationPth, envKey string) error {
 	return ExportOutputFile(destinationPth, destinationPth, envKey)
 }
 
+// ExportOutputFileContentAndReturnLastNLines ...
+func ExportOutputFileContentAndReturnLastNLines(content, destinationPath, envKey string, lines int) (string, error) {
+	if err := fileutil.WriteStringToFile(destinationPath, content); err != nil {
+		return "", err
+	}
+
+	if err := ExportOutputFile(destinationPath, destinationPath, envKey); err != nil {
+		return "", err
+	}
+
+	return stringutil.LastNLines(content, lines), nil
+}
+
 // ZipAndExportOutput ...
 func ZipAndExportOutput(sourcePth, destinationZipPth, envKey string) error {
 	tmpDir, err := pathutil.NormalizedOSTempDirPath("__export_tmp_dir__")
@@ -88,17 +101,4 @@ func ZipAndExportOutput(sourcePth, destinationZipPth, envKey string) error {
 	}
 
 	return ExportOutputFile(tmpZipFilePth, destinationZipPth, envKey)
-}
-
-// ExportOutputFileContentAndReturnLastNLines ...
-func ExportOutputFileContentAndReturnLastNLines(content, destinationPath, envKey string, lines int) (string, error) {
-	if err := fileutil.WriteStringToFile(destinationPath, content); err != nil {
-		return "", err
-	}
-
-	if err := ExportOutputFile(destinationPath, destinationPath, envKey); err != nil {
-		return "", err
-	}
-
-	return stringutil.LastNLines(content, lines), nil
 }
