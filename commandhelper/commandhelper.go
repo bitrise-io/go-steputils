@@ -2,7 +2,6 @@ package commandhelper
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 
 	"github.com/bitrise-io/go-steputils/output"
@@ -11,50 +10,37 @@ import (
 	"github.com/bitrise-io/go-utils/log"
 )
 
-// RawOutputCouldNotBeExporterError ...
-type RawOutputCouldNotBeExporterError struct {
-	wrappedError error
-}
-
-func (e RawOutputCouldNotBeExporterError) Error() string {
-	return fmt.Sprintf("could not export output: %s", e.wrappedError)
-}
-
-// RunAndExportOutputWithReturningLastNLines ...
-func RunAndExportOutputWithReturningLastNLines(cmd *command.Model, destinationPath, envKey string, lines int) (string, error) {
+// RunAndExportOutputWithReturningLastNLines runs a command and captures it's output to a file.
+// The genereated output file will be exported to the envKey environment variable.
+// It returns the last N lines of the output, the error of the command and if any error happened during
+// exporting the output file.
+func RunAndExportOutputWithReturningLastNLines(cmd command.Model, destinationPath, envKey string, lines int) (string, error, error) {
 	var outBuffer bytes.Buffer
-	preStdout := cmd.GetCmd().Stdout
-	preStderr := cmd.GetCmd().Stderr
 	cmd.SetStdout(&outBuffer)
 	cmd.SetStderr(&outBuffer)
-
-	defer func() {
-		cmd.SetStdout(preStdout)
-		cmd.SetStderr(preStderr)
-	}()
 
 	cmdError := cmd.Run()
 	rawOutput := outBuffer.String()
 
 	lastLines, err := output.ExportOutputFileContentAndReturnLastNLines(rawOutput, destinationPath, envKey, lines)
 	if err != nil {
-		return "", RawOutputCouldNotBeExporterError{err}
+		return "", cmdError, err
 	}
 
-	return lastLines, cmdError
+	return lastLines, cmdError, nil
 }
 
-// RunAndExportOutput ...
-func RunAndExportOutput(cmd *command.Model, destinationPath, envKey string, lines int) error {
-	outputLines, cmdErr := RunAndExportOutputWithReturningLastNLines(cmd, destinationPath, envKey, lines)
+// RunAndExportOutput runs a command and captures it's output to a file.
+// The genereated output file will be exported to the envKey environment variable.
+// The last N lines of the output if loged with some description.
+func RunAndExportOutput(cmd command.Model, destinationPath, envKey string, lines int) error {
+	outputLines, cmdErr, exportErr := RunAndExportOutputWithReturningLastNLines(cmd, destinationPath, envKey, lines)
 
-	var exportErr *RawOutputCouldNotBeExporterError
-	if errors.As(cmdErr, &exportErr) {
+	if exportErr != nil {
 		log.Warnf("Failed to export %s, error: %s", envKey, exportErr)
-		cmdErr = nil
 	}
 
-	if lines > 0 {
+	if lines > 0 && len(outputLines) > 0 {
 		lastLines := "You can find the last couple of lines of output below.:"
 		if cmdErr != nil {
 			log.Errorf(lastLines)

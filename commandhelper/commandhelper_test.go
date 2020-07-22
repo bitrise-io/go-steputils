@@ -6,7 +6,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/bitrise-io/go-steputils/test"
+	"github.com/bitrise-io/go-steputils/internal/test"
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/log"
 	"github.com/stretchr/testify/require"
@@ -41,10 +41,11 @@ func Test_RunAndExportOutputWithReturningLastNLines(t *testing.T) {
 		test.EnvmanIsSetup(t)
 
 		// When
-		actualOutput, err := RunAndExportOutputWithReturningLastNLines(scenario.cmd, tmpFile, "key", scenario.numberOfLines)
+		actualOutput, cmdErr, exportErr := RunAndExportOutputWithReturningLastNLines(*scenario.cmd, tmpFile, "key", scenario.numberOfLines)
 
 		// Then
-		require.NoError(t, err)
+		require.NoError(t, cmdErr)
+		require.NoError(t, exportErr)
 		require.Equal(t, scenario.expectedOutput, actualOutput)
 	}
 }
@@ -85,7 +86,7 @@ func Test_RunAndExportOutput(t *testing.T) {
 		// When
 		var err error
 		actualOutput := captureOuput(t, func() {
-			err = RunAndExportOutput(scenario.cmd, tmpFile, "key", scenario.numberOfLines)
+			err = RunAndExportOutput(*scenario.cmd, tmpFile, "key", scenario.numberOfLines)
 		})
 
 		// Then
