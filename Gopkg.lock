@@ -38,10 +38,19 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:729f65378817684798e53068862397c12daffa0757abbe073f6620a560fc6fb5"
+  digest = "1:86ff4af7b6bb3d27c2e89b5ef8c139678acff1cad74a3c5235fc5af6b94fcc9e"
+  name = "github.com/stretchr/objx"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "35313a95ee26395aa17d366c71a2ccf788fa69b6"
+  version = "v0.3.0"
+
+[[projects]]
+  digest = "1:fc44ab3ee6f79e2b4c67ea294f500aa151f7b882a706eb7f3e881aba1de3a729"
   name = "github.com/stretchr/testify"
   packages = [
     "assert",
+    "mock",
     "require",
   ]
   pruneopts = "UT"
@@ -70,6 +79,7 @@
     "github.com/bitrise-io/go-utils/stringutil",
     "github.com/bitrise-io/go-utils/ziputil",
     "github.com/stretchr/testify/assert",
+    "github.com/stretchr/testify/mock",
     "github.com/stretchr/testify/require",
   ]
   solver-name = "gps-cdcl"
