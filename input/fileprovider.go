@@ -18,7 +18,9 @@ type FileDownloader interface {
 	Get(destination, source string) error
 }
 
-// FileProvider ...
+// FileProvider supports retrieving the local path to a file either provided
+// as a local path using `file://` scheme
+// or downloading the file to a temporary location and return the path to it.
 type FileProvider struct {
 	path           string
 	filedownloader FileDownloader
