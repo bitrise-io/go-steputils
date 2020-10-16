@@ -35,10 +35,10 @@ func Test_WhenTrimmedFilePathCalled_ThenExpectCorrectValue(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		// Given
-		fileProvider := givenFileProvider(scenario.filePath, givenMockFileDownloader())
+		fileProvider := givenFileProvider(givenMockFileDownloader())
 
 		// When
-		actualFilePath, err := fileProvider.trimmedFilePath()
+		actualFilePath, err := fileProvider.trimmedFilePath(scenario.filePath)
 
 		// Then
 
@@ -68,10 +68,10 @@ func Test_WhenFileNameFromPathURLCalled_ThenExpectCorrectValue(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		// Given
-		fileProvider := givenFileProvider(scenario.input, givenMockFileDownloader())
+		fileProvider := givenFileProvider(givenMockFileDownloader())
 
 		// When
-		actualName, err := fileProvider.fileNameFromPathURL()
+		actualName, err := fileProvider.fileNameFromPathURL(scenario.input)
 
 		// Then
 		assert.NoError(t, err)
@@ -84,10 +84,10 @@ func Test_GivenLocalFileProvided_WhenLocalPathCalled_ThenExpectLocalfilePath(t *
 	inputPath := "file:///path/tp/file/meinefile.txt"
 	expectedPath := "/path/tp/file/meinefile.txt"
 	mockFileDownloader := givenMockFileDownloader()
-	fileProvider := givenFileProvider(inputPath, mockFileDownloader)
+	fileProvider := givenFileProvider(mockFileDownloader)
 
 	// When
-	actualPath, err := fileProvider.LocalPath()
+	actualPath, err := fileProvider.LocalPath(inputPath)
 
 	// Then
 	assert.NoError(t, err)
@@ -100,10 +100,10 @@ func Test_GivenRemoteFileProvidedAndDownloadDails_WhenLocalPathCalled_ThenExpect
 	inputPath := "https://something.com/best-file-ever.bitrise"
 	expectedError := errors.New("some error")
 	mockFileDownloader := givenMockFileDownloader().GivenGetFails(expectedError)
-	fileProvider := givenFileProvider(inputPath, mockFileDownloader)
+	fileProvider := givenFileProvider(mockFileDownloader)
 
 	// When
-	actualPath, err := fileProvider.LocalPath()
+	actualPath, err := fileProvider.LocalPath(inputPath)
 
 	// Then
 	assert.EqualError(t, expectedError, err.Error())
@@ -114,18 +114,18 @@ func Test_GivenRemoteFileProvidedAndDownloadSucceeds_WhenLocalPathCalled_ThenPat
 	// Given
 	inputPath := "https://something.com/best-file-ever.bitrise"
 	mockFileDownloader := givenMockFileDownloader().GivenGetSucceed()
-	fileProvider := givenFileProvider(inputPath, mockFileDownloader)
+	fileProvider := givenFileProvider(mockFileDownloader)
 
 	// When
-	actualPath, err := fileProvider.LocalPath()
+	actualPath, err := fileProvider.LocalPath(inputPath)
 
 	// Then
 	assert.NoError(t, err)
 	assert.NotEmpty(t, actualPath)
 }
 
-func givenFileProvider(path string, filedownloader FileDownloader) FileProvider {
-	return NewFileProvider(path, filedownloader)
+func givenFileProvider(filedownloader FileDownloader) FileProvider {
+	return NewFileProvider(filedownloader)
 }
 
 func givenMockFileDownloader() *MockFileDownloader {
