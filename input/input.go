@@ -75,7 +75,7 @@ func SecureInput(input string) string {
 	return ""
 }
 
-// ParseMultilineInput...
+// ParseMultilineInput ...
 func ParseMultilineInput(listInput string) []string {
 	trimmedInput := strings.TrimSpace(listInput)
 	if len(trimmedInput) == 0 {
