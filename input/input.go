@@ -3,6 +3,7 @@ package input
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/bitrise-io/go-utils/pathutil"
 )
@@ -72,4 +73,34 @@ func SecureInput(input string) string {
 		return "***"
 	}
 	return ""
+}
+
+// ParseMultilineInput...
+func ParseMultilineInput(listInput string) []string {
+	trimmedInput := strings.TrimSpace(listInput)
+	if len(trimmedInput) == 0 {
+		return nil
+	}
+
+	separatedItems := []string{trimmedInput}
+	for _, separator := range []string{"\n", `\n`, "|"} {
+		separatedItems = splitElements(separatedItems, separator)
+	}
+
+	var items []string
+	for _, input := range separatedItems {
+		trimmedInput = strings.TrimSpace(input)
+		if len(trimmedInput) > 0 {
+			items = append(items, trimmedInput)
+		}
+	}
+
+	return items
+}
+
+func splitElements(list []string, sep string) (s []string) {
+	for _, e := range list {
+		s = append(s, strings.Split(e, sep)...)
+	}
+	return
 }

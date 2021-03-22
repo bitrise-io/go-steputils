@@ -7,6 +7,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -97,4 +98,39 @@ func TestValidateIfDirExists(t *testing.T) {
 		require.EqualError(t, err, "dir not exist at: "+pth)
 	}
 
+}
+
+func TestParseMultilineInput(t *testing.T) {
+	type testCase struct {
+		input string
+		want  []string
+	}
+
+	testCases := []testCase{
+		{
+			input: "input1",
+			want:  []string{"input1"},
+		},
+		{
+			input: "input1\ninput2",
+			want:  []string{"input1", "input2"},
+		},
+		{
+			input: `input1\ninput2`,
+			want:  []string{"input1", "input2"},
+		},
+		{
+			input: "input1|input2",
+			want:  []string{"input1", "input2"},
+		},
+		{
+			input: "input1|input2\ninput3|",
+			want:  []string{"input1", "input2", "input3"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		actualParsedInput := ParseMultilineInput(testCase.input)
+		assert.Equal(t, testCase.want, actualParsedInput)
+	}
 }
