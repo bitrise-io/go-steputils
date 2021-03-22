@@ -6,7 +6,6 @@ workflows:
   # --- workflows for Testing
   ci:
     before_run:
-    - _install-test-tools
     - test
     
   test:
@@ -15,17 +14,3 @@ workflows:
     - golint:
     - errcheck:
     - go-test:
-
-  _install-test-tools:
-    steps:
-    - script:
-        title: Install required testing tools
-        inputs:
-        - content: |-
-            #!/bin/bash
-            set -ex
-
-            go get -u github.com/stretchr/testify/require
-            go get -u github.com/bitrise-io/go-utils/command
-            go get -u github.com/bitrise-io/go-utils/pathutil
-            go get -u github.com/bitrise-io/go-utils/fileutil
