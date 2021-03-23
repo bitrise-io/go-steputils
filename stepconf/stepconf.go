@@ -28,6 +28,7 @@ const rangeMaximumGroupName = "max"
 const rangeMinBracketGroupName = "minbr"
 const rangeMaxBracketGroupName = "maxbr"
 const rangeRegex = `range(?P<` + rangeMinBracketGroupName + `>\[|\])(?P<` + rangeMinimumGroupName + `>.*?)\.\.(?P<` + rangeMaximumGroupName + `>.*?)(?P<` + rangeMaxBracketGroupName + `>\[|\])`
+const multilineContraintName = "multiline"
 
 // Error implements builtin errors.Error.
 func (e *ParseError) Error() string {
@@ -179,7 +180,7 @@ func setField(field reflect.Value, value, constraint string) error {
 		}
 		field.SetFloat(f)
 	case reflect.Slice:
-		if constraint == "multiline" {
+		if constraint == multilineContraintName {
 			field.Set(reflect.ValueOf(strings.Split(value, "\n")))
 		} else {
 			field.Set(reflect.ValueOf(strings.Split(value, "|")))
@@ -212,7 +213,7 @@ func validateConstraint(value, constraint string) error {
 		if err := ValidateRangeFields(value, constraint); err != nil {
 			return err
 		}
-	case "multiline":
+	case multilineContraintName:
 		break
 	default:
 		return fmt.Errorf("invalid constraint (%s)", constraint)
