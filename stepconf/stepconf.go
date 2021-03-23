@@ -179,7 +179,11 @@ func setField(field reflect.Value, value, constraint string) error {
 		}
 		field.SetFloat(f)
 	case reflect.Slice:
-		field.Set(reflect.ValueOf(strings.Split(value, "|")))
+		if constraint == "multiline" {
+			field.Set(reflect.ValueOf(strings.Split(value, "\n")))
+		} else {
+			field.Set(reflect.ValueOf(strings.Split(value, "|")))
+		}
 	default:
 		return fmt.Errorf("type is not supported (%s)", field.Kind())
 	}
@@ -208,6 +212,8 @@ func validateConstraint(value, constraint string) error {
 		if err := ValidateRangeFields(value, constraint); err != nil {
 			return err
 		}
+	case "multiline":
+		break
 	default:
 		return fmt.Errorf("invalid constraint (%s)", constraint)
 	}
