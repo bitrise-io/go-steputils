@@ -75,15 +75,21 @@ func SecureInput(input string) string {
 	return ""
 }
 
-// ParseMultilineInput extracts each line of a multiline string separated by a newline character ("\n").
+// ParseMultilineInput extracts each line of a multiline string separated by a new line character ("\n").
 // If isVerticalBarAllowed provided "|" is also handled as a new line separator.
+func ParseMultilineInput(listInput string, isVerticalBarAllowed bool) []string {
 	trimmedInput := strings.TrimSpace(listInput)
 	if len(trimmedInput) == 0 {
 		return nil
 	}
 
+	separators := []string{"\n", `\n`}
+	if isVerticalBarAllowed {
+		separators = append(separators, "|")
+	}
+
 	separatedItems := []string{trimmedInput}
-	for _, separator := range []string{"\n", `\n`, "|"} {
+	for _, separator := range separators {
 		separatedItems = splitElements(separatedItems, separator)
 	}
 
