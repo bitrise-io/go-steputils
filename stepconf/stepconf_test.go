@@ -25,10 +25,13 @@ var invalid = map[string]string{
 }
 
 var valid = map[string]string{
-	"name":          "Example",
-	"build_number":  "11",
-	"is_update":     "yes",
-	"items":         "item1|item2|item3",
+	"name":         "Example",
+	"build_number": "11",
+	"is_update":    "yes",
+	"items":        "item1|item2|item3",
+	"multiline_items": `item1
+item2
+item3`,
 	"password":      "pass1234",
 	"empty":         "",
 	"mandatory":     "present",
@@ -53,21 +56,22 @@ func setEnvironment(envs map[string]string) {
 }
 
 type Config struct {
-	Name         string   `env:"name"`
-	BuildNumber  int      `env:"build_number"`
-	IsUpdate     bool     `env:"is_update"`
-	Testfloat64  float64  `env:"myfloat64"`
-	Items        []string `env:"items"`
-	Password     Secret   `env:"password"`
-	Empty        string   `env:"empty"`
-	Mandatory    string   `env:"mandatory,required"`
-	TempFile     string   `env:"file,file"`
-	TempDir      string   `env:"dir,dir"`
-	ExportMethod string   `env:"export_method,opt[dev,qa,prod]"`
-	EmptyPtrStr  *string  `env:"emptyptrstr"`
-	PtrStr       *string  `env:"ptrstr"`
-	EmptyPtrInt  *int     `env:"emptyptrint"`
-	PtrInt       *int     `env:"ptrint"`
+	Name           string   `env:"name"`
+	BuildNumber    int      `env:"build_number"`
+	IsUpdate       bool     `env:"is_update"`
+	Testfloat64    float64  `env:"myfloat64"`
+	Items          []string `env:"items"`
+	MultilineItems []string `env:"multiline_items,multiline"`
+	Password       Secret   `env:"password"`
+	Empty          string   `env:"empty"`
+	Mandatory      string   `env:"mandatory,required"`
+	TempFile       string   `env:"file,file"`
+	TempDir        string   `env:"dir,dir"`
+	ExportMethod   string   `env:"export_method,opt[dev,qa,prod]"`
+	EmptyPtrStr    *string  `env:"emptyptrstr"`
+	PtrStr         *string  `env:"ptrstr"`
+	EmptyPtrInt    *int     `env:"emptyptrint"`
+	PtrInt         *int     `env:"ptrint"`
 }
 
 func TestParse(t *testing.T) {
@@ -89,6 +93,12 @@ func TestParse(t *testing.T) {
 		t.Errorf("expected %t, got %v", true, c.IsUpdate)
 	}
 	if len(c.Items) != 3 ||
+		c.Items[0] != "item1" ||
+		c.Items[1] != "item2" ||
+		c.Items[2] != "item3" {
+		t.Errorf("expected %#v, got %#v", []string{"item1", "item2", "item3"}, c.Items)
+	}
+	if len(c.MultilineItems) != 3 ||
 		c.Items[0] != "item1" ||
 		c.Items[1] != "item2" ||
 		c.Items[2] != "item3" {
