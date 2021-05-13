@@ -1,4 +1,4 @@
-package cache
+package cache_test
 
 import (
 	"encoding/json"
@@ -7,25 +7,43 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bitrise-io/go-steputils/cache"
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/stretchr/testify/require"
 )
 
-const testEnvVarContent = `
-/tmp/mypath -> /tmp/mypath/cachefile
+// MockGetterSetter ...
+type MockGetterSetter struct {
+	values map[string]string
+}
+
+// NewMockGetterSetter ...
+func NewMockGetterSetter() MockGetterSetter {
+	return MockGetterSetter{values: map[string]string{}}
+}
+
+// Get ...
+func (g MockGetterSetter) Get(key string) (string, error) {
+	return g.values[key], nil
+}
+
+// Set ...
+func (g MockGetterSetter) Set(key, value string) error {
+	g.values[key] = value
+	return nil
+}
+
+const testEnvVarContent = `/tmp/mypath -> /tmp/mypath/cachefile
 /tmp/otherpath
 /tmp/anotherpath
 /tmp/othercache
-/somewhere/else
-`
+/somewhere/else`
 
-const testIgnoreEnvVarContent = `
-/*.log
+const testIgnoreEnvVarContent = `/*.log
 /*.bin
-/*.lock
-`
+/*.lock`
 
 func TestCacheFunctions(t *testing.T) {
 
@@ -55,23 +73,23 @@ func TestCacheFunctions(t *testing.T) {
 
 	t.Log("Test - cache")
 	{
-		cache := New()
-		cache.IncludePath("/tmp/mypath -> /tmp/mypath/cachefile")
-		cache.IncludePath("/tmp/otherpath")
-		cache.IncludePath("/tmp/anotherpath")
-		cache.IncludePath("/tmp/othercache")
-		cache.IncludePath("/somewhere/else")
-		cache.ExcludePath("/*.log")
-		cache.ExcludePath("/*.bin")
-		cache.ExcludePath("/*.lock")
-		err := cache.Commit()
+		c := cache.NewDefaultCache()
+		c.IncludePath("/tmp/mypath -> /tmp/mypath/cachefile")
+		c.IncludePath("/tmp/otherpath")
+		c.IncludePath("/tmp/anotherpath")
+		c.IncludePath("/tmp/othercache")
+		c.IncludePath("/somewhere/else")
+		c.ExcludePath("/*.log")
+		c.ExcludePath("/*.bin")
+		c.ExcludePath("/*.lock")
+		err := c.Commit()
 		require.NoError(t, err)
 
-		content, err := getEnvironmentValueWithEnvman(GlobalCachePathsEnvironmentKey)
+		content, err := getEnvironmentValueWithEnvman(cache.CacheIncludePathsEnvKey)
 		require.NoError(t, err)
 		require.Equal(t, testEnvVarContent, content)
 
-		content, err = getEnvironmentValueWithEnvman(GlobalCacheIgnorePathsEnvironmentKey)
+		content, err = getEnvironmentValueWithEnvman(cache.CacheExcludePathsEnvKey)
 		require.NoError(t, err)
 		require.Equal(t, testIgnoreEnvVarContent, content)
 	}
