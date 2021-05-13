@@ -1,8 +1,11 @@
 package cache
 
-import "github.com/bitrise-io/go-steputils/tools"
-import "os"
-import "strings"
+import (
+	"os"
+	"strings"
+
+	"github.com/bitrise-io/go-steputils/tools"
+)
 
 // GlobalCachePathsEnvironmentKey ...
 const GlobalCachePathsEnvironmentKey = "BITRISE_CACHE_INCLUDE_PATHS"
@@ -22,13 +25,13 @@ func New() Cache {
 }
 
 // IncludePath ...
-func (cache *Cache) IncludePath(item string) {
-	cache.include = append(cache.include, item)
+func (cache *Cache) IncludePath(item ...string) {
+	cache.include = append(cache.include, item...)
 }
 
 // ExcludePath ...
-func (cache *Cache) ExcludePath(item string) {
-	cache.exclude = append(cache.exclude, item)
+func (cache *Cache) ExcludePath(item ...string) {
+	cache.exclude = append(cache.exclude, item...)
 }
 
 // Commit ...
