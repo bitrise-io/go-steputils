@@ -78,14 +78,15 @@ type Config struct {
 	VariableSetters []VariableSetter
 }
 
-// NewWithConfig ...
-func NewWithConfig(config Config) Cache {
-	return Cache{variableGetter: config.VariableGetter, variableSetters: config.VariableSetters}
+// NewCache ...
+func (c Config) NewCache() Cache {
+	return Cache{variableGetter: c.VariableGetter, variableSetters: c.VariableSetters}
 }
 
 // New ...
 func New() Cache {
-	return NewWithConfig(Config{NewOSVariableGetter(), []VariableSetter{NewOSVariableSetter(), NewEnvmanVariableSetter()}})
+	defaultConfig := Config{NewOSVariableGetter(), []VariableSetter{NewOSVariableSetter(), NewEnvmanVariableSetter()}}
+	return defaultConfig.NewCache()
 }
 
 // IncludePath ...
