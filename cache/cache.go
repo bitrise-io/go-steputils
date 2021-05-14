@@ -72,18 +72,20 @@ type Cache struct {
 	exclude []string
 }
 
-type CacheConfig struct {
+// Config ...
+type Config struct {
 	VariableGetter  VariableGetter
 	VariableSetters []VariableSetter
 }
 
-func NewWithConfig(config CacheConfig) Cache {
+// NewWithConfig ...
+func NewWithConfig(config Config) Cache {
 	return Cache{variableGetter: config.VariableGetter, variableSetters: config.VariableSetters}
 }
 
 // New ...
 func New() Cache {
-	return NewWithConfig(CacheConfig{NewOSVariableGetter(), []VariableSetter{NewOSVariableSetter(), NewEnvmanVariableSetter()}})
+	return NewWithConfig(Config{NewOSVariableGetter(), []VariableSetter{NewOSVariableSetter(), NewEnvmanVariableSetter()}})
 }
 
 // IncludePath ...

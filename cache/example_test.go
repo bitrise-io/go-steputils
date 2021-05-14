@@ -17,7 +17,7 @@ func (c SampleItemCollector) Collect(dir string, cacheLevel cache.Level) ([]stri
 func Example() {
 	// Create a cache, usually using cache.New()
 	getterSetter := NewMockGetterSetter()
-	config := cache.CacheConfig{getterSetter, []cache.VariableSetter{getterSetter}}
+	config := cache.Config{getterSetter, []cache.VariableSetter{getterSetter}}
 	c := cache.NewWithConfig(config)
 
 	for _, collector := range []cache.ItemCollector{SampleItemCollector{}} {
