@@ -39,11 +39,22 @@ const testEnvVarContent = `/tmp/mypath -> /tmp/mypath/cachefile
 /tmp/otherpath
 /tmp/anotherpath
 /tmp/othercache
-/somewhere/else`
+/somewhere/else
+`
 
 const testIgnoreEnvVarContent = `/*.log
 /*.bin
-/*.lock`
+/*.lock
+`
+
+const testThirdCommitIgnoreEnvVarContent = `/*.log
+/*.bin
+/*.lock
+
+/*.lock
+
+/*.lock
+`
 
 func TestCacheFunctions(t *testing.T) {
 
@@ -92,6 +103,20 @@ func TestCacheFunctions(t *testing.T) {
 		content, err = getEnvironmentValueWithEnvman(cache.CacheExcludePathsEnvKey)
 		require.NoError(t, err)
 		require.Equal(t, testIgnoreEnvVarContent, content)
+
+		c = cache.New()
+		c.ExcludePath("/*.lock")
+		err = c.Commit()
+		require.NoError(t, err)
+
+		c = cache.New()
+		c.ExcludePath("/*.lock")
+		err = c.Commit()
+		require.NoError(t, err)
+
+		content, err = getEnvironmentValueWithEnvman(cache.CacheExcludePathsEnvKey)
+		require.NoError(t, err)
+		require.Equal(t, testThirdCommitIgnoreEnvVarContent, content)
 	}
 }
 

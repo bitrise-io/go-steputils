@@ -112,6 +112,7 @@ func (cache *Cache) Commit() error {
 		}
 
 		content += strings.Join(values, "\n")
+		content += "\n"
 
 		for _, setter := range cache.variableSetters {
 			if err := setter.Set(key, content); err != nil {

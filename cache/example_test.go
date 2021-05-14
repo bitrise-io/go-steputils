@@ -38,6 +38,7 @@ func Example() {
 
 	printIncludeAndExcludeEnvs(getterSetter)
 	// Output: include_me.md
+	//
 	// exclude_me.txt
 }
 
