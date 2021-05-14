@@ -73,7 +73,7 @@ func TestCacheFunctions(t *testing.T) {
 
 	t.Log("Test - cache")
 	{
-		c := cache.NewDefaultCache()
+		c := cache.New()
 		c.IncludePath("/tmp/mypath -> /tmp/mypath/cachefile")
 		c.IncludePath("/tmp/otherpath")
 		c.IncludePath("/tmp/anotherpath")

@@ -65,23 +65,25 @@ func (e OSVariableGetter) Get(key string) (string, error) {
 
 // Cache ...
 type Cache struct {
-	include         []string
-	exclude         []string
-	variableSetters []VariableSetter
 	variableGetter  VariableGetter
+	variableSetters []VariableSetter
+
+	include []string
+	exclude []string
+}
+
+type CacheConfig struct {
+	VariableGetter  VariableGetter
+	VariableSetters []VariableSetter
+}
+
+func NewWithConfig(config CacheConfig) Cache {
+	return Cache{variableGetter: config.VariableGetter, variableSetters: config.VariableSetters}
 }
 
 // New ...
-func New(variableGetter VariableGetter, variableSetters []VariableSetter) Cache {
-	return Cache{
-		variableGetter:  variableGetter,
-		variableSetters: variableSetters,
-	}
-}
-
-// NewDefaultCache ...
-func NewDefaultCache() Cache {
-	return New(NewOSVariableGetter(), []VariableSetter{NewOSVariableSetter(), NewEnvmanVariableSetter()})
+func New() Cache {
+	return NewWithConfig(CacheConfig{NewOSVariableGetter(), []VariableSetter{NewOSVariableSetter(), NewEnvmanVariableSetter()}})
 }
 
 // IncludePath ...
