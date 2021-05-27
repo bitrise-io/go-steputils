@@ -125,24 +125,15 @@ type EnvParser struct {
 	envProvider EnvProvider
 }
 
-// EnvParserOpts ...
-type EnvParserOpts struct {
-	EnvProvider EnvProvider
-}
-
 // NewDefaultEnvParser ...
 func NewDefaultEnvParser() EnvParser {
-	return NewEnvParser(
-		EnvParserOpts{
-			EnvProvider: NewOSEnvProvider(),
-		},
-	)
+	return NewEnvParser(NewOSEnvProvider())
 }
 
 // NewEnvParser ...
-func NewEnvParser(opts EnvParserOpts) EnvParser {
+func NewEnvParser(envProvider EnvProvider) EnvParser {
 	return EnvParser{
-		envProvider: opts.EnvProvider,
+		envProvider: envProvider,
 	}
 }
 
