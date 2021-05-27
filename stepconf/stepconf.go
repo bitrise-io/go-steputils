@@ -175,10 +175,20 @@ func (p EnvParser) Parse(conf interface{}) error {
 	return nil
 }
 
+var defaultEnvParser *EnvParser
+
+func getDefaultEnvParser() EnvParser {
+	if defaultEnvParser == nil {
+		parser := NewDefaultEnvParser()
+		defaultEnvParser = &parser
+	}
+	return *defaultEnvParser
+}
+
 // Parse populates a struct with the retrieved values from environment variables
 // described by struct tags and applies the defined validations.
 func Parse(conf interface{}) error {
-	return NewDefaultEnvParser().Parse(conf)
+	return getDefaultEnvParser().Parse(conf)
 }
 
 func setField(field reflect.Value, value, constraint string) error {
