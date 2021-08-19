@@ -3,10 +3,7 @@ package rubyscript
 import (
 	"github.com/bitrise-io/go-steputils/command/rubyscript/mocks"
 	"github.com/bitrise-io/go-utils/command"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/pathutil"
@@ -88,23 +85,7 @@ func TestBundleInstallCommand(t *testing.T) {
 		bundleInstallCmd, err := runner.BundleInstallCommand(gemfileContent, gemfileLockContent)
 		require.NoError(t, err)
 
-		called := false
-		for _, call := range mockFactory.Calls {
-			if call.Method == "Create" && len(call.Arguments) == 3 && call.Arguments[0] == "bundle" {
-				s, ok := call.Arguments[1].([]string)
-				if ok && len(s) == 2 {
-					if s[0] == "install" {
-						split := strings.Split(s[1], "=")
-						if len(split) == 2 && split[0] == "--gemfile" && filepath.Base(split[1]) == "Gemfile" {
-							called = true
-						}
-					}
-				}
-			}
-		}
-		if !called {
-			assert.Fail(t, "No invocation of Create with right arguments")
-		}
+		mockFactory.AssertCalled(t, "Create", "bundle", []string{"install", "--gemfile=Gemfile"}, (*command.Opts)(nil))
 
 		require.NoError(t, bundleInstallCmd.Run())
 	}
