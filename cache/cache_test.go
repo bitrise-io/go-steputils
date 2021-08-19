@@ -3,13 +3,13 @@ package cache_test
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/bitrise-io/go-utils/env"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/bitrise-io/go-steputils/cache"
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/env"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/stretchr/testify/require"
