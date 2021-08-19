@@ -3,7 +3,6 @@ package jsdependency
 import (
 	"testing"
 
-	"github.com/bitrise-io/go-utils/command"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,15 +22,15 @@ func TestInstallGlobalDependencyCommand(t *testing.T) {
 			version:        "latest",
 			want: []InstallCommand{
 				{
-					Slice:       command.New("yarn", "remove", "ionic"),
+					Slice:       temporaryFactory.Create("yarn", []string{"remove", "ionic"}, nil),
 					IgnoreError: true,
 				},
 				{
-					Slice:       command.New("yarn", "global", "remove", "@ionic/cli"),
+					Slice:       temporaryFactory.Create("yarn", []string{"global", "remove", "@ionic/cli"}, nil),
 					IgnoreError: true,
 				},
 				{
-					Slice:       command.New("yarn", "global", "add", "ionic@latest"),
+					Slice:       temporaryFactory.Create("yarn", []string{"global", "add", "ionic@latest"}, nil),
 					IgnoreError: false,
 				},
 			},
@@ -43,15 +42,15 @@ func TestInstallGlobalDependencyCommand(t *testing.T) {
 			version:        "latest",
 			want: []InstallCommand{
 				{
-					Slice:       command.New("yarn", "remove", "@ionic/cli"),
+					Slice:       temporaryFactory.Create("yarn", []string{"remove", "@ionic/cli"}, nil),
 					IgnoreError: true,
 				},
 				{
-					Slice:       command.New("yarn", "global", "remove", "ionic"),
+					Slice:       temporaryFactory.Create("yarn", []string{"global", "remove", "ionic"}, nil),
 					IgnoreError: true,
 				},
 				{
-					Slice:       command.New("yarn", "global", "add", "@ionic/cli@latest"),
+					Slice:       temporaryFactory.Create("yarn", []string{"global", "add", "@ionic/cli@latest"}, nil),
 					IgnoreError: false,
 				},
 			},
@@ -63,11 +62,11 @@ func TestInstallGlobalDependencyCommand(t *testing.T) {
 			version:        "latest",
 			want: []InstallCommand{
 				{
-					Slice:       command.New("yarn", "remove", "cordova"),
+					Slice:       temporaryFactory.Create("yarn", []string{"remove", "cordova"}, nil),
 					IgnoreError: true,
 				},
 				{
-					Slice:       command.New("yarn", "global", "add", "cordova@latest"),
+					Slice:       temporaryFactory.Create("yarn", []string{"global", "add", "cordova@latest"}, nil),
 					IgnoreError: false,
 				},
 			},
@@ -79,11 +78,11 @@ func TestInstallGlobalDependencyCommand(t *testing.T) {
 			version:        "latest",
 			want: []InstallCommand{
 				{
-					Slice:       command.New("npm", "remove", "@ionic/cli", "--force"),
+					Slice:       temporaryFactory.Create("npm", []string{"remove", "@ionic/cli", "--force"}, nil),
 					IgnoreError: false,
 				},
 				{
-					Slice:       command.New("npm", "install", "-g", "@ionic/cli@latest", "--force"),
+					Slice:       temporaryFactory.Create("npm", []string{"install", "-g", "@ionic/cli@latest", "--force"}, nil),
 					IgnoreError: false,
 				},
 			},

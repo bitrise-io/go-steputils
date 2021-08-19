@@ -1,12 +1,21 @@
 package rubyscript
 
 import (
+	"github.com/bitrise-io/go-utils/env"
 	"path"
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
 )
+
+// TODO remove
+var temporaryFactory = command.NewFactory(env.NewRepository())
+
+// TODO remove
+var pathProvider = func(rootPath string, file string) string {
+	return path.Join(rootPath, file)
+}
 
 // Helper ...
 type Helper struct {
@@ -38,19 +47,19 @@ func (h *Helper) ensureTmpDir() (string, error) {
 }
 
 // BundleInstallCommand ...
-func (h *Helper) BundleInstallCommand(gemfileContent, gemfileLockContent string) (*command.Model, error) {
+func (h *Helper) BundleInstallCommand(gemfileContent, gemfileLockContent string) (command.Command, error) {
 	tmpDir, err := h.ensureTmpDir()
 	if err != nil {
 		return nil, err
 	}
 
-	gemfilePth := path.Join(tmpDir, "Gemfile")
+	gemfilePth := pathProvider(tmpDir, "Gemfile")
 	if err := fileutil.WriteStringToFile(gemfilePth, gemfileContent); err != nil {
 		return nil, err
 	}
 
 	if gemfileLockContent != "" {
-		gemfileLockPth := path.Join(tmpDir, "Gemfile.lock")
+		gemfileLockPth := pathProvider(tmpDir, "Gemfile.lock")
 		if err := fileutil.WriteStringToFile(gemfileLockPth, gemfileLockContent); err != nil {
 			return nil, err
 		}
@@ -61,27 +70,29 @@ func (h *Helper) BundleInstallCommand(gemfileContent, gemfileLockContent string)
 	// use '--gemfile=<gemfile>' flag to specify Gemfile path
 	// ... In general, bundler will assume that the location of the Gemfile(5) is also the project root,
 	// and will look for the Gemfile.lock and vendor/cache relative to it. ...
-	return command.New("bundle", "install", "--gemfile="+gemfilePth), nil
+	// TODO inject
+	return temporaryFactory.Create("bundle", []string{"install", "--gemfile=" + gemfilePth}, nil), nil
 }
 
 // RunScriptCommand ...
-func (h Helper) RunScriptCommand() (*command.Model, error) {
+func (h Helper) RunScriptCommand() (command.Command, error) {
 	tmpDir, err := h.ensureTmpDir()
 	if err != nil {
 		return nil, err
 	}
 
-	rubyScriptPth := path.Join(tmpDir, "script.rb")
+	rubyScriptPth := pathProvider(tmpDir, "script.rb")
 	if err := fileutil.WriteStringToFile(rubyScriptPth, h.scriptContent); err != nil {
 		return nil, err
 	}
 
-	var cmd *command.Model
+	var cmd command.Command
+	// TODO inject
 	if h.gemfilePth != "" {
-		cmd = command.New("bundle", "exec", "ruby", rubyScriptPth)
-		cmd.AppendEnvs("BUNDLE_GEMFILE=" + h.gemfilePth)
+		opts := &command.Opts{Env: []string{"BUNDLE_GEMFILE=" + h.gemfilePth}}
+		cmd = temporaryFactory.Create("bundle", []string{"exec", "ruby", rubyScriptPth}, opts)
 	} else {
-		cmd = command.New("ruby", rubyScriptPth)
+		cmd = temporaryFactory.Create("ruby", []string{rubyScriptPth}, nil)
 	}
 
 	return cmd, nil

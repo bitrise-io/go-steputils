@@ -1,8 +1,9 @@
 package rubyscript
 
 import (
-	"path/filepath"
-	"strings"
+	"github.com/bitrise-io/go-steputils/command/rubyscript/mocks"
+	"github.com/bitrise-io/go-utils/command"
+	"github.com/stretchr/testify/mock"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/pathutil"
@@ -69,30 +70,38 @@ func Test_ensureTmpDir(t *testing.T) {
 func TestBundleInstallCommand(t *testing.T) {
 	t.Log("bundle install gems")
 	{
+		mockFactory := new(mocks.Factory)
+		mockCommand := new(mocks.Command)
+		mockCommand.On("Run").Return(nil)
+		mockFactory.On("Create", mock.Anything, mock.Anything, mock.Anything).Return(mockCommand)
+		temporaryFactory = mockFactory
+		pathProvider = func(rootPath string, file string) string {
+			return file
+		}
+
 		runner := New(rubyScriptWithGemContent)
 		require.NotNil(t, runner)
 
 		bundleInstallCmd, err := runner.BundleInstallCommand(gemfileContent, gemfileLockContent)
 		require.NoError(t, err)
 
-		cmd := bundleInstallCmd.GetCmd()
-
-		require.Equal(t, filepath.Base(cmd.Path), "bundle")
-		require.Equal(t, 3, len(cmd.Args))
-		require.Equal(t, "bundle", cmd.Args[0])
-		require.Equal(t, "install", cmd.Args[1])
-
-		gemfileFlag := cmd.Args[2]
-		split := strings.Split(gemfileFlag, "=")
-		require.Equal(t, 2, len(split))
-		require.Equal(t, "--gemfile", split[0])
-		require.Equal(t, "Gemfile", filepath.Base(split[1]))
+		mockFactory.AssertCalled(t, "Create", "bundle", []string{"install", "--gemfile=Gemfile"}, (*command.Opts)(nil))
 
 		require.NoError(t, bundleInstallCmd.Run())
 	}
 }
 
 func TestRunScriptCommand(t *testing.T) {
+	mockFactory := new(mocks.Factory)
+	mockCommand := new(mocks.Command)
+	mockCommand.On("Run").Return(nil)
+	mockCommand.On("RunAndReturnTrimmedCombinedOutput").Return("{\"data\":\"Hi Bitrise\"}", nil)
+	mockFactory.On("Create", mock.Anything, mock.Anything, mock.Anything).Return(mockCommand)
+	temporaryFactory = mockFactory
+	pathProvider = func(rootPath string, file string) string {
+		return file
+	}
+
 	t.Log("runs 'ruby script.rb'")
 	{
 		runner := New(rubyScriptContent)
@@ -101,12 +110,7 @@ func TestRunScriptCommand(t *testing.T) {
 		runCmd, err := runner.RunScriptCommand()
 		require.NoError(t, err)
 
-		cmd := runCmd.GetCmd()
-
-		require.Equal(t, filepath.Base(cmd.Path), "ruby")
-		require.Equal(t, 2, len(cmd.Args))
-		require.Equal(t, "ruby", cmd.Args[0])
-		require.Equal(t, "script.rb", filepath.Base(cmd.Args[1]))
+		mockFactory.AssertCalled(t, "Create", "ruby", []string{"script.rb"}, (*command.Opts)(nil))
 
 		out, err := runCmd.RunAndReturnTrimmedCombinedOutput()
 		require.NoError(t, err)
@@ -120,22 +124,14 @@ func TestRunScriptCommand(t *testing.T) {
 
 		bundleInstallCmd, err := runner.BundleInstallCommand(gemfileContent, gemfileLockContent)
 		require.NoError(t, err)
-		t.Logf("$ %s", bundleInstallCmd.PrintableCommandArgs())
 		require.NoError(t, bundleInstallCmd.Run())
 
 		runCmd, err := runner.RunScriptCommand()
 		require.NoError(t, err)
 
-		cmd := runCmd.GetCmd()
+		mockFactory.AssertCalled(t, "Create", "bundle", []string{"install", "--gemfile=Gemfile"}, (*command.Opts)(nil))
+		mockFactory.AssertCalled(t, "Create", "bundle", []string{"exec", "ruby", "script.rb"}, &command.Opts{Env: []string{"BUNDLE_GEMFILE=Gemfile"}})
 
-		require.Equal(t, filepath.Base(cmd.Path), "bundle")
-		require.Equal(t, 4, len(cmd.Args))
-		require.Equal(t, "bundle", cmd.Args[0])
-		require.Equal(t, "exec", cmd.Args[1])
-		require.Equal(t, "ruby", cmd.Args[2])
-		require.Equal(t, "script.rb", filepath.Base(cmd.Args[3]))
-
-		t.Logf("$ %s", runCmd.PrintableCommandArgs())
 		out, err := runCmd.RunAndReturnTrimmedCombinedOutput()
 		require.NoError(t, err, out)
 		require.Equal(t, `{"data":"Hi Bitrise"}`, out)

@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/envutil"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
@@ -37,7 +36,7 @@ func TestExportEnvironmentWithEnvman(t *testing.T) {
 
 	{
 		// envstor should be clear
-		cmd := command.New("envman", "print")
+		cmd := temporaryFactory.Create("envman", []string{"print"}, nil)
 		out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 		require.NoError(t, err, out)
 		require.Equal(t, "", out)
@@ -47,7 +46,7 @@ func TestExportEnvironmentWithEnvman(t *testing.T) {
 	require.NoError(t, ExportEnvironmentWithEnvman(key, value))
 
 	// envstore should contain ExportEnvironmentWithEnvmanKey env var
-	cmd := command.New("envman", "print")
+	cmd := temporaryFactory.Create("envman", []string{"print"}, nil)
 	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	require.NoError(t, err, out)
 	require.Equal(t, fmt.Sprintf("%s: %s", key, value), out)

@@ -7,29 +7,32 @@ import (
 	"testing"
 
 	"github.com/bitrise-io/go-steputils/internal/test"
-	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/log"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_RunAndExportOutputWithReturningLastNLines(t *testing.T) {
 	scenarios := []struct {
-		cmd            *command.Model
+		name           string
+		args           []string
 		numberOfLines  int
 		expectedOutput string
 	}{
 		{
-			cmd:            command.New("echo", "testing"),
+			name:           "echo",
+			args:           []string{"testing"},
 			numberOfLines:  0,
 			expectedOutput: "",
 		},
 		{
-			cmd:            command.New("echo", "testing"),
+			name:           "echo",
+			args:           []string{"testing"},
 			numberOfLines:  1,
 			expectedOutput: "testing",
 		},
 		{
-			cmd:            command.New("echo", "testing\ntesting"),
+			name:           "echo",
+			args:           []string{"testing\ntesting"},
 			numberOfLines:  1,
 			expectedOutput: "testing",
 		},
@@ -41,7 +44,7 @@ func Test_RunAndExportOutputWithReturningLastNLines(t *testing.T) {
 		test.EnvmanIsSetup(t)
 
 		// When
-		actualOutput, cmdErr, exportErr := RunAndExportOutputWithReturningLastNLines(*scenario.cmd, tmpFile, "key", scenario.numberOfLines)
+		actualOutput, cmdErr, exportErr := RunAndExportOutputWithReturningLastNLines(scenario.name, scenario.args, nil, tmpFile, "key", scenario.numberOfLines)
 
 		// Then
 		require.NoError(t, cmdErr)
@@ -52,27 +55,32 @@ func Test_RunAndExportOutputWithReturningLastNLines(t *testing.T) {
 
 func Test_RunAndExportOutput(t *testing.T) {
 	scenarios := []struct {
-		cmd            *command.Model
+		name           string
+		args           []string
 		numberOfLines  int
 		expectedOutput string
 	}{
 		{
-			cmd:            command.New("echo", "testing"),
+			name:           "echo",
+			args:           []string{"testing"},
 			numberOfLines:  0,
 			expectedOutput: "",
 		},
 		{
-			cmd:            command.New("echo", "testing"),
+			name:           "echo",
+			args:           []string{"testing"},
 			numberOfLines:  1,
 			expectedOutput: "testing",
 		},
 		{
-			cmd:            command.New("echo", "testing\ntesting"),
+			name:           "echo",
+			args:           []string{"testing\ntesting"},
 			numberOfLines:  1,
 			expectedOutput: "testing",
 		},
 		{
-			cmd:            command.New("echo", "testing\ntesting"),
+			name:           "echo",
+			args:           []string{"testing\ntesting"},
 			numberOfLines:  2,
 			expectedOutput: "testing\ntesting",
 		},
@@ -86,7 +94,7 @@ func Test_RunAndExportOutput(t *testing.T) {
 		// When
 		var err error
 		actualOutput := captureOuput(t, func() {
-			err = RunAndExportOutput(*scenario.cmd, tmpFile, "key", scenario.numberOfLines)
+			err = RunAndExportOutput(scenario.name, scenario.args, nil, tmpFile, "key", scenario.numberOfLines)
 		})
 
 		// Then
