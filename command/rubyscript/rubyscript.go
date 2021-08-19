@@ -1,12 +1,16 @@
 package rubyscript
 
 import (
+	"github.com/bitrise-io/go-utils/env"
 	"path"
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
 )
+
+// TODO remove
+var temporaryFactory = command.NewFactory(env.NewRepository())
 
 // Helper ...
 type Helper struct {
@@ -38,7 +42,7 @@ func (h *Helper) ensureTmpDir() (string, error) {
 }
 
 // BundleInstallCommand ...
-func (h *Helper) BundleInstallCommand(gemfileContent, gemfileLockContent string) (*command.Model, error) {
+func (h *Helper) BundleInstallCommand(gemfileContent, gemfileLockContent string) (command.Command, error) {
 	tmpDir, err := h.ensureTmpDir()
 	if err != nil {
 		return nil, err
@@ -61,11 +65,12 @@ func (h *Helper) BundleInstallCommand(gemfileContent, gemfileLockContent string)
 	// use '--gemfile=<gemfile>' flag to specify Gemfile path
 	// ... In general, bundler will assume that the location of the Gemfile(5) is also the project root,
 	// and will look for the Gemfile.lock and vendor/cache relative to it. ...
-	return command.New("bundle", "install", "--gemfile="+gemfilePth), nil
+	// TODO inject
+	return temporaryFactory.Create("bundle", []string{"install", "--gemfile=" + gemfilePth}, nil), nil
 }
 
 // RunScriptCommand ...
-func (h Helper) RunScriptCommand() (*command.Model, error) {
+func (h Helper) RunScriptCommand() (command.Command, error) {
 	tmpDir, err := h.ensureTmpDir()
 	if err != nil {
 		return nil, err
@@ -76,12 +81,13 @@ func (h Helper) RunScriptCommand() (*command.Model, error) {
 		return nil, err
 	}
 
-	var cmd *command.Model
+	var cmd command.Command
+	// TODO inject
 	if h.gemfilePth != "" {
-		cmd = command.New("bundle", "exec", "ruby", rubyScriptPth)
-		cmd.AppendEnvs("BUNDLE_GEMFILE=" + h.gemfilePth)
+		opts := &command.Opts{Env: []string{"BUNDLE_GEMFILE=" + h.gemfilePth}}
+		cmd = temporaryFactory.Create("bundle", []string{"exec", "ruby", rubyScriptPth}, opts)
 	} else {
-		cmd = command.New("ruby", rubyScriptPth)
+		cmd = temporaryFactory.Create("ruby", []string{rubyScriptPth}, nil)
 	}
 
 	return cmd, nil

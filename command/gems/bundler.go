@@ -2,24 +2,28 @@ package gems
 
 import (
 	"fmt"
+	"github.com/bitrise-io/go-utils/env"
 	"os/exec"
 
 	"github.com/bitrise-io/go-steputils/command/rubycommand"
 	"github.com/bitrise-io/go-utils/command"
 )
 
+// TODO remove
+var temporaryFactory = command.NewFactory(env.NewRepository())
+
 // InstallBundlerCommand returns a command to install a specific bundler version
-func InstallBundlerCommand(gemfileLockVersion Version) *command.Model {
+func InstallBundlerCommand(gemfileLockVersion Version) command.Command {
 	args := []string{"install", "bundler", "--force", "--no-document"}
 	if gemfileLockVersion.Found {
 		args = append(args, []string{"--version", gemfileLockVersion.Version}...)
 	}
 
-	return command.New("gem", args...)
+	return temporaryFactory.Create("gem", args, nil)
 }
 
 // BundleInstallCommand returns a command to install a bundle using bundler
-func BundleInstallCommand(gemfileLockVersion Version) (*command.Model, error) {
+func BundleInstallCommand(gemfileLockVersion Version) (command.Command, error) {
 	var args []string
 	if gemfileLockVersion.Found {
 		args = append(args, "_"+gemfileLockVersion.Version+"_")
@@ -39,10 +43,10 @@ func BundleExecPrefix(bundlerVersion Version) []string {
 }
 
 // RbenvVersionsCommand retruns a command to print used and available ruby versions if rbenv is installed
-func RbenvVersionsCommand() *command.Model {
+func RbenvVersionsCommand() command.Command {
 	if _, err := exec.LookPath("rbenv"); err != nil {
 		return nil
 	}
 
-	return command.New("rbenv", "versions")
+	return temporaryFactory.Create("rbenv", []string{"versions"}, nil)
 }

@@ -3,12 +3,16 @@ package jsdependency
 import (
 	"errors"
 	"fmt"
+	"github.com/bitrise-io/go-utils/env"
 	"path/filepath"
 
 	"github.com/bitrise-io/go-utils/command"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/sliceutil"
 )
+
+// TODO remove
+var temporaryFactory = command.NewFactory(env.NewRepository())
 
 // Tool identifies a package manager tool
 type Tool string
@@ -39,7 +43,7 @@ const (
 // wether the resulting error can be ignored.
 // (yarn exits with error if removing a not yet added package)
 type InstallCommand struct {
-	Slice       *command.Model
+	Slice       command.Command
 	IgnoreError bool
 }
 
@@ -54,7 +58,7 @@ func DetectTool(absPackageJSONDir string) (Tool, error) {
 }
 
 // RemoveCommand returns command model to remove js dependencies
-func RemoveCommand(packageManager Tool, commandScope CommandScope, pkg ...string) (*command.Model, error) {
+func RemoveCommand(packageManager Tool, commandScope CommandScope, pkg ...string) (command.Command, error) {
 	return createManagerCmd(packageManager,
 		toolCommandBuilder(packageManager, removeCommand),
 		commandScope,
@@ -62,7 +66,7 @@ func RemoveCommand(packageManager Tool, commandScope CommandScope, pkg ...string
 }
 
 // AddCommand returns command model to install js dependencies
-func AddCommand(packageManager Tool, commandScope CommandScope, pkg ...string) (*command.Model, error) {
+func AddCommand(packageManager Tool, commandScope CommandScope, pkg ...string) (command.Command, error) {
 	return createManagerCmd(packageManager,
 		toolCommandBuilder(packageManager, addCommand),
 		commandScope,
@@ -119,27 +123,27 @@ func toolCommandBuilder(packageManger Tool, command managerCommand) string {
 	return "add"
 }
 
-func createManagerCmd(packageManager Tool, packageManagerCmd string, commandScope CommandScope, pkg ...string) (*command.Model, error) {
+func createManagerCmd(packageManager Tool, packageManagerCmd string, commandScope CommandScope, pkg ...string) (command.Command, error) {
+	var commandName string
 	var commandArgs []string
 	switch packageManager {
 	case Npm:
-		commandArgs = []string{"npm", packageManagerCmd}
+		commandName = "npm"
+		commandArgs = []string{packageManagerCmd}
 		if commandScope == Global {
 			commandArgs = append(commandArgs, "-g")
 		}
 		commandArgs = append(commandArgs, pkg...)
 		commandArgs = append(commandArgs, "--force")
 	case Yarn:
-		commandArgs = []string{"yarn"}
+		commandName = "yarn"
+		commandArgs = []string{}
 		if commandScope == Global {
 			commandArgs = append(commandArgs, "global")
 		}
 		commandArgs = append(commandArgs, packageManagerCmd)
 		commandArgs = append(commandArgs, pkg...)
 	}
-	cmd, err := command.NewFromSlice(commandArgs)
-	if err != nil {
-		return nil, fmt.Errorf("Command creation failed, error: %s", err)
-	}
+	cmd := temporaryFactory.Create(commandName, commandArgs, nil)
 	return cmd, nil
 }

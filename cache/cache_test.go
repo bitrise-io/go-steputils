@@ -3,6 +3,7 @@ package cache_test
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/bitrise-io/go-utils/env"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,9 @@ import (
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/stretchr/testify/require"
 )
+
+// TODO remove
+var temporaryFactory = command.NewFactory(env.NewRepository())
 
 // MockGetterSetter ...
 type MockGetterSetter struct {
@@ -72,10 +76,10 @@ func TestCacheFunctions(t *testing.T) {
 
 		{
 			// envstore should be clear
-			cmd := command.New("envman", "clear")
+			cmd := temporaryFactory.Create("envman", []string{"clear"}, nil)
 			out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 			require.NoError(t, err, out)
-			cmd = command.New("envman", "print")
+			cmd = temporaryFactory.Create("envman", []string{"print"}, nil)
 			out, err = cmd.RunAndReturnTrimmedCombinedOutput()
 			require.NoError(t, err, out)
 			require.Equal(t, "", out)
@@ -121,7 +125,7 @@ func TestCacheFunctions(t *testing.T) {
 }
 
 func getEnvironmentValueWithEnvman(key string) (string, error) {
-	cmd := command.New("envman", "print", "--format", "json")
+	cmd := temporaryFactory.Create("envman", []string{"print", "--format", "json"}, nil)
 	output, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("%s\n%s", output, err)
