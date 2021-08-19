@@ -12,6 +12,11 @@ import (
 // TODO remove
 var temporaryFactory = command.NewFactory(env.NewRepository())
 
+// TODO remove
+var pathProvider = func(rootPath string, file string) string {
+	return path.Join(rootPath, file)
+}
+
 // Helper ...
 type Helper struct {
 	scriptContent string
@@ -48,13 +53,13 @@ func (h *Helper) BundleInstallCommand(gemfileContent, gemfileLockContent string)
 		return nil, err
 	}
 
-	gemfilePth := path.Join(tmpDir, "Gemfile")
+	gemfilePth := pathProvider(tmpDir, "Gemfile")
 	if err := fileutil.WriteStringToFile(gemfilePth, gemfileContent); err != nil {
 		return nil, err
 	}
 
 	if gemfileLockContent != "" {
-		gemfileLockPth := path.Join(tmpDir, "Gemfile.lock")
+		gemfileLockPth := pathProvider(tmpDir, "Gemfile.lock")
 		if err := fileutil.WriteStringToFile(gemfileLockPth, gemfileLockContent); err != nil {
 			return nil, err
 		}
@@ -76,7 +81,7 @@ func (h Helper) RunScriptCommand() (command.Command, error) {
 		return nil, err
 	}
 
-	rubyScriptPth := path.Join(tmpDir, "script.rb")
+	rubyScriptPth := pathProvider(tmpDir, "script.rb")
 	if err := fileutil.WriteStringToFile(rubyScriptPth, h.scriptContent); err != nil {
 		return nil, err
 	}

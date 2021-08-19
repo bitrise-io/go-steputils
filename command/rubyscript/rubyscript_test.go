@@ -2,6 +2,7 @@ package rubyscript
 
 import (
 	"github.com/bitrise-io/go-steputils/command/rubyscript/mocks"
+	"github.com/bitrise-io/go-utils/command"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"path/filepath"
@@ -77,6 +78,9 @@ func TestBundleInstallCommand(t *testing.T) {
 		mockCommand.On("Run").Return(nil)
 		mockFactory.On("Create", mock.Anything, mock.Anything, mock.Anything).Return(mockCommand)
 		temporaryFactory = mockFactory
+		pathProvider = func(rootPath string, file string) string {
+			return file
+		}
 
 		runner := New(rubyScriptWithGemContent)
 		require.NotNil(t, runner)
@@ -113,6 +117,9 @@ func TestRunScriptCommand(t *testing.T) {
 	mockCommand.On("RunAndReturnTrimmedCombinedOutput").Return("{\"data\":\"Hi Bitrise\"}", nil)
 	mockFactory.On("Create", mock.Anything, mock.Anything, mock.Anything).Return(mockCommand)
 	temporaryFactory = mockFactory
+	pathProvider = func(rootPath string, file string) string {
+		return file
+	}
 
 	t.Log("runs 'ruby script.rb'")
 	{
@@ -122,21 +129,7 @@ func TestRunScriptCommand(t *testing.T) {
 		runCmd, err := runner.RunScriptCommand()
 		require.NoError(t, err)
 
-		called := false
-		for _, call := range mockFactory.Calls {
-			if call.Method == "Create" && len(call.Arguments) == 3 {
-				path, ok := call.Arguments[0].(string)
-				if ok && filepath.Base(path) == "ruby" {
-					s, ok := call.Arguments[1].([]string)
-					if ok && len(s) == 1 && filepath.Base(s[0]) == "script.rb" {
-						called = true
-					}
-				}
-			}
-		}
-		if !called {
-			assert.Fail(t, "No invocation of Create with right arguments")
-		}
+		mockFactory.AssertCalled(t, "Create", "ruby", []string{"script.rb"}, (*command.Opts)(nil))
 
 		out, err := runCmd.RunAndReturnTrimmedCombinedOutput()
 		require.NoError(t, err)
@@ -155,21 +148,8 @@ func TestRunScriptCommand(t *testing.T) {
 		runCmd, err := runner.RunScriptCommand()
 		require.NoError(t, err)
 
-		called := false
-		for _, call := range mockFactory.Calls {
-			if call.Method == "Create" && len(call.Arguments) == 3 {
-				path, ok := call.Arguments[0].(string)
-				if ok && filepath.Base(path) == "bundle" {
-					s, ok := call.Arguments[1].([]string)
-					if ok && len(s) == 3 && s[0] == "exec" && s[1] == "ruby" && filepath.Base(s[2]) == "script.rb" {
-						called = true
-					}
-				}
-			}
-		}
-		if !called {
-			assert.Fail(t, "No invocation of Create with right arguments")
-		}
+		mockFactory.AssertCalled(t, "Create", "bundle", []string{"install", "--gemfile=Gemfile"}, (*command.Opts)(nil))
+		mockFactory.AssertCalled(t, "Create", "bundle", []string{"exec", "ruby", "script.rb"}, &command.Opts{Env: []string{"BUNDLE_GEMFILE=Gemfile"}})
 
 		out, err := runCmd.RunAndReturnTrimmedCombinedOutput()
 		require.NoError(t, err, out)
