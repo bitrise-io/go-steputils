@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/bitrise-io/go-steputils/stepconf"
+	"github.com/bitrise-io/go-utils/env"
 )
 
 type config struct {
@@ -64,7 +65,8 @@ func TestExample(t *testing.T) {
 	}
 
 	var cfg config
-	if err := stepconf.Parse(&cfg); err != nil {
+	envRepository := env.NewRepository()
+	if err := stepconf.NewInputParser(envRepository).Parse(&cfg); err != nil {
 		t.Errorf("Couldn't create config: %v\n", err)
 	}
 	fmt.Println(cfg)

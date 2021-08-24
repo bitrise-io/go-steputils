@@ -8,6 +8,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+
+	"github.com/bitrise-io/go-steputils/mocks"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -78,14 +82,16 @@ type Config struct {
 }
 
 func TestParse(t *testing.T) {
-	var c Config
-	os.Clearenv()
-	setEnvironment(valid)
+	envGetter := new(mocks.EnvGetter)
+	for key, value := range valid {
+		envGetter.On("Get", key).Return(value)
+	}
 
-	err := Parse(&c)
-	if err != nil {
+	var c Config
+	if err := parse(&c, envGetter); err != nil {
 		t.Error(err.Error())
 	}
+
 	if c.Name != "Example" {
 		t.Errorf("expected %s, got %v", "Example", c.Name)
 	}
@@ -141,52 +147,61 @@ func TestParse(t *testing.T) {
 
 func TestNotPointer(t *testing.T) {
 	var c Config
-	if err := Parse(c); err == nil {
+	if err := parse(c, nil); err == nil {
 		t.Error("no failure when input parameter is a pointer")
 	}
 }
 
 func TestNotStruct(t *testing.T) {
 	var basicType string
-	if err := Parse(&basicType); err == nil {
+	if err := parse(&basicType, nil); err == nil {
 		t.Error("no failure when input parameter is not a struct")
 	}
 }
 
 func TestInvalidEnvs(t *testing.T) {
-	setEnvironment(invalid)
+	envGetter := new(mocks.EnvGetter)
+	for key, value := range invalid {
+		envGetter.On("Get", key).Return(value)
+	}
+	envGetter.On("Get", mock.Anything).Return("")
+
 	var c Config
-	if err := Parse(&c); err == nil {
+	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when invalid values used")
 	}
 }
 
 func TestValidateNotExists(t *testing.T) {
+	envGetter := new(mocks.EnvGetter)
+	envGetter.On("Get", mock.Anything).Return("")
+
 	type invalid struct {
 		Length string `env:"length,length"`
 	}
 	var c invalid
-	if err := Parse(&c); err == nil {
+	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when validate tag is not exists")
 	}
 }
 
 func TestRequired(t *testing.T) {
+	envGetter := new(mocks.EnvGetter)
+	envGetter.On("Get", mock.Anything).Return("")
+
 	type config struct {
 		Required string `env:"required,required"`
 	}
 	var c config
-	os.Clearenv()
 
-	if err := Parse(&c); err == nil {
+	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when required env var is missing")
 	}
 
-	err := os.Setenv("required", "set")
-	if err != nil {
-		t.Fatalf("should not have error: %s", err)
-	}
-	if err := Parse(&c); err != nil {
+	envGetter = new(mocks.EnvGetter)
+	envGetter.On("Get", "required").Return("set")
+
+	if err := parse(&c, nil); err != nil {
 		t.Error("failure when required env var is set")
 	}
 }
@@ -201,7 +216,7 @@ func TestValidatePath(t *testing.T) {
 	if err := os.Setenv("path", "/not/exist"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := Parse(&c); err == nil {
+	if err := parse(&c, nil); err == nil {
 		t.Error("no failure when path does not exist")
 	}
 
@@ -212,7 +227,7 @@ func TestValidatePath(t *testing.T) {
 	if err := os.Setenv("path", f.Name()); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := Parse(&c); err != nil {
+	if err := parse(&c, nil); err != nil {
 		t.Error("failure when path is exist")
 	}
 }
@@ -227,7 +242,7 @@ func TestValidateDir(t *testing.T) {
 	if err := os.Setenv("dir", "/not/exist"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := Parse(&c); err == nil {
+	if err := parse(&c, nil); err == nil {
 		t.Error("no failure when dir does not exist")
 	}
 
@@ -238,7 +253,7 @@ func TestValidateDir(t *testing.T) {
 	if err := os.Setenv("dir", dir); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := Parse(&c); err != nil {
+	if err := parse(&c, nil); err != nil {
 		t.Error("failure when dir does exist")
 	}
 }
@@ -253,14 +268,14 @@ func TestValueOptions(t *testing.T) {
 	if err := os.Setenv("option", "no-opt"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := Parse(&c); err == nil {
+	if err := parse(&c, nil); err == nil {
 		t.Error("no failure when value is not in value options")
 	}
 
 	if err := os.Setenv("option", "opt1"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := Parse(&c); err != nil {
+	if err := parse(&c, nil); err != nil {
 		t.Error("failure when value is in value options")
 	}
 }
@@ -274,7 +289,7 @@ func TestValueOptionsWithComma(t *testing.T) {
 	if err := os.Setenv("option", "opt1,opt2"); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := Parse(&c); err != nil {
+	if err := parse(&c, nil); err != nil {
 		t.Errorf("failure when value is in value options: %s", err)
 	}
 	if c.Option != "opt1,opt2" {
@@ -283,7 +298,7 @@ func TestValueOptionsWithComma(t *testing.T) {
 	if err := os.Setenv("option", ""); err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := Parse(&c); err == nil {
+	if err := parse(&c, nil); err == nil {
 		t.Errorf("no failure when value is not in value options")
 	}
 }
@@ -299,7 +314,7 @@ func ExampleParse() {
 	if err := os.Setenv("ENV_NUMBER", "1548"); err != nil {
 		panic(err)
 	}
-	if err := Parse(&c); err != nil {
+	if err := parse(&c, nil); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println(c)
@@ -336,7 +351,7 @@ func Test_GetRangeValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotMin, gotMax, gotMinBr, gotMaxBr, err := GetRangeValues(tt.value)
+			gotMin, gotMax, gotMinBr, gotMaxBr, err := getRangeValues(tt.value)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetRangeValues() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -409,7 +424,7 @@ func Test_ValidateRangeFields(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := ValidateRangeFields(tt.valueStr, tt.constraint); (err != nil) != tt.wantErr {
+			if err := validateRangeFields(tt.valueStr, tt.constraint); (err != nil) != tt.wantErr {
 				t.Errorf("ValidateRangeFields() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
