@@ -1,4 +1,4 @@
-# github.com/bitrise-io/go-utils v0.0.0-20210824081317-f38dec83c1a5
+# github.com/bitrise-io/go-utils v0.0.0-20210824110433-3de05cc69f7c
 ## explicit
 github.com/bitrise-io/go-utils/colorstring
 github.com/bitrise-io/go-utils/command
@@ -26,4 +26,5 @@ github.com/stretchr/testify/assert
 github.com/stretchr/testify/mock
 github.com/stretchr/testify/require
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+## explicit
 gopkg.in/yaml.v3
