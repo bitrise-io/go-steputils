@@ -1,18 +1,11 @@
 package stepconf
 
 import (
-	"fmt"
 	"io/ioutil"
-	"log"
-	"os"
-	"reflect"
 	"testing"
 
+	envMocks "github.com/bitrise-io/go-utils/env/mocks"
 	"github.com/stretchr/testify/mock"
-
-	"github.com/bitrise-io/go-steputils/mocks"
-
-	"github.com/stretchr/testify/assert"
 )
 
 var invalid = map[string]string{
@@ -51,16 +44,6 @@ item3`,
 	"mySecondFloat64": "0.3\t ",
 }
 
-func setEnvironment(envs map[string]string) {
-	os.Clearenv()
-	for env, value := range envs {
-		err := os.Setenv(env, value)
-		if err != nil {
-			log.Fatal()
-		}
-	}
-}
-
 type Config struct {
 	Name            string   `env:"name"`
 	BuildNumber     int      `env:"build_number"`
@@ -82,12 +65,13 @@ type Config struct {
 }
 
 func TestParse(t *testing.T) {
-	envGetter := new(mocks.EnvGetter)
+	var c Config
+
+	envGetter := new(envMocks.Repository)
 	for key, value := range valid {
 		envGetter.On("Get", key).Return(value)
 	}
 
-	var c Config
 	if err := parse(&c, envGetter); err != nil {
 		t.Error(err.Error())
 	}
@@ -160,63 +144,61 @@ func TestNotStruct(t *testing.T) {
 }
 
 func TestInvalidEnvs(t *testing.T) {
-	envGetter := new(mocks.EnvGetter)
+	var c Config
+
+	envGetter := new(envMocks.Repository)
 	for key, value := range invalid {
 		envGetter.On("Get", key).Return(value)
 	}
 	envGetter.On("Get", mock.Anything).Return("")
 
-	var c Config
 	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when invalid values used")
 	}
 }
 
 func TestValidateNotExists(t *testing.T) {
-	envGetter := new(mocks.EnvGetter)
-	envGetter.On("Get", mock.Anything).Return("")
-
-	type invalid struct {
+	var c struct {
 		Length string `env:"length,length"`
 	}
-	var c invalid
+
+	envGetter := new(envMocks.Repository)
+	envGetter.On("Get", mock.Anything).Return("")
+
 	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when validate tag is not exists")
 	}
 }
 
 func TestRequired(t *testing.T) {
-	envGetter := new(mocks.EnvGetter)
-	envGetter.On("Get", mock.Anything).Return("")
-
-	type config struct {
+	var c struct {
 		Required string `env:"required,required"`
 	}
-	var c config
+
+	envGetter := new(envMocks.Repository)
+	envGetter.On("Get", mock.Anything).Return("")
 
 	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when required env var is missing")
 	}
 
-	envGetter = new(mocks.EnvGetter)
+	envGetter = new(envMocks.Repository)
 	envGetter.On("Get", "required").Return("set")
 
-	if err := parse(&c, nil); err != nil {
+	if err := parse(&c, envGetter); err != nil {
 		t.Error("failure when required env var is set")
 	}
 }
 
 func TestValidatePath(t *testing.T) {
-	type config struct {
+	var c struct {
 		Path string `env:"path,file"`
 	}
-	var c config
-	os.Clearenv()
 
-	if err := os.Setenv("path", "/not/exist"); err != nil {
-		t.Fatalf("should not have error: %s", err)
-	}
-	if err := parse(&c, nil); err == nil {
+	envGetter := new(envMocks.Repository)
+	envGetter.On("Get", "path").Return("/not/exist")
+
+	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when path does not exist")
 	}
 
@@ -224,25 +206,23 @@ func TestValidatePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := os.Setenv("path", f.Name()); err != nil {
-		t.Fatalf("should not have error: %s", err)
-	}
-	if err := parse(&c, nil); err != nil {
+
+	envGetter = new(envMocks.Repository)
+	envGetter.On("Get", "path").Return(f.Name())
+	if err := parse(&c, envGetter); err != nil {
 		t.Error("failure when path is exist")
 	}
 }
 
 func TestValidateDir(t *testing.T) {
-	type config struct {
+	var c struct {
 		Dir string `env:"dir,dir"`
 	}
-	var c config
-	os.Clearenv()
 
-	if err := os.Setenv("dir", "/not/exist"); err != nil {
-		t.Fatalf("should not have error: %s", err)
-	}
-	if err := parse(&c, nil); err == nil {
+	envGetter := new(envMocks.Repository)
+	envGetter.On("Get", "dir").Return("/not/exist")
+
+	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when dir does not exist")
 	}
 
@@ -250,75 +230,56 @@ func TestValidateDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
-	if err := os.Setenv("dir", dir); err != nil {
-		t.Fatalf("should not have error: %s", err)
-	}
-	if err := parse(&c, nil); err != nil {
+
+	envGetter = new(envMocks.Repository)
+	envGetter.On("Get", "dir").Return(dir)
+
+	if err := parse(&c, envGetter); err != nil {
 		t.Error("failure when dir does exist")
 	}
 }
 
 func TestValueOptions(t *testing.T) {
-	type config struct {
+	var c struct {
 		Option string `env:"option,opt[opt1,opt2,opt3]"`
 	}
-	var c config
-	os.Clearenv()
 
-	if err := os.Setenv("option", "no-opt"); err != nil {
-		t.Fatalf("should not have error: %s", err)
-	}
-	if err := parse(&c, nil); err == nil {
+	envGetter := new(envMocks.Repository)
+	envGetter.On("Get", "option").Return("no-opt")
+
+	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when value is not in value options")
 	}
 
-	if err := os.Setenv("option", "opt1"); err != nil {
-		t.Fatalf("should not have error: %s", err)
-	}
-	if err := parse(&c, nil); err != nil {
+	envGetter = new(envMocks.Repository)
+	envGetter.On("Get", "option").Return("opt1")
+
+	if err := parse(&c, envGetter); err != nil {
 		t.Error("failure when value is in value options")
 	}
 }
 
 func TestValueOptionsWithComma(t *testing.T) {
-	type config struct {
+	var c struct {
 		Option string `env:"option,opt[opt1,opt2,'opt1,opt2']"`
 	}
-	var c config
-	os.Clearenv()
-	if err := os.Setenv("option", "opt1,opt2"); err != nil {
-		t.Fatalf("should not have error: %s", err)
-	}
-	if err := parse(&c, nil); err != nil {
+
+	envGetter := new(envMocks.Repository)
+	envGetter.On("Get", "option").Return("opt1,opt2")
+
+	if err := parse(&c, envGetter); err != nil {
 		t.Errorf("failure when value is in value options: %s", err)
 	}
 	if c.Option != "opt1,opt2" {
 		t.Errorf("expected %s, got %v", "opt1", c.Option)
 	}
-	if err := os.Setenv("option", ""); err != nil {
-		t.Fatalf("should not have error: %s", err)
-	}
-	if err := parse(&c, nil); err == nil {
+
+	envGetter = new(envMocks.Repository)
+	envGetter.On("Get", "option").Return("")
+
+	if err := parse(&c, envGetter); err == nil {
 		t.Errorf("no failure when value is not in value options")
 	}
-}
-
-func ExampleParse() {
-	c := struct {
-		Name string `env:"ENV_NAME"`
-		Num  int    `env:"ENV_NUMBER"`
-	}{}
-	if err := os.Setenv("ENV_NAME", "example"); err != nil {
-		panic(err)
-	}
-	if err := os.Setenv("ENV_NUMBER", "1548"); err != nil {
-		panic(err)
-	}
-	if err := parse(&c, nil); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(c)
-	// Output: {example 1548}
 }
 
 func Test_GetRangeValues(t *testing.T) {
@@ -429,71 +390,4 @@ func Test_ValidateRangeFields(t *testing.T) {
 			}
 		})
 	}
-}
-
-func Test_valueString(t *testing.T) {
-	var (
-		s = "test"
-		i = 99
-		b = true
-	)
-	var (
-		sPtr = &s
-		iPtr = &i
-		bPtr = &b
-	)
-	var (
-		sNilPtr *string
-		iNilPtr *int64
-		bNilPtr *bool
-	)
-
-	tests := []struct {
-		name string
-		v    reflect.Value
-		want string
-	}{
-		{"string", reflect.ValueOf(s), "test"},
-		{"string ptr", reflect.ValueOf(sPtr), "test"},
-		{"string nil-ptr", reflect.ValueOf(sNilPtr), ""},
-		{"int64", reflect.ValueOf(i), "99"},
-		{"int64 ptr", reflect.ValueOf(iPtr), "99"},
-		{"int64 nil-ptr", reflect.ValueOf(iNilPtr), ""},
-		{"bool", reflect.ValueOf(b), "true"},
-		{"bool ptr", reflect.ValueOf(bPtr), "true"},
-		{"bool nil-ptr", reflect.ValueOf(bNilPtr), ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := valueString(tt.v); got != tt.want {
-				t.Errorf("valueString() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_Print(t *testing.T) {
-	type printTestCfg struct {
-		MyPassword string
-	}
-
-	cfg := printTestCfg{
-		MyPassword: "%dorfmtpass%f",
-	}
-
-	reader, writer, err := os.Pipe()
-	assert.NoError(t, err)
-
-	origStdout := os.Stdout
-	os.Stdout = writer
-
-	Print(cfg)
-
-	os.Stdout = origStdout
-	assert.NoError(t, writer.Close())
-
-	content, err := ioutil.ReadAll(reader)
-	assert.NoError(t, err)
-
-	assert.Equal(t, toString(cfg), string(content))
 }

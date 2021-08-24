@@ -1,8 +1,9 @@
-# github.com/bitrise-io/go-utils v0.0.0-20210819143908-bbd923881fab
+# github.com/bitrise-io/go-utils v0.0.0-20210824081317-f38dec83c1a5
 ## explicit
 github.com/bitrise-io/go-utils/colorstring
 github.com/bitrise-io/go-utils/command
 github.com/bitrise-io/go-utils/env
+github.com/bitrise-io/go-utils/env/mocks
 github.com/bitrise-io/go-utils/envutil
 github.com/bitrise-io/go-utils/fileutil
 github.com/bitrise-io/go-utils/log

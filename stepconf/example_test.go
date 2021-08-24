@@ -2,11 +2,11 @@ package stepconf_test
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
+	envMocks "github.com/bitrise-io/go-utils/env/mocks"
+
 	"github.com/bitrise-io/go-steputils/stepconf"
-	"github.com/bitrise-io/go-utils/env"
 )
 
 type config struct {
@@ -56,17 +56,14 @@ var envs = map[string]string{
 }
 
 func TestExample(t *testing.T) {
-	// Set env vars for the example.
-	for env, value := range envs {
-		err := os.Setenv(env, value)
-		if err != nil {
-			t.Errorf("Couldn't set env vars: %v\n", err)
-		}
+	var cfg config
+
+	envGetter := new(envMocks.Repository)
+	for key, value := range envs {
+		envGetter.On("Get", key).Return(value)
 	}
 
-	var cfg config
-	envRepository := env.NewRepository()
-	if err := stepconf.NewInputParser(envRepository).Parse(&cfg); err != nil {
+	if err := stepconf.NewInputParser(envGetter).Parse(&cfg); err != nil {
 		t.Errorf("Couldn't create config: %v\n", err)
 	}
 	fmt.Println(cfg)

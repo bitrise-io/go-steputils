@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bitrise-io/go-utils/env"
 	"github.com/bitrise-io/go-utils/parseutil"
 )
 
@@ -21,14 +22,9 @@ const (
 	multilineConstraintName  = "multiline"
 )
 
-// EnvGetter ...
-type EnvGetter interface {
-	Get(key string) string
-}
-
 // parse populates a struct with the retrieved values from environment variables
 // described by struct tags and applies the defined validations.
-func parse(conf interface{}, envGetter EnvGetter) error {
+func parse(conf interface{}, envRepository env.Repository) error {
 	c := reflect.ValueOf(conf)
 	if c.Kind() != reflect.Ptr {
 		return ErrNotStructPtr
@@ -46,7 +42,7 @@ func parse(conf interface{}, envGetter EnvGetter) error {
 			continue
 		}
 		key, constraint := parseTag(tag)
-		value := envGetter.Get(key)
+		value := envRepository.Get(key)
 
 		if err := setField(c.Field(i), value, constraint); err != nil {
 			errs = append(errs, &ParseError{t.Field(i).Name, value, err})
