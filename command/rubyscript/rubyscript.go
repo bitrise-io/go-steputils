@@ -89,7 +89,11 @@ func (h Helper) RunScriptCommand(opts *command.Opts) (command.Command, error) {
 	var cmd command.Command
 	// TODO inject
 	if h.gemfilePth != "" {
+		if opts == nil {
+			opts = &command.Opts{}
+		}
 		opts.Env = append(opts.Env, "BUNDLE_GEMFILE="+h.gemfilePth)
+
 		cmd = temporaryFactory.Create("bundle", []string{"exec", "ruby", rubyScriptPth}, opts)
 	} else {
 		cmd = temporaryFactory.Create("ruby", []string{rubyScriptPth}, opts)
