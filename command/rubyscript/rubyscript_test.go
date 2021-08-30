@@ -3,8 +3,8 @@ package rubyscript
 import (
 	"testing"
 
-	"github.com/bitrise-io/go-steputils/command/rubyscript/mocks"
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/command/mocks"
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
