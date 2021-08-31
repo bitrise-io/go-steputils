@@ -1,12 +1,12 @@
 package rubyscript
 
 import (
-	"github.com/bitrise-io/go-steputils/command/rubyscript/mocks"
-	"github.com/bitrise-io/go-utils/command"
-	"github.com/stretchr/testify/mock"
 	"testing"
 
+	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/command/mocks"
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -107,7 +107,7 @@ func TestRunScriptCommand(t *testing.T) {
 		runner := New(rubyScriptContent)
 		require.NotNil(t, runner)
 
-		runCmd, err := runner.RunScriptCommand()
+		runCmd, err := runner.RunScriptCommand(nil)
 		require.NoError(t, err)
 
 		mockFactory.AssertCalled(t, "Create", "ruby", []string{"script.rb"}, (*command.Opts)(nil))
@@ -126,7 +126,7 @@ func TestRunScriptCommand(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, bundleInstallCmd.Run())
 
-		runCmd, err := runner.RunScriptCommand()
+		runCmd, err := runner.RunScriptCommand(nil)
 		require.NoError(t, err)
 
 		mockFactory.AssertCalled(t, "Create", "bundle", []string{"install", "--gemfile=Gemfile"}, (*command.Opts)(nil))

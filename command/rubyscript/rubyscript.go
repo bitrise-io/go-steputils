@@ -1,10 +1,10 @@
 package rubyscript
 
 import (
-	"github.com/bitrise-io/go-utils/env"
 	"path"
 
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/env"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
 )
@@ -75,7 +75,7 @@ func (h *Helper) BundleInstallCommand(gemfileContent, gemfileLockContent string)
 }
 
 // RunScriptCommand ...
-func (h Helper) RunScriptCommand() (command.Command, error) {
+func (h Helper) RunScriptCommand(opts *command.Opts) (command.Command, error) {
 	tmpDir, err := h.ensureTmpDir()
 	if err != nil {
 		return nil, err
@@ -89,10 +89,14 @@ func (h Helper) RunScriptCommand() (command.Command, error) {
 	var cmd command.Command
 	// TODO inject
 	if h.gemfilePth != "" {
-		opts := &command.Opts{Env: []string{"BUNDLE_GEMFILE=" + h.gemfilePth}}
+		if opts == nil {
+			opts = &command.Opts{}
+		}
+		opts.Env = append(opts.Env, "BUNDLE_GEMFILE="+h.gemfilePth)
+
 		cmd = temporaryFactory.Create("bundle", []string{"exec", "ruby", rubyScriptPth}, opts)
 	} else {
-		cmd = temporaryFactory.Create("ruby", []string{rubyScriptPth}, nil)
+		cmd = temporaryFactory.Create("ruby", []string{rubyScriptPth}, opts)
 	}
 
 	return cmd, nil
