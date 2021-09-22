@@ -1,5 +1,7 @@
 github.com/bitrise-io/go-utils v0.0.0-20210830144330-49d11743a4fd h1:CZIAr+uoOhHS6WfsTXHi3v9CUhOXcKSyRupi9cIcRWc=
 github.com/bitrise-io/go-utils v0.0.0-20210830144330-49d11743a4fd/go.mod h1:Vi4MHnaZVL3PVoPPA/Yp6g2pzntkDH8LGiRSY7qw6KQ=
+github.com/bitrise-io/go-utils v0.0.0-20210922201414-6d7c12191c72 h1:Eov/ocBE9sfljzLo7C/6GuLUtACWJpY6dRLDhTtJ2L8=
+github.com/bitrise-io/go-utils v0.0.0-20210922201414-6d7c12191c72/go.mod h1:Vi4MHnaZVL3PVoPPA/Yp6g2pzntkDH8LGiRSY7qw6KQ=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

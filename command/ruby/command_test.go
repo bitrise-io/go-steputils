@@ -1,4 +1,4 @@
-package rubycommand
+package ruby
 
 import (
 	"reflect"
@@ -13,7 +13,7 @@ import (
 func TestSudoNeeded(t *testing.T) {
 	t.Log("sudo NOT need")
 	{
-		require.Equal(t, false, sudoNeeded(Unkown, "ls"))
+		require.Equal(t, false, sudoNeeded(Unknown, "ls"))
 		require.Equal(t, false, sudoNeeded(SystemRuby, "ls"))
 		require.Equal(t, false, sudoNeeded(BrewRuby, "ls"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "ls"))
@@ -22,20 +22,20 @@ func TestSudoNeeded(t *testing.T) {
 
 	t.Log("sudo needed for SystemRuby in case of gem list management command")
 	{
-		require.Equal(t, false, sudoNeeded(Unkown, "gem", "install", "fastlane"))
+		require.Equal(t, false, sudoNeeded(Unknown, "gem", "install", "fastlane"))
 		require.Equal(t, true, sudoNeeded(SystemRuby, "gem", "install", "fastlane"))
 		require.Equal(t, false, sudoNeeded(BrewRuby, "gem", "install", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "gem", "install", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "gem", "install", "fastlane"))
 
-		require.Equal(t, false, sudoNeeded(Unkown, "gem", "uninstall", "fastlane"))
+		require.Equal(t, false, sudoNeeded(Unknown, "gem", "uninstall", "fastlane"))
 		require.Equal(t, true, sudoNeeded(SystemRuby, "gem", "uninstall", "fastlane"))
 		require.Equal(t, false, sudoNeeded(BrewRuby, "gem", "uninstall", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "gem", "uninstall", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "gem", "uninstall", "fastlane"))
 
-		require.Equal(t, false, sudoNeeded(Unkown, "bundle", "install"))
-		require.Equal(t, false, sudoNeeded(Unkown, "bundle", "_2.0.2_", "install"))
+		require.Equal(t, false, sudoNeeded(Unknown, "bundle", "install"))
+		require.Equal(t, false, sudoNeeded(Unknown, "bundle", "_2.0.2_", "install"))
 		require.Equal(t, true, sudoNeeded(SystemRuby, "bundle", "install"))
 		require.Equal(t, true, sudoNeeded(SystemRuby, "bundle", "_2.0.2_", "install"))
 		require.Equal(t, false, sudoNeeded(SystemRuby, "bundle", "_2.0.2_"))
@@ -43,8 +43,8 @@ func TestSudoNeeded(t *testing.T) {
 		require.Equal(t, false, sudoNeeded(RVMRuby, "bundle", "install"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "bundle", "install"))
 
-		require.Equal(t, false, sudoNeeded(Unkown, "bundle", "update"))
-		require.Equal(t, false, sudoNeeded(Unkown, "bundle", "_2.0.2_", "update"))
+		require.Equal(t, false, sudoNeeded(Unknown, "bundle", "update"))
+		require.Equal(t, false, sudoNeeded(Unknown, "bundle", "_2.0.2_", "update"))
 		require.Equal(t, true, sudoNeeded(SystemRuby, "bundle", "update"))
 		require.Equal(t, true, sudoNeeded(SystemRuby, "bundle", "_2.0.2_", "update"))
 		require.Equal(t, false, sudoNeeded(BrewRuby, "bundle", "update"))
@@ -199,33 +199,33 @@ func Test_gemInstallCommand(t *testing.T) {
 			gem:              "fastlane",
 			version:          "",
 			enablePrerelease: false,
-			want:             []string{"gem", "install", "fastlane", "--no-document"},
+			want:             []string{"install", "fastlane", "--no-document"},
 		},
 		{
 			name:             "latest including prerelease",
 			gem:              "fastlane",
 			version:          "",
 			enablePrerelease: true,
-			want:             []string{"gem", "install", "fastlane", "--no-document", "--prerelease"},
+			want:             []string{"install", "fastlane", "--no-document", "--prerelease"},
 		},
 		{
 			name:             "version range including prerelease",
 			gem:              "fastlane",
 			version:          ">=2.149.1",
 			enablePrerelease: true,
-			want:             []string{"gem", "install", "fastlane", "--no-document", "--prerelease", "-v", ">=2.149.1"},
+			want:             []string{"install", "fastlane", "--no-document", "--prerelease", "-v", ">=2.149.1"},
 		},
 		{
 			name:             "fixed version",
 			gem:              "fastlane",
 			version:          "2.149.1",
 			enablePrerelease: false,
-			want:             []string{"gem", "install", "fastlane", "--no-document", "-v", "2.149.1"},
+			want:             []string{"install", "fastlane", "--no-document", "-v", "2.149.1"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := gemInstallCommand(tt.gem, tt.version, tt.enablePrerelease)
+			got := gemInstallCommandArgs(tt.gem, tt.version, tt.enablePrerelease, false)
 			require.Equal(t, tt.want, got, "gemInstallCommand() return value")
 		})
 	}
@@ -234,7 +234,7 @@ func Test_gemInstallCommand(t *testing.T) {
 func TestFactory_Create(t *testing.T) {
 	tests := []struct {
 		title   string
-		factory Factory
+		factory CommandFactory
 		name    string
 		args    []string
 		opts    *command.Opts
@@ -242,19 +242,19 @@ func TestFactory_Create(t *testing.T) {
 	}{
 		{
 			title:   "Command without sudo",
-			factory: Factory{Factory: command.NewFactory(env.NewRepository()), params: nil},
-			name:    "fastlane",
-			args:    nil,
+			factory: commandFactory{cmdFactory: command.NewFactory(env.NewRepository()), installType: RbenvRuby},
+			name:    "gem",
+			args:    []string{"install", "bitrise"},
 			opts:    nil,
-			want:    "fastlane",
+			want:    `gem "install" "bitrise"`,
 		},
 		{
 			title:   "Command with sudo",
-			factory: Factory{Factory: command.NewFactory(env.NewRepository()), params: []string{"sudo"}},
-			name:    "fastlane",
-			args:    nil,
+			factory: commandFactory{cmdFactory: command.NewFactory(env.NewRepository()), installType: SystemRuby},
+			name:    "gem",
+			args:    []string{"install", "bitrise"},
 			opts:    nil,
-			want:    `sudo "fastlane"`,
+			want:    `sudo "gem" "install" "bitrise"`,
 		},
 	}
 	for _, tt := range tests {
