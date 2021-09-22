@@ -36,7 +36,7 @@ const (
 	RbenvRuby
 )
 
-type Factory struct {
+type factory struct {
 	params []string
 	command.Factory
 }
@@ -54,10 +54,10 @@ func NewFactory(repository env.Repository) (command.Factory, error) {
 	}
 	f := command.NewFactory(repository)
 
-	return Factory{Factory: f, params: params}, nil
+	return factory{Factory: f, params: params}, nil
 }
 
-func (f Factory) Create(name string, args []string, opts *command.Opts) command.Command {
+func (f factory) Create(name string, args []string, opts *command.Opts) command.Command {
 	params := f.params
 	params = append(params, name)
 	params = append(params, args...)
@@ -65,19 +65,35 @@ func (f Factory) Create(name string, args []string, opts *command.Opts) command.
 	return f.Factory.Create(params[0], params[1:], opts)
 }
 
-//// TODO remove
-//var temporaryFactory = command.NewFactory(env.NewRepository())
-//
-//// TODO remove
-//func newWithParams(args ...string) (command.Command, error) {
-//	if len(args) == 0 {
-//		return nil, errors.New("no command provided")
-//	} else if len(args) == 1 {
-//		return temporaryFactory.Create(args[0], nil, nil), nil
-//	}
-//
-//	return temporaryFactory.Create(args[0], args[1:], nil), nil
-//}
+// CreateGemInstall ...
+func (f factory) CreateGemInstall(gem, version string, enablePrerelease bool, opts *command.Opts) ([]command.Command, error) {
+	s := gemInstallCommand(gem, version, enablePrerelease)
+	cmd := f.Create(s[0], s[1:], opts)
+	cmds := []command.Command{cmd}
+
+	rubyInstallType := RubyInstallType()
+	if rubyInstallType == RbenvRuby {
+		cmd := f.Create("rbenv", []string{"rehash"}, nil)
+		cmds = append(cmds, cmd)
+	}
+
+	return cmds, nil
+}
+
+// CreateGemUpdate ...
+func (f factory) CreateGemUpdate(gem string, opts *command.Opts) ([]command.Command, error) {
+	var cmds []command.Command
+	cmd := f.Create("gem", []string{"update", gem, "--no-document"}, opts)
+	cmds = append(cmds, cmd)
+
+	rubyInstallType := RubyInstallType()
+	if rubyInstallType == RbenvRuby {
+		cmd := f.Create("rbenv", []string{"rehash"}, nil)
+		cmds = append(cmds, cmd)
+	}
+
+	return cmds, nil
+}
 
 // RubyInstallType returns which version manager was used for the ruby install
 func RubyInstallType() InstallType {
@@ -135,27 +151,6 @@ func sudoNeeded(installType InstallType, slice ...string) bool {
 	return false
 }
 
-// GemUpdate ...
-func GemUpdate(gem string) ([]command.Command, error) {
-	var cmds []command.Command
-
-	f, err := NewFactory(env.NewRepository())
-	if err != nil {
-		return nil, err
-	}
-
-	cmd := f.Create("gem", []string{"update", gem, "--no-document"}, nil)
-	cmds = append(cmds, cmd)
-
-	rubyInstallType := RubyInstallType()
-	if rubyInstallType == RbenvRuby {
-		cmd := f.Create("rbenv", []string{"rehash"}, nil)
-		cmds = append(cmds, cmd)
-	}
-
-	return cmds, nil
-}
-
 func gemInstallCommand(gem, version string, enablePrerelease bool) []string {
 	slice := []string{"gem", "install", gem, "--no-document"}
 	if enablePrerelease {
@@ -166,26 +161,6 @@ func gemInstallCommand(gem, version string, enablePrerelease bool) []string {
 	}
 
 	return slice
-}
-
-// GemInstall ...
-func GemInstall(gem, version string, enablePrerelease bool) ([]command.Command, error) {
-	f, err := NewFactory(env.NewRepository())
-	if err != nil {
-		return nil, err
-	}
-
-	s := gemInstallCommand(gem, version, enablePrerelease)
-	cmd := f.Create(s[0], s[1:], nil)
-	cmds := []command.Command{cmd}
-
-	rubyInstallType := RubyInstallType()
-	if rubyInstallType == RbenvRuby {
-		cmd := f.Create("rbenv", []string{"rehash"}, nil)
-		cmds = append(cmds, cmd)
-	}
-
-	return cmds, nil
 }
 
 func findGemInList(gemList, gem, version string) (bool, error) {
