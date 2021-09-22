@@ -1,22 +1,14 @@
 package rubycommand
 
 import (
+	"reflect"
 	"testing"
+
+	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/env"
 
 	"github.com/stretchr/testify/require"
 )
-
-func TestCmdExist(t *testing.T) {
-	t.Log("exist")
-	{
-		require.Equal(t, true, cmdExist("ls"))
-	}
-
-	t.Log("not exist")
-	{
-		require.Equal(t, false, cmdExist("__not_existing_command__"))
-	}
-}
 
 func TestSudoNeeded(t *testing.T) {
 	t.Log("sudo NOT need")
@@ -235,6 +227,41 @@ func Test_gemInstallCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := gemInstallCommand(tt.gem, tt.version, tt.enablePrerelease)
 			require.Equal(t, tt.want, got, "gemInstallCommand() return value")
+		})
+	}
+}
+
+func TestFactory_Create(t *testing.T) {
+	tests := []struct {
+		title   string
+		factory Factory
+		name    string
+		args    []string
+		opts    *command.Opts
+		want    string
+	}{
+		{
+			title:   "Command without sudo",
+			factory: Factory{Factory: command.NewFactory(env.NewRepository()), params: nil},
+			name:    "fastlane",
+			args:    nil,
+			opts:    nil,
+			want:    "fastlane",
+		},
+		{
+			title:   "Command with sudo",
+			factory: Factory{Factory: command.NewFactory(env.NewRepository()), params: []string{"sudo"}},
+			name:    "fastlane",
+			args:    nil,
+			opts:    nil,
+			want:    `sudo "fastlane"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			if got := tt.factory.Create(tt.name, tt.args, tt.opts); !reflect.DeepEqual(got.PrintableCommandArgs(), tt.want) {
+				t.Errorf("Create() = %v, want %v", got.PrintableCommandArgs(), tt.want)
+			}
 		})
 	}
 }

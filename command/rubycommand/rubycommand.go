@@ -5,11 +5,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/bitrise-io/go-utils/env"
+	"os/exec"
 	"regexp"
 	"strings"
 
 	"github.com/bitrise-io/go-utils/command"
+	"github.com/bitrise-io/go-utils/env"
 	"github.com/bitrise-io/go-utils/pathutil"
 )
 
@@ -35,36 +36,52 @@ const (
 	RbenvRuby
 )
 
-// TODO remove
-var temporaryFactory = command.NewFactory(env.NewRepository())
-
-// TODO remove
-func newWithParams(args ...string) (command.Command, error) {
-	if len(args) == 0 {
-		return nil, errors.New("no command provided")
-	} else if len(args) == 1 {
-		return temporaryFactory.Create(args[0], nil, nil), nil
-	}
-
-	return temporaryFactory.Create(args[0], args[1:], nil), nil
+type Factory struct {
+	params []string
+	command.Factory
 }
 
-func cmdExist(slice ...string) bool {
-	if len(slice) == 0 {
-		return false
+func NewFactory(repository env.Repository) (command.Factory, error) {
+	var params []string
+
+	rubyInstallType := RubyInstallType()
+	if rubyInstallType == Unkown {
+		return nil, errors.New("unknown ruby installation type")
 	}
 
-	cmd, err := newWithParams(slice...)
-	if err != nil {
-		return false
+	if sudoNeeded(rubyInstallType, params...) {
+		params = append([]string{"sudo"}, params...)
 	}
+	f := command.NewFactory(repository)
 
-	return cmd.Run() == nil
+	return Factory{Factory: f, params: params}, nil
 }
+
+func (f Factory) Create(name string, args []string, opts *command.Opts) command.Command {
+	params := f.params
+	params = append(params, name)
+	params = append(params, args...)
+
+	return f.Factory.Create(params[0], params[1:], opts)
+}
+
+//// TODO remove
+//var temporaryFactory = command.NewFactory(env.NewRepository())
+//
+//// TODO remove
+//func newWithParams(args ...string) (command.Command, error) {
+//	if len(args) == 0 {
+//		return nil, errors.New("no command provided")
+//	} else if len(args) == 1 {
+//		return temporaryFactory.Create(args[0], nil, nil), nil
+//	}
+//
+//	return temporaryFactory.Create(args[0], args[1:], nil), nil
+//}
 
 // RubyInstallType returns which version manager was used for the ruby install
 func RubyInstallType() InstallType {
-	whichRuby, err := temporaryFactory.Create("which", []string{"ruby"}, nil).RunAndReturnTrimmedCombinedOutput()
+	whichRuby, err := command.NewFactory(env.NewRepository()).Create("which", []string{"ruby"}, nil).RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
 		return Unkown
 	}
@@ -76,9 +93,9 @@ func RubyInstallType() InstallType {
 		installType = BrewRuby
 	} else if whichRuby == brewRubyPthAlt {
 		installType = BrewRuby
-	} else if cmdExist("rvm", "-v") {
+	} else if _, err := exec.LookPath("rvm"); err == nil {
 		installType = RVMRuby
-	} else if cmdExist("rbenv", "-v") {
+	} else if _, err := exec.LookPath("rbenv"); err == nil {
 		installType = RbenvRuby
 	}
 
@@ -118,49 +135,21 @@ func sudoNeeded(installType InstallType, slice ...string) bool {
 	return false
 }
 
-// NewWithParams ...
-func NewWithParams(params ...string) (command.Command, error) {
-	rubyInstallType := RubyInstallType()
-	if rubyInstallType == Unkown {
-		return nil, errors.New("unknown ruby installation type")
-	}
-
-	if sudoNeeded(rubyInstallType, params...) {
-		params = append([]string{"sudo"}, params...)
-	}
-
-	return newWithParams(params...)
-}
-
-// NewFromSlice ...
-func NewFromSlice(slice []string) (command.Command, error) {
-	return NewWithParams(slice...)
-}
-
-// New ...
-func New(name string, args ...string) (command.Command, error) {
-	slice := append([]string{name}, args...)
-	return NewWithParams(slice...)
-}
-
 // GemUpdate ...
 func GemUpdate(gem string) ([]command.Command, error) {
 	var cmds []command.Command
 
-	cmd, err := New("gem", "update", gem, "--no-document")
+	f, err := NewFactory(env.NewRepository())
 	if err != nil {
-		return []command.Command{}, err
+		return nil, err
 	}
 
+	cmd := f.Create("gem", []string{"update", gem, "--no-document"}, nil)
 	cmds = append(cmds, cmd)
 
 	rubyInstallType := RubyInstallType()
 	if rubyInstallType == RbenvRuby {
-		cmd, err := New("rbenv", "rehash")
-		if err != nil {
-			return []command.Command{}, err
-		}
-
+		cmd := f.Create("rbenv", []string{"rehash"}, nil)
 		cmds = append(cmds, cmd)
 	}
 
@@ -181,20 +170,18 @@ func gemInstallCommand(gem, version string, enablePrerelease bool) []string {
 
 // GemInstall ...
 func GemInstall(gem, version string, enablePrerelease bool) ([]command.Command, error) {
-	cmd, err := NewFromSlice(gemInstallCommand(gem, version, enablePrerelease))
+	f, err := NewFactory(env.NewRepository())
 	if err != nil {
-		return []command.Command{}, err
+		return nil, err
 	}
 
+	s := gemInstallCommand(gem, version, enablePrerelease)
+	cmd := f.Create(s[0], s[1:], nil)
 	cmds := []command.Command{cmd}
 
 	rubyInstallType := RubyInstallType()
 	if rubyInstallType == RbenvRuby {
-		cmd, err := New("rbenv", "rehash")
-		if err != nil {
-			return []command.Command{}, err
-		}
-
+		cmd := f.Create("rbenv", []string{"rehash"}, nil)
 		cmds = append(cmds, cmd)
 	}
 
@@ -223,10 +210,12 @@ func findGemInList(gemList, gem, version string) (bool, error) {
 
 // IsGemInstalled ...
 func IsGemInstalled(gem, version string) (bool, error) {
-	cmd, err := New("gem", "list")
+	f, err := NewFactory(env.NewRepository())
 	if err != nil {
 		return false, err
 	}
+
+	cmd := f.Create("gem", []string{"list"}, nil)
 
 	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
@@ -281,7 +270,8 @@ func IsSpecifiedRbenvRubyInstalled(workdir string) (bool, string, error) {
 		return false, "", fmt.Errorf("failed to get absolute path for ( %s ), error: %s", workdir, err)
 	}
 
-	cmd := temporaryFactory.Create("rbenv", []string{"version"}, &command.Opts{Dir: absWorkdir})
+	f := command.NewFactory(env.NewRepository())
+	cmd := f.Create("rbenv", []string{"version"}, &command.Opts{Dir: absWorkdir})
 	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
 		return false, "", fmt.Errorf("failed to check installed ruby version, %s error: %s", out, err)
