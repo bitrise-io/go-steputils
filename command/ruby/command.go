@@ -12,11 +12,14 @@ import (
 // CommandFactory ...
 type CommandFactory interface {
 	Create(name string, args []string, opts *command.Opts) command.Command
+	CreateBundleExec(name string, args []string, bundlerVersion string, opts *command.Opts) command.Command
+	CreateBundleInstall(bundlerVersion string, opts *command.Opts) command.Command
+	CreateGemInstall(gem, version string, enablePrerelease, force bool, opts *command.Opts) []command.Command
+	CreateGemUpdate(gem string, opts *command.Opts) []command.Command
 }
 
 type commandFactory struct {
 	cmdFactory  command.Factory
-	cmdLocator  env.CommandLocator
 	installType InstallType
 }
 
