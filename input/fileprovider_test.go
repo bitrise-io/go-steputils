@@ -124,6 +124,56 @@ func Test_GivenRemoteFileProvidedAndDownloadSucceeds_WhenLocalPathCalled_ThenPat
 	assert.NotEmpty(t, actualPath)
 }
 
+func Test_Contents_GivenRemoteFileProvidedSuceeds(t *testing.T) {
+	inputPath := "https://something.com/best-file-ever.bitrise"
+	mockFileDownloader := new(MockFileDownloader)
+	mockFileDownloader.On("GetRemoteContents", inputPath).Return([]byte{1}, nil)
+	fileProvider := NewFileProvider(mockFileDownloader)
+
+	contents, err := fileProvider.Contents(inputPath)
+
+	assert.NoError(t, err)
+	assert.NotEmpty(t, contents)
+}
+
+func Test_Contents_GivenRemoteFileProvidedFails(t *testing.T) {
+	inputPath := "https://something.com/best-file-ever.bitrise"
+	mockFileDownloader := new(MockFileDownloader)
+	mockFileDownloader.On("GetRemoteContents", inputPath).Return([]byte{}, errors.New("failure"))
+	fileProvider := NewFileProvider(mockFileDownloader)
+
+	contents, err := fileProvider.Contents(inputPath)
+
+	assert.Error(t, err)
+	assert.Empty(t, contents)
+}
+
+func Test_Contents_GivenLocalFileProvidedSuceeds(t *testing.T) {
+	filePath := "/path/tp/file/meinefile.txt"
+	inputPath := "file://" + filePath
+	mockFileDownloader := new(MockFileDownloader)
+	mockFileDownloader.On("ReadLocalFile", filePath).Return([]byte{1}, nil)
+	fileProvider := NewFileProvider(mockFileDownloader)
+
+	contents, err := fileProvider.Contents(inputPath)
+
+	assert.NoError(t, err)
+	assert.NotEmpty(t, contents)
+}
+
+func Test_Contents_GivenLocalFileProvidedFails(t *testing.T) {
+	filePath := "/path/tp/file/meinefile.txt"
+	inputPath := "file://" + filePath
+	mockFileDownloader := new(MockFileDownloader)
+	mockFileDownloader.On("ReadLocalFile", filePath).Return([]byte{}, errors.New("failure"))
+	fileProvider := NewFileProvider(mockFileDownloader)
+
+	contents, err := fileProvider.Contents(inputPath)
+
+	assert.Error(t, err)
+	assert.Empty(t, contents)
+}
+
 func givenFileProvider(filedownloader FileDownloader) FileProvider {
 	return NewFileProvider(filedownloader)
 }
