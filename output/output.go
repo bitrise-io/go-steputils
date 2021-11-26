@@ -86,14 +86,14 @@ func ZipAndExportOutput(sourcePths []string, destinationZipPth, envKey string) e
 		return err
 	}
 
-	// We have separate zip functions for files and for a single folder and that is the main reason we cannot have mixed
-	// paths (files and also folders) in the input. It has to be either a single folder, single or multiple files. Everything
+	// We have separate zip functions for files and folders and that is the main reason we cannot have mixed
+	// paths (files and also folders) in the input. It has to be either folders or files. Everything
 	// else leads to an error.
 	switch inputType {
-	case singleOrMultipleFilesType:
+	case filesType:
 		err = ziputil.ZipFiles(sourcePths, tmpZipFilePth)
-	case singleFolderType:
-		err = ziputil.ZipDir(sourcePths[0], tmpZipFilePth, false)
+	case foldersType:
+		err = ziputil.ZipDirs(sourcePths, tmpZipFilePth)
 	case mixedFileAndFolderType:
 		return fmt.Errorf("source path list (%s) contains a mix of files and folders", sourcePths)
 	default:
@@ -117,8 +117,8 @@ func zipFilePath() (string, error) {
 }
 
 const (
-	singleOrMultipleFilesType = "files"
-	singleFolderType = "folder"
+	filesType = "files"
+	foldersType = "folders"
 	mixedFileAndFolderType = "mixed"
 )
 
@@ -147,9 +147,9 @@ func getInputType(sourcePths []string) (string, error) {
 	}
 
 	if fileCount == len(sourcePths) {
-		return singleOrMultipleFilesType, nil
-	} else if folderCount == 1 && len(sourcePths) == 1 {
-		return singleFolderType, nil
+		return filesType, nil
+	} else if folderCount == len(sourcePths) {
+		return foldersType, nil
 	} else if 0 < folderCount && 0 < fileCount {
 		return mixedFileAndFolderType, nil
 	}

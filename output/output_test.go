@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestZipAndExportOutputDir(t *testing.T) {
+func TestZipDirectoriesAndExportOutput(t *testing.T) {
 	tmpDir, err := pathutil.NormalizedOSTempDirPath("test")
 	require.NoError(t, err)
 
@@ -23,13 +23,16 @@ func TestZipAndExportOutputDir(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	sourceDir := filepath.Join(tmpDir, "source")
-	require.NoError(t, os.MkdirAll(sourceDir, 0777))
+	sourceA := filepath.Join(tmpDir, "sourceA")
+	require.NoError(t, os.MkdirAll(sourceA, 0777))
+
+	sourceB := filepath.Join(tmpDir, "sourceB")
+	require.NoError(t, os.MkdirAll(sourceB, 0777))
 
 	destinationZip := filepath.Join(tmpDir, "destination.zip")
 
 	envKey := "EXPORTED_ZIP_PATH"
-	require.NoError(t, ZipAndExportOutput([]string{sourceDir}, destinationZip, envKey))
+	require.NoError(t, ZipAndExportOutput([]string{sourceA, sourceB}, destinationZip, envKey))
 
 	// destination should exist
 	exist, err := pathutil.IsPathExists(destinationZip)
