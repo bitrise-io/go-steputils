@@ -58,6 +58,8 @@ func Test_PrintFormat(t *testing.T) {
 		IntThatCanBeEmpty    int    `env:"int_that_can_be_empty"`
 		BoolThatCanBeEmpty   bool   `env:"bool_that_can_be_empty"`
 		SensitiveInput       Secret `env:"sensitive_input"`
+		ValueOptionInput     string `env:"value_option_input,opt[first,second,third]"`
+		RequiredInput        string `env:"required_input,required"`
 	}
 
 	cfg := testConfig{
@@ -66,7 +68,9 @@ func Test_PrintFormat(t *testing.T) {
 		// StringThatCanBeEmpty
 		// IntThatCanBeEmpty
 		// BoolThatCanBeEmpty
-		SensitiveInput: "my secret",
+		SensitiveInput:   "my secret",
+		ValueOptionInput: "second",
+		RequiredInput:    "value",
 	}
 
 	reader, writer, err := os.Pipe()
@@ -90,6 +94,8 @@ func Test_PrintFormat(t *testing.T) {
 - int_that_can_be_empty: <empty value>
 - bool_that_can_be_empty: <empty value>
 - sensitive_input: *****
+- value_option_input: second
+- required_input: value
 `
 	assert.Equal(t, expected, string(content))
 }

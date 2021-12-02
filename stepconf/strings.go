@@ -46,7 +46,7 @@ func toString(config interface{}) string {
 	str := fmt.Sprint(colorstring.Bluef("%s:\n", strings.Title(t.Name())))
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		var key = field.Tag.Get("env")
+		var key, _ = parseTag(field.Tag.Get("env"))
 		if key == "" {
 			key = field.Name
 		}
