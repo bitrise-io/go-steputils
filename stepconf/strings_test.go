@@ -50,13 +50,27 @@ func Test_valueString(t *testing.T) {
 	}
 }
 
-func Test_Print(t *testing.T) {
-	type printTestCfg struct {
-		MyPassword string
+func Test_PrintFormat(t *testing.T) {
+	type testConfig struct {
+		SimpleString         string `env:"simple_string"`
+		FieldWithoutEnvTag   string
+		StringThatCanBeEmpty string `env:"string_that_can_be_empty"`
+		IntThatCanBeEmpty    int    `env:"int_that_can_be_empty"`
+		BoolThatCanBeEmpty   bool   `env:"bool_that_can_be_empty"`
+		SensitiveInput       Secret `env:"sensitive_input"`
+		ValueOptionInput     string `env:"value_option_input,opt[first,second,third]"`
+		RequiredInput        string `env:"required_input,required"`
 	}
 
-	cfg := printTestCfg{
-		MyPassword: "%dorfmtpass%f",
+	cfg := testConfig{
+		SimpleString:       "simple value",
+		FieldWithoutEnvTag: "This field doesn't have a struct tag",
+		// StringThatCanBeEmpty
+		// IntThatCanBeEmpty
+		// BoolThatCanBeEmpty
+		SensitiveInput:   "my secret",
+		ValueOptionInput: "second",
+		RequiredInput:    "value",
 	}
 
 	reader, writer, err := os.Pipe()
@@ -73,5 +87,15 @@ func Test_Print(t *testing.T) {
 	content, err := ioutil.ReadAll(reader)
 	assert.NoError(t, err)
 
-	assert.Equal(t, toString(cfg), string(content))
+	expected := `[34;1mTestConfig:
+[0m- simple_string: simple value
+- FieldWithoutEnvTag: This field doesn't have a struct tag
+- string_that_can_be_empty: <unset>
+- int_that_can_be_empty: <unset>
+- bool_that_can_be_empty: <unset>
+- sensitive_input: *****
+- value_option_input: second
+- required_input: value
+`
+	assert.Equal(t, expected, string(content))
 }
