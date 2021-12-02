@@ -90,9 +90,9 @@ func Test_PrintFormat(t *testing.T) {
 	expected := `[34;1mTestConfig:
 [0m- simple_string: simple value
 - FieldWithoutEnvTag: This field doesn't have a struct tag
-- string_that_can_be_empty: <empty value>
-- int_that_can_be_empty: <empty value>
-- bool_that_can_be_empty: <empty value>
+- string_that_can_be_empty: <unset>
+- int_that_can_be_empty: <unset>
+- bool_that_can_be_empty: <unset>
 - sensitive_input: *****
 - value_option_input: second
 - required_input: value
