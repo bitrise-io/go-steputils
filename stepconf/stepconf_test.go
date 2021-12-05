@@ -498,8 +498,8 @@ func Test_Print(t *testing.T) {
 [0m- simple_string: simple value
 - FieldWithoutEnvTag: This field doesn't have a struct tag
 - string_that_can_be_empty: <unset>
-- int_that_can_be_empty: <unset>
-- bool_that_can_be_empty: <unset>
+- int_that_can_be_empty: 0
+- bool_that_can_be_empty: false
 - sensitive_input: *****
 - value_option_input: second
 - required_input: value
