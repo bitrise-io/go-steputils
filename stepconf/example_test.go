@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	envMocks "github.com/bitrise-io/go-utils/env/mocks"
-
-	"github.com/bitrise-io/go-steputils/stepconf"
+	"github.com/bitrise-io/go-steputils/v2/stepconf"
+	"github.com/bitrise-io/go-steputils/v2/stepconf/mocks"
 )
 
 type config struct {
@@ -58,7 +57,7 @@ var envs = map[string]string{
 func TestExample(t *testing.T) {
 	var cfg config
 
-	envGetter := new(envMocks.Repository)
+	envGetter := new(mocks.Repository)
 	for key, value := range envs {
 		envGetter.On("Get", key).Return(value)
 	}

@@ -1,10 +1,10 @@
-module github.com/bitrise-io/go-steputils
+module github.com/bitrise-io/go-steputils/v2
 
 go 1.16
 
 require (
-	github.com/bitrise-io/go-utils v0.0.0-20211126092127-3a566ee3f420
-	github.com/stretchr/objx v0.3.0 // indirect
+	github.com/bitrise-io/go-steputils v1.0.1
+	github.com/bitrise-io/go-utils v1.0.1
+	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.1
 	github.com/stretchr/testify v1.7.0
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )

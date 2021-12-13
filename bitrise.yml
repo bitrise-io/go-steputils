@@ -1,18 +1,14 @@
-format_version: 7
+format_version: "11"
 default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
 
 workflows:
-  # ----------------------------------------------------------------
-  # --- workflows for Testing
   ci:
     before_run:
-      - test
+    - test
 
   test:
     steps:
-      - go-list:
-          inputs:
-            - exclude: "*/mocks"
-      - golint:
-      - errcheck:
-      - go-test:
+    - go-list: { }
+    - golint: { }
+    - errcheck: { }
+    - go-test: { }

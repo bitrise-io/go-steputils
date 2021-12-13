@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bitrise-io/go-utils/env"
 	"github.com/bitrise-io/go-utils/parseutil"
+	"github.com/bitrise-io/go-utils/v2/env"
 )
 
 const (
@@ -133,7 +133,7 @@ func validateConstraint(value, constraint string) error {
 			return err
 		}
 	// TODO: use FindStringSubmatch to distinguish no match and match for empty string.
-	case regexp.MustCompile(`^opt\[.*\]$`).FindString(constraint):
+	case regexp.MustCompile(`^opt\[.*]$`).FindString(constraint):
 		if !contains(value, constraint) {
 			// TODO: print only the value options, not the whole string.
 			return fmt.Errorf("value is not in value options (%s)", constraint)

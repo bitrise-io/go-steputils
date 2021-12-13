@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	envMocks "github.com/bitrise-io/go-utils/env/mocks"
+	"github.com/bitrise-io/go-steputils/v2/stepconf/mocks"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -67,7 +67,7 @@ type Config struct {
 func TestParse(t *testing.T) {
 	var c Config
 
-	envGetter := new(envMocks.Repository)
+	envGetter := new(mocks.Repository)
 	for key, value := range valid {
 		envGetter.On("Get", key).Return(value)
 	}
@@ -146,7 +146,7 @@ func TestNotStruct(t *testing.T) {
 func TestInvalidEnvs(t *testing.T) {
 	var c Config
 
-	envGetter := new(envMocks.Repository)
+	envGetter := new(mocks.Repository)
 	for key, value := range invalid {
 		envGetter.On("Get", key).Return(value)
 	}
@@ -162,7 +162,7 @@ func TestValidateNotExists(t *testing.T) {
 		Length string `env:"length,length"`
 	}
 
-	envGetter := new(envMocks.Repository)
+	envGetter := new(mocks.Repository)
 	envGetter.On("Get", mock.Anything).Return("")
 
 	if err := parse(&c, envGetter); err == nil {
@@ -175,14 +175,14 @@ func TestRequired(t *testing.T) {
 		Required string `env:"required,required"`
 	}
 
-	envGetter := new(envMocks.Repository)
+	envGetter := new(mocks.Repository)
 	envGetter.On("Get", mock.Anything).Return("")
 
 	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when required env var is missing")
 	}
 
-	envGetter = new(envMocks.Repository)
+	envGetter = new(mocks.Repository)
 	envGetter.On("Get", "required").Return("set")
 
 	if err := parse(&c, envGetter); err != nil {
@@ -195,7 +195,7 @@ func TestValidatePath(t *testing.T) {
 		Path string `env:"path,file"`
 	}
 
-	envGetter := new(envMocks.Repository)
+	envGetter := new(mocks.Repository)
 	envGetter.On("Get", "path").Return("/not/exist")
 
 	if err := parse(&c, envGetter); err == nil {
@@ -207,7 +207,7 @@ func TestValidatePath(t *testing.T) {
 		t.Fatalf("should not have error: %s", err)
 	}
 
-	envGetter = new(envMocks.Repository)
+	envGetter = new(mocks.Repository)
 	envGetter.On("Get", "path").Return(f.Name())
 	if err := parse(&c, envGetter); err != nil {
 		t.Error("failure when path is exist")
@@ -219,7 +219,7 @@ func TestValidateDir(t *testing.T) {
 		Dir string `env:"dir,dir"`
 	}
 
-	envGetter := new(envMocks.Repository)
+	envGetter := new(mocks.Repository)
 	envGetter.On("Get", "dir").Return("/not/exist")
 
 	if err := parse(&c, envGetter); err == nil {
@@ -231,7 +231,7 @@ func TestValidateDir(t *testing.T) {
 		t.Fatalf("should not have error: %s", err)
 	}
 
-	envGetter = new(envMocks.Repository)
+	envGetter = new(mocks.Repository)
 	envGetter.On("Get", "dir").Return(dir)
 
 	if err := parse(&c, envGetter); err != nil {
@@ -244,14 +244,14 @@ func TestValueOptions(t *testing.T) {
 		Option string `env:"option,opt[opt1,opt2,opt3]"`
 	}
 
-	envGetter := new(envMocks.Repository)
+	envGetter := new(mocks.Repository)
 	envGetter.On("Get", "option").Return("no-opt")
 
 	if err := parse(&c, envGetter); err == nil {
 		t.Error("no failure when value is not in value options")
 	}
 
-	envGetter = new(envMocks.Repository)
+	envGetter = new(mocks.Repository)
 	envGetter.On("Get", "option").Return("opt1")
 
 	if err := parse(&c, envGetter); err != nil {
@@ -264,7 +264,7 @@ func TestValueOptionsWithComma(t *testing.T) {
 		Option string `env:"option,opt[opt1,opt2,'opt1,opt2']"`
 	}
 
-	envGetter := new(envMocks.Repository)
+	envGetter := new(mocks.Repository)
 	envGetter.On("Get", "option").Return("opt1,opt2")
 
 	if err := parse(&c, envGetter); err != nil {
@@ -274,7 +274,7 @@ func TestValueOptionsWithComma(t *testing.T) {
 		t.Errorf("expected %s, got %v", "opt1", c.Option)
 	}
 
-	envGetter = new(envMocks.Repository)
+	envGetter = new(mocks.Repository)
 	envGetter.On("Get", "option").Return("")
 
 	if err := parse(&c, envGetter); err == nil {

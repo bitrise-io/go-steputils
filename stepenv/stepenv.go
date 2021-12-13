@@ -2,7 +2,7 @@ package stepenv
 
 import (
 	"github.com/bitrise-io/go-steputils/tools"
-	"github.com/bitrise-io/go-utils/env"
+	"github.com/bitrise-io/go-utils/v2/env"
 )
 
 // NewRepository ...
