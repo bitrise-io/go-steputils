@@ -8,7 +8,10 @@ workflows:
 
   test:
     steps:
-    - go-list: { }
+    - go-list:
+        inputs:
+        - exclude: |-
+            */mocks
     - golint: { }
     - errcheck: { }
     - go-test: { }
