@@ -1,8 +1,12 @@
 package ruby
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/bitrise-io/go-steputils/v2/ruby/mocks"
+	"github.com/bitrise-io/go-utils/v2/log"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -137,4 +141,54 @@ func Test_isSpecifiedRbenvRubyInstalled(t *testing.T) {
 		require.Equal(t, true, installed)
 		require.Equal(t, "2.3.5", version)
 	}
+}
+
+func Test_environment_IsSpecifiedRbenvRubyInstalled(t *testing.T) {
+	type fields struct {
+		factory CommandFactory
+		logger  log.Logger
+	}
+	tests := []struct {
+		name        string
+		fields      fields
+		wantInstall bool
+		wantVersion string
+		wantErr     bool
+	}{
+		{name: "Parse missing ruby version even if command fails",
+			fields:      fields{createFailingCommandFactory(), log.NewLogger()},
+			wantInstall: false,
+			wantVersion: "2.7.4",
+			wantErr:     false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := environment{
+				factory: tt.fields.factory,
+				logger:  tt.fields.logger,
+			}
+			got, got1, err := m.IsSpecifiedRbenvRubyInstalled("/")
+			if (err != nil) != tt.wantErr {
+				t.Errorf("IsSpecifiedRbenvRubyInstalled() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.wantInstall {
+				t.Errorf("IsSpecifiedRbenvRubyInstalled() got = %v, want %v", got, tt.wantInstall)
+			}
+			if got1 != tt.wantVersion {
+				t.Errorf("IsSpecifiedRbenvRubyInstalled() got1 = %v, want %v", got1, tt.wantVersion)
+			}
+		})
+	}
+}
+
+func createFailingCommandFactory() CommandFactory {
+	response := `rbenv: version ` + "`" + `2.7.4' is not installed (set by /Users/vagrant/git/.ruby-version)
+	(set by /Users/vagrant/git/.ruby-version)`
+	mockCommand := new(mocks.Command)
+	mockCommand.On("RunAndReturnTrimmedCombinedOutput").Return(response, fmt.Errorf("exit status 1"))
+	mockCommandFactory := new(mocks.CommandFactory)
+	mockCommandFactory.On("Create", mock.Anything, mock.Anything, mock.Anything).Return(mockCommand)
+	return mockCommandFactory
 }
