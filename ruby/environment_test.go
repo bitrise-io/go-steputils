@@ -183,6 +183,78 @@ func Test_environment_IsSpecifiedRbenvRubyInstalled(t *testing.T) {
 	}
 }
 
+func Test_RubyInstallTypeUnknown(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("", fmt.Errorf("exit status 1"))
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, Unknown)
+}
+
+func Test_RubyInstallTypeSystemRuby(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return(systemRubyPth, nil)
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, SystemRuby)
+}
+
+func Test_RubyInstallTypeBrewRuby(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return(brewRubyPth, nil)
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, BrewRuby)
+}
+
+func Test_RubyInstallTypeBrewRubyAlt(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return(brewRubyPthAlt, nil)
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, BrewRuby)
+}
+
+func Test_RubyInstallTypeRVM(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("", nil)
+	mockCommandLocator.On("LookPath", "rbenv").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "rvm").Return("/some/path/to/rvm", nil)
+	mockCommandLocator.On("LookPath", "asdf").Return("", fmt.Errorf("exit status 1"))
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, RVMRuby)
+}
+
+func Test_RubyInstallTypeRbenv(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("", nil)
+	mockCommandLocator.On("LookPath", "rbenv").Return("/some/path/to/rbenv", nil)
+	mockCommandLocator.On("LookPath", "rvm").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "asdf").Return("", fmt.Errorf("exit status 1"))
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, RbenvRuby)
+}
+
+func Test_RubyInstallTypeASDF(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("", nil)
+	mockCommandLocator.On("LookPath", "rbenv").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "rvm").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "asdf").Return(asdfRubyPath, nil)
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, ASDFRuby)
+}
+
 func createFailingCommandFactory() CommandFactory {
 	response := `rbenv: version ` + "`" + `2.7.4' is not installed (set by /Users/vagrant/git/.ruby-version)
 	(set by /Users/vagrant/git/.ruby-version)`
