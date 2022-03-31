@@ -17,6 +17,7 @@ const (
 	systemRubyPth  = "/usr/bin/ruby"
 	brewRubyPth    = "/usr/local/bin/ruby"
 	brewRubyPthAlt = "/usr/local/opt/ruby/bin/ruby"
+	asdfRubyPath   = "$HOME/.asdf/shims/ruby"
 )
 
 // InstallType ...
@@ -33,6 +34,8 @@ const (
 	RVMRuby
 	// RbenvRuby ...
 	RbenvRuby
+	// ASDFRuby ...
+	ASDFRuby
 )
 
 // Environment ...
@@ -113,6 +116,8 @@ func rubyInstallType(cmdLocator env.CommandLocator) InstallType {
 		installType = RVMRuby
 	} else if _, err := cmdLocator.LookPath("rbenv"); err == nil {
 		installType = RbenvRuby
+	} else if _, err := cmdLocator.LookPath("asdf"); err == nil {
+		installType = ASDFRuby
 	}
 
 	return installType
