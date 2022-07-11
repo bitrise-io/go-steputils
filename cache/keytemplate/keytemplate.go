@@ -10,6 +10,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/log"
 )
 
+// Model ...
 type Model struct {
 	envRepo env.Repository
 	logger  log.Logger
@@ -17,6 +18,7 @@ type Model struct {
 	arch    string
 }
 
+// BuildContext contains metadata about the build that gets exposed to the template
 type BuildContext struct {
 	Workflow   string
 	Branch     string
@@ -31,6 +33,7 @@ type templateInventory struct {
 	CommitHash string
 }
 
+// NewModel ...
 func NewModel(envRepo env.Repository, logger log.Logger) Model {
 	return Model{
 		envRepo: envRepo,
