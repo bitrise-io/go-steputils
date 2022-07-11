@@ -109,9 +109,8 @@ func (repo envRepository) Get(key string) string {
 	value, ok := repo.envVars[key]
 	if ok {
 		return value
-	} else {
-		return ""
 	}
+	return ""
 }
 
 func (repo envRepository) Set(key, value string) error {
