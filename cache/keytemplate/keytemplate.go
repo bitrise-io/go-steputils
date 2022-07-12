@@ -71,7 +71,11 @@ func (m Model) Evaluate(key string, buildContext BuildContext) (string, error) {
 }
 
 func (m Model) getEnvVar(key string) string {
-	return m.envRepo.Get(key)
+	value := m.envRepo.Get(key)
+	if value == "" {
+		m.logger.Warnf("Environment variable %s is empty", key)
+	}
+	return value
 }
 
 func (m Model) validateInventory(inventory templateInventory) {
