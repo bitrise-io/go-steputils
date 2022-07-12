@@ -58,7 +58,7 @@ func TestEvaluate(t *testing.T) {
 		{
 			name: "Key with env vars",
 			args: args{
-				input:        "npm-cache-{{ getenv \"BUILD_TYPE\" }}",
+				input:        `npm-cache-{{ getenv "BUILD_TYPE" }}`,
 				buildContext: buildContext,
 				envVars: map[string]string{
 					"BUILD_TYPE":  "release",
@@ -71,13 +71,31 @@ func TestEvaluate(t *testing.T) {
 		{
 			name: "Key with missing env var",
 			args: args{
-				input:        "npm-cache-{{ getenv \"BUILD_TYPE\" }}",
+				input:        `npm-cache-{{ getenv "BUILD_TYPE" }}`,
 				buildContext: buildContext,
 				envVars: map[string]string{
 					"ANOTHER_ENV": "false",
 				},
 			},
 			want:    "npm-cache-",
+			wantErr: false,
+		},
+		{
+			name: "Key with file checksum",
+			args: args{
+				input:        `gradle-cache-{{ checksum "testdata/**/*.gradle*" }}`,
+				buildContext: buildContext,
+			},
+			want:    "gradle-cache-563cf037f336453ee1888c3dcbe1c687ebeb6c593d4d0bd57ccc5fc49daa3951",
+			wantErr: false,
+		},
+		{
+			name: "Key with multiple file checksum params",
+			args: args{
+				input:        `gradle-cache-{{ checksum "testdata/**/*.gradle*" "testdata/package-lock.json" }}`,
+				buildContext: buildContext,
+			},
+			want:    "gradle-cache-f7a92b852d03a958a99e8c04b831d1e709ee2e9b7a00d851317e66d617188a8b",
 			wantErr: false,
 		},
 	}

@@ -46,7 +46,8 @@ func NewModel(envRepo env.Repository, logger log.Logger) Model {
 // Evaluate returns the final string from a key template and the provided build context
 func (m Model) Evaluate(key string, buildContext BuildContext) (string, error) {
 	funcMap := template.FuncMap{
-		"getenv": m.getEnvVar,
+		"getenv":   m.getEnvVar,
+		"checksum": m.checksum,
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).Parse(key)
