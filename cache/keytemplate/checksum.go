@@ -12,6 +12,7 @@ import (
 
 // checksum returns a hex-encoded SHA-256 checksum of one or multiple files. Each file path can contain glob patterns,
 // including "doublestar" patterns (such as `**/*.gradle`).
+// The path list is sorted alphabetically to produce consistent output.
 // Errors are logged as warnings and an empty string is returned in that case.
 func (m Model) checksum(paths ...string) string {
 	workingDir, err := os.Getwd()
