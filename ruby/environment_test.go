@@ -300,10 +300,10 @@ func Test_RubyInstallTypeRbenv(t *testing.T) {
 
 func Test_RubyInstallTypeASDF(t *testing.T) {
 	mockCommandLocator := new(mocks.CommandLocator)
-	mockCommandLocator.On("LookPath", "ruby").Return("", nil)
+	mockCommandLocator.On("LookPath", "ruby").Return("/path/to/.asdf/shims/ruby", nil)
 	mockCommandLocator.On("LookPath", "rbenv").Return("", fmt.Errorf("exit status 1"))
 	mockCommandLocator.On("LookPath", "rvm").Return("", fmt.Errorf("exit status 1"))
-	mockCommandLocator.On("LookPath", "asdf").Return("/some/path/to/.asdf", nil)
+	mockCommandLocator.On("LookPath", "asdf").Return("/opt/homebrew/opt/asdf/libexec/bin/asdf", nil)
 
 	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
 	installType := m.RubyInstallType()
