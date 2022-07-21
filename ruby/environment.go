@@ -85,7 +85,7 @@ func rubyInstallType(cmdLocator env.CommandLocator) InstallType {
 	} else if _, err := cmdLocator.LookPath("asdf"); err == nil {
 		// asdf doesn't store its installs in a definite location,
 		// but it does store its shims in a 'shims' directory, which
-		// is what we get when we'll get from the `LookPath` call above.
+		// is what we'll get from the `LookPath("ruby")` call above.
 		if strings.Contains(pth, "shims/ruby") {
 			installType = ASDFRuby
 		}
