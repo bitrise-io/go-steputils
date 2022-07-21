@@ -156,7 +156,7 @@ func Test_environment_IsSpecifiedRbenvRubyInstalled(t *testing.T) {
 		wantErr     bool
 	}{
 		{name: "Parse missing ruby version even if command fails",
-			fields:      fields{createFailingCommandFactory(), log.NewLogger()},
+			fields:      fields{createFailingRbenvCommandFactory(), log.NewLogger()},
 			wantInstall: false,
 			wantVersion: "2.7.4",
 			wantErr:     false,
@@ -183,9 +183,147 @@ func Test_environment_IsSpecifiedRbenvRubyInstalled(t *testing.T) {
 	}
 }
 
-func createFailingCommandFactory() CommandFactory {
+func Test_isSpecifiedASDFRubyInstalled_VersionIsSetByToolVersionFile(t *testing.T) {
+	// Given
+	message := `ruby            2.7.4           /Users/hisaac/.tool-versions`
+
+	// When
+	installed, version, err := isSpecifiedASDFRubyInstalled(message)
+
+	// Then
+	require.True(t, installed)
+	require.Equal(t, "2.7.4", version)
+	require.NoError(t, err)
+}
+
+func Test_isSpecifiedASDFRubyInstalled_VersionIsSetByEnvironmentVariable(t *testing.T) {
+	// Given
+	message := `ruby            2.7.4           ASDF_RUBY_VERSION environment variable`
+
+	// When
+	installed, version, err := isSpecifiedASDFRubyInstalled(message)
+
+	// Then
+	require.True(t, installed)
+	require.Equal(t, "2.7.4", version)
+	require.NoError(t, err)
+}
+
+func Test_isSpecifiedASDFRubyInstalled_VersionIsNotInstalled(t *testing.T) {
+	// Given
+	message := `Not installed. Run "asdf install ruby 2.7.4"`
+
+	// When
+	installed, version, err := isSpecifiedASDFRubyInstalled(message)
+
+	// Then
+	require.False(t, installed)
+	require.Equal(t, "2.7.4", version)
+	require.NoError(t, err)
+}
+
+func Test_environment_IsSpecifiedASDFRubyInstalled(t *testing.T) {
+	// Given
+	environment := environment{
+		factory: createFailingASDFCommandFactory(),
+		logger:  log.NewLogger(),
+	}
+
+	// When
+	installed, version, err := environment.IsSpecifiedASDFRubyInstalled("/")
+
+	// Then
+	require.False(t, installed)
+	require.Equal(t, "2.7.4", version)
+	require.NoError(t, err)
+}
+
+func Test_RubyInstallTypeUnknown(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("", fmt.Errorf("exit status 1"))
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, Unknown)
+}
+
+func Test_RubyInstallTypeSystemRuby(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return(systemRubyPth, nil)
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, SystemRuby)
+}
+
+func Test_RubyInstallTypeBrewRuby(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return(brewRubyPth, nil)
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, BrewRuby)
+}
+
+func Test_RubyInstallTypeBrewRubyAlt(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return(brewRubyPthAlt, nil)
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, BrewRuby)
+}
+
+func Test_RubyInstallTypeRVM(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("", nil)
+	mockCommandLocator.On("LookPath", "rbenv").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "rvm").Return("/some/path/to/rvm", nil)
+	mockCommandLocator.On("LookPath", "asdf").Return("", fmt.Errorf("exit status 1"))
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, RVMRuby)
+}
+
+func Test_RubyInstallTypeRbenv(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("", nil)
+	mockCommandLocator.On("LookPath", "rbenv").Return("/some/path/to/rbenv", nil)
+	mockCommandLocator.On("LookPath", "rvm").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "asdf").Return("", fmt.Errorf("exit status 1"))
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, RbenvRuby)
+}
+
+func Test_RubyInstallTypeASDF(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("/path/to/.asdf/shims/ruby", nil)
+	mockCommandLocator.On("LookPath", "rbenv").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "rvm").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "asdf").Return("/opt/homebrew/opt/asdf/libexec/bin/asdf", nil)
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, ASDFRuby)
+}
+
+// Helpers
+
+func createFailingRbenvCommandFactory() CommandFactory {
 	response := `rbenv: version ` + "`" + `2.7.4' is not installed (set by /Users/vagrant/git/.ruby-version)
 	(set by /Users/vagrant/git/.ruby-version)`
+	mockCommand := new(mocks.Command)
+	mockCommand.On("RunAndReturnTrimmedCombinedOutput").Return(response, fmt.Errorf("exit status 1"))
+	mockCommandFactory := new(mocks.CommandFactory)
+	mockCommandFactory.On("Create", mock.Anything, mock.Anything, mock.Anything).Return(mockCommand)
+	return mockCommandFactory
+}
+
+func createFailingASDFCommandFactory() CommandFactory {
+	response := `Not installed. Run "asdf install ruby 2.7.4"`
 	mockCommand := new(mocks.Command)
 	mockCommand.On("RunAndReturnTrimmedCombinedOutput").Return(response, fmt.Errorf("exit status 1"))
 	mockCommandFactory := new(mocks.CommandFactory)

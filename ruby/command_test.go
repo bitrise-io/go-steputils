@@ -17,6 +17,7 @@ func Test_sudoNeeded(t *testing.T) {
 		require.Equal(t, false, sudoNeeded(BrewRuby, "ls"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "ls"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "ls"))
+		require.Equal(t, false, sudoNeeded(ASDFRuby, "ls"))
 	}
 
 	t.Log("sudo needed for SystemRuby in case of gem list management command")
@@ -26,12 +27,14 @@ func Test_sudoNeeded(t *testing.T) {
 		require.Equal(t, false, sudoNeeded(BrewRuby, "gem", "install", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "gem", "install", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "gem", "install", "fastlane"))
+		require.Equal(t, false, sudoNeeded(ASDFRuby, "gem", "install", "fastlane"))
 
 		require.Equal(t, false, sudoNeeded(Unknown, "gem", "uninstall", "fastlane"))
 		require.Equal(t, true, sudoNeeded(SystemRuby, "gem", "uninstall", "fastlane"))
 		require.Equal(t, false, sudoNeeded(BrewRuby, "gem", "uninstall", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "gem", "uninstall", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "gem", "uninstall", "fastlane"))
+		require.Equal(t, false, sudoNeeded(ASDFRuby, "gem", "uninstall", "fastlane"))
 
 		require.Equal(t, false, sudoNeeded(Unknown, "bundle", "install"))
 		require.Equal(t, false, sudoNeeded(Unknown, "bundle", "_2.0.2_", "install"))
@@ -41,6 +44,7 @@ func Test_sudoNeeded(t *testing.T) {
 		require.Equal(t, false, sudoNeeded(BrewRuby, "bundle", "install"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "bundle", "install"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "bundle", "install"))
+		require.Equal(t, false, sudoNeeded(ASDFRuby, "bundle", "install"))
 
 		require.Equal(t, false, sudoNeeded(Unknown, "bundle", "update"))
 		require.Equal(t, false, sudoNeeded(Unknown, "bundle", "_2.0.2_", "update"))
@@ -49,6 +53,7 @@ func Test_sudoNeeded(t *testing.T) {
 		require.Equal(t, false, sudoNeeded(BrewRuby, "bundle", "update"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "bundle", "update"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "bundle", "update"))
+		require.Equal(t, false, sudoNeeded(ASDFRuby, "bundle", "update"))
 	}
 }
 
