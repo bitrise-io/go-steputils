@@ -20,7 +20,9 @@ func (m Model) checksum(paths ...string) string {
 		m.logger.Errorf(err.Error())
 		return ""
 	}
-	files := m.evaluateGlobPatterns(workingDir, paths)
+
+	evaluatedPaths := m.evaluateGlobPatterns(workingDir, paths)
+	files := filterFilesOnly(evaluatedPaths)
 	m.logger.Debugf("Files included in checksum:")
 	for _, path := range files {
 		m.logger.Debugf("- %s", path)
@@ -84,4 +86,19 @@ func checksumOfFile(path string) ([]byte, error) {
 	}
 	hash.Write(b)
 	return hash.Sum(nil), nil
+}
+
+func filterFilesOnly(paths []string) []string {
+	var files []string
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		if info.IsDir() {
+			continue
+		}
+		files = append(files, path)
+	}
+	return files
 }
