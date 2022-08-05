@@ -21,8 +21,7 @@ func (m Model) checksum(paths ...string) string {
 		return ""
 	}
 
-	evaluatedPaths := m.evaluateGlobPatterns(workingDir, paths)
-	files := filterFilesOnly(evaluatedPaths)
+	files := m.evaluateGlobPatterns(workingDir, paths)
 	m.logger.Debugf("Files included in checksum:")
 	for _, path := range files {
 		m.logger.Debugf("- %s", path)
@@ -75,7 +74,7 @@ func (m Model) evaluateGlobPatterns(workingDir string, paths []string) []string 
 		}
 	}
 
-	return finalPaths
+	return filterFilesOnly(finalPaths)
 }
 
 func checksumOfFile(path string) ([]byte, error) {
@@ -100,5 +99,6 @@ func filterFilesOnly(paths []string) []string {
 		}
 		files = append(files, path)
 	}
+
 	return files
 }
