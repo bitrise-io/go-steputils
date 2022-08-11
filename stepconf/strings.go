@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/bitrise-io/go-utils/colorstring"
+	"github.com/bitrise-io/go-utils/colorstring" // TODO: update go-utils once PR is merged
 )
 
 // Print the name of the struct with Title case in blue color with followed by a newline,

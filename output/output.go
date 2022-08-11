@@ -2,42 +2,57 @@ package output
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/bitrise-io/go-steputils/tools"
-	"github.com/bitrise-io/go-utils/command"
-	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/go-utils/v2/command"
+	"github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/bitrise-io/go-utils/ziputil"
 )
 
-// ExportOutputFile ...
-func exportOutputFile(sourcePth, destinationPth, envKey string) error {
-	absSourcePth, err := pathutil.AbsPath(sourcePth)
+type Exporter struct {
+	cmdFactory command.Factory
+}
+
+func NewExporter(cmdFactory command.Factory) Exporter {
+	return Exporter{cmdFactory: cmdFactory}
+}
+
+// ExportOutput ...
+func (e *Exporter) ExportOutput(key, value string) error {
+	opts := command.Opts{
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		Stdin:  strings.NewReader(value),
+	}
+	cmd := e.cmdFactory.Create("envman", []string{"add", "--key", key}, &opts)
+	return cmd.Run()
+}
+
+func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) error {
+	pathModifier := pathutil.NewPathModifier()
+	absSourcePath, err := pathModifier.AbsPath(sourcePath)
+	if err != nil {
+		return err
+	}
+	absDestinationPath, err := pathModifier.AbsPath(destinationPath)
 	if err != nil {
 		return err
 	}
 
-	absDestinationPth, err := pathutil.AbsPath(destinationPth)
-	if err != nil {
-		return err
-	}
-
-	if absSourcePth != absDestinationPth {
-		if err := command.CopyFile(absSourcePth, absDestinationPth); err != nil {
+	if absSourcePath != absDestinationPath {
+		if err = copyFile(absSourcePath, absDestinationPath); err != nil {
 			return err
 		}
 	}
-	return tools.ExportEnvironmentWithEnvman(envKey, absDestinationPth)
+
+	return e.ExportOutput(key, absDestinationPath)
 }
 
-// ZipAndExportOutput ...
-func ZipAndExportOutput(sourcePths []string, destinationZipPth, envKey string) error {
-	tmpZipFilePth, err := zipFilePath()
-	if err != nil {
-		return err
-	}
-
-	inputType, err := getInputType(sourcePths)
+func (e *Exporter) ExportOutputFilesZip(key string, sourcePaths []string, zipPath string) error {
+	tempZipPath, err := zipFilePath()
 	if err != nil {
 		return err
 	}
@@ -45,26 +60,30 @@ func ZipAndExportOutput(sourcePths []string, destinationZipPth, envKey string) e
 	// We have separate zip functions for files and folders and that is the main reason we cannot have mixed
 	// paths (files and also folders) in the input. It has to be either folders or files. Everything
 	// else leads to an error.
+	inputType, err := getInputType(sourcePaths)
+	if err != nil {
+		return err
+	}
 	switch inputType {
 	case filesType:
-		err = ziputil.ZipFiles(sourcePths, tmpZipFilePth)
+		err = ziputil.ZipFiles(sourcePaths, tempZipPath)
 	case foldersType:
-		err = ziputil.ZipDirs(sourcePths, tmpZipFilePth)
+		err = ziputil.ZipDirs(sourcePaths, tempZipPath)
 	case mixedFileAndFolderType:
-		return fmt.Errorf("source path list (%s) contains a mix of files and folders", sourcePths)
+		return fmt.Errorf("source path list (%s) contains a mix of files and folders", sourcePaths)
 	default:
-		return fmt.Errorf("source path list (%s) is empty", sourcePths)
+		return fmt.Errorf("source path list (%s) is empty", sourcePaths)
 	}
 
 	if err != nil {
 		return err
 	}
 
-	return exportOutputFile(tmpZipFilePth, destinationZipPth, envKey)
+	return e.ExportOutputFile(key, tempZipPath, zipPath)
 }
 
 func zipFilePath() (string, error) {
-	tmpDir, err := pathutil.NormalizedOSTempDirPath("__export_tmp_dir__")
+	tmpDir, err := pathutil.NewPathProvider().CreateTempDir("__export_tmp_dir__")
 	if err != nil {
 		return "", err
 	}
@@ -82,7 +101,7 @@ func getInputType(sourcePths []string) (string, error) {
 	var folderCount, fileCount int
 
 	for _, path := range sourcePths {
-		exist, err := pathutil.IsDirExists(path)
+		exist, err := pathutil.NewPathChecker().IsPathExists(path)
 		if err != nil {
 			return "", err
 		}
@@ -92,7 +111,7 @@ func getInputType(sourcePths []string) (string, error) {
 			continue
 		}
 
-		exist, err = pathutil.IsPathExists(path)
+		exist, err = pathutil.NewPathChecker().IsPathExists(path)
 		if err != nil {
 			return "", err
 		}
@@ -111,4 +130,24 @@ func getInputType(sourcePths []string) (string, error) {
 	}
 
 	return "", nil
+}
+
+func copyFile(source, destination string) error {
+	in, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(destination)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return out.Close()
 }

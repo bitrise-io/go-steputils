@@ -3,13 +3,15 @@ package output
 import (
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/bitrise-io/go-steputils/internal/test"
+	"github.com/bitrise-io/go-utils/envutil"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/go-utils/v2/command"
+	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +19,7 @@ func TestZipDirectoriesAndExportOutput(t *testing.T) {
 	tmpDir, err := pathutil.NormalizedOSTempDirPath("test")
 	require.NoError(t, err)
 
-	envmanStorePath, envmanClearFn := test.EnvmanIsSetup(t)
+	envmanStorePath, envmanClearFn := setupEnvman(t)
 	defer func() {
 		err := envmanClearFn()
 		require.NoError(t, err)
@@ -31,8 +33,9 @@ func TestZipDirectoriesAndExportOutput(t *testing.T) {
 
 	destinationZip := filepath.Join(tmpDir, "destination.zip")
 
-	envKey := "EXPORTED_ZIP_PATH"
-	require.NoError(t, ZipAndExportOutput([]string{sourceA, sourceB}, destinationZip, envKey))
+	key := "EXPORTED_ZIP_PATH"
+	e := NewExporter(command.NewFactory(env.NewRepository()))
+	require.NoError(t, e.ExportOutputFilesZip(key, []string{sourceA, sourceB}, destinationZip))
 
 	// destination should exist
 	exist, err := pathutil.IsPathExists(destinationZip)
@@ -40,14 +43,14 @@ func TestZipDirectoriesAndExportOutput(t *testing.T) {
 	require.Equal(t, true, exist, tmpDir)
 
 	// destination should be exported
-	test.RequireEnvmanContainsValueForKey(t, envKey, destinationZip, envmanStorePath)
+	requireEnvmanContainsValueForKey(t, key, destinationZip, envmanStorePath)
 }
 
 func TestZipFilesAndExportOutput(t *testing.T) {
 	tmpDir, err := pathutil.NormalizedOSTempDirPath("test")
 	require.NoError(t, err)
 
-	envmanStorePath, envmanClearFn := test.EnvmanIsSetup(t)
+	envmanStorePath, envmanClearFn := setupEnvman(t)
 	defer func() {
 		err := envmanClearFn()
 		require.NoError(t, err)
@@ -66,8 +69,9 @@ func TestZipFilesAndExportOutput(t *testing.T) {
 
 	destinationZip := filepath.Join(tmpDir, "destination.zip")
 
-	envKey := "EXPORTED_ZIP_PATH"
-	require.NoError(t, ZipAndExportOutput(sourceFilePaths, destinationZip, envKey))
+	key := "EXPORTED_ZIP_PATH"
+	e := NewExporter(command.NewFactory(env.NewRepository()))
+	require.NoError(t, e.ExportOutputFilesZip(key, sourceFilePaths, destinationZip))
 
 	// destination should exist
 	exist, err := pathutil.IsPathExists(destinationZip)
@@ -75,14 +79,14 @@ func TestZipFilesAndExportOutput(t *testing.T) {
 	require.Equal(t, true, exist, tmpDir)
 
 	// destination should be exported
-	test.RequireEnvmanContainsValueForKey(t, envKey, destinationZip, envmanStorePath)
+	requireEnvmanContainsValueForKey(t, key, destinationZip, envmanStorePath)
 }
 
 func TestZipMixedFilesAndFoldersAndExportOutput(t *testing.T) {
 	tmpDir, err := pathutil.NormalizedOSTempDirPath("test")
 	require.NoError(t, err)
 
-	_, envmanClearFn := test.EnvmanIsSetup(t)
+	_, envmanClearFn := setupEnvman(t)
 	defer func() {
 		err := envmanClearFn()
 		require.NoError(t, err)
@@ -106,20 +110,38 @@ func TestZipMixedFilesAndFoldersAndExportOutput(t *testing.T) {
 
 	destinationZip := filepath.Join(tmpDir, "destination.zip")
 
-	require.Error(t, ZipAndExportOutput(sourceFilePaths, destinationZip, "EXPORTED_ZIP_PATH"))
+	e := NewExporter(command.NewFactory(env.NewRepository()))
+	require.Error(t, e.ExportOutputFilesZip("EXPORTED_ZIP_PATH", sourceFilePaths, destinationZip))
 }
 
-func givenTmpLogFilePath(t *testing.T) string {
-	tmp, err := ioutil.TempDir("", "log")
+func requireEnvmanContainsValueForKey(t *testing.T, key, value, envmanStorePath string) {
+	b, err := ioutil.ReadFile(envmanStorePath)
 	require.NoError(t, err)
+	envstoreContent := string(b)
 
-	return path.Join(tmp, "log.txt")
+	t.Logf("envstoreContent: %s\n", envstoreContent)
+	require.Equal(t, true, strings.Contains(envstoreContent, "- "+key+": "+value), envstoreContent)
 }
 
-func requireFileContents(t *testing.T, contents, filePath string) {
-	byteContents, err := ioutil.ReadFile(filePath)
+func setupEnvman(t *testing.T) (string, func() error) {
+	tmpDir, err := pathutil.NormalizedOSTempDirPath("test")
 	require.NoError(t, err)
 
-	stringContents := string(byteContents)
-	require.Equal(t, contents, stringContents)
+	tmpDir, err = ioutil.TempDir("", "envman")
+	revokeFn, err := pathutil.RevokableChangeDir(tmpDir)
+	require.NoError(t, err)
+
+	tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
+	require.NoError(t, fileutil.WriteStringToFile(tmpEnvStorePth, ""))
+
+	envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
+	require.NoError(t, err)
+
+	return tmpEnvStorePth, func() error {
+		if err := revokeFn(); err != nil {
+			return err
+		}
+
+		return envstoreRevokeFn()
+	}
 }
