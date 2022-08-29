@@ -4,9 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bmatcuk/doublestar/v4"
 )
 
@@ -15,13 +17,7 @@ import (
 // The path list is sorted alphabetically to produce consistent output.
 // Errors are logged as warnings and an empty string is returned in that case.
 func (m Model) checksum(paths ...string) string {
-	workingDir, err := os.Getwd()
-	if err != nil {
-		m.logger.Errorf(err.Error())
-		return ""
-	}
-
-	files := m.evaluateGlobPatterns(workingDir, paths)
+	files := m.evaluateGlobPatterns(paths)
 	m.logger.Debugf("Files included in checksum:")
 	for _, path := range files {
 		m.logger.Debugf("- %s", path)
@@ -54,12 +50,18 @@ func (m Model) checksum(paths ...string) string {
 	return hex.EncodeToString(finalChecksum.Sum(nil))
 }
 
-func (m Model) evaluateGlobPatterns(workingDir string, paths []string) []string {
+func (m Model) evaluateGlobPatterns(paths []string) []string {
 	var finalPaths []string
 
 	for _, path := range paths {
 		if strings.Contains(path, "*") {
-			matches, err := doublestar.Glob(os.DirFS(workingDir), path)
+			base, pattern := doublestar.SplitPattern(path)
+			absBase, err := pathutil.NewPathModifier().AbsPath(base)
+			if err != nil {
+				m.logger.Warnf("Failed to convert %s to an absolute path: %s", path, err)
+				continue
+			}
+			matches, err := doublestar.Glob(os.DirFS(absBase), pattern)
 			if matches == nil {
 				m.logger.Warnf("No match for pattern: %s", path)
 				continue
@@ -68,7 +70,9 @@ func (m Model) evaluateGlobPatterns(workingDir string, paths []string) []string 
 				m.logger.Warnf("Error in pattern '%s': %s", path, err)
 				continue
 			}
-			finalPaths = append(finalPaths, matches...)
+			for _, match := range matches {
+				finalPaths = append(finalPaths, filepath.Join(base, match))
+			}
 		} else {
 			finalPaths = append(finalPaths, path)
 		}

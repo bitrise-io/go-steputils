@@ -1,6 +1,7 @@
 package keytemplate
 
 import (
+	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -8,6 +9,11 @@ import (
 )
 
 func TestChecksum(t *testing.T) {
+	testdataAbsPath, err := filepath.Abs("testdata")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
 	tests := []struct {
 		name  string
 		paths []string
@@ -52,6 +58,11 @@ func TestChecksum(t *testing.T) {
 			name:  "Multiple glob stars",
 			paths: []string{"testdata/**/*.gradle*"},
 			want:  "563cf037f336453ee1888c3dcbe1c687ebeb6c593d4d0bd57ccc5fc49daa3951",
+		},
+		{
+			name:  "Absolute path and glob star",
+			paths: []string{filepath.Join(testdataAbsPath, "*.gradle")},
+			want:  "db094ffe3aea59fc48766cb408894ada1c67dbd355d25085729394df82fb1eda",
 		},
 	}
 	for _, tt := range tests {
