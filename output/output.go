@@ -3,6 +3,7 @@ package output
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -141,13 +142,23 @@ func copyFile(source, destination string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func(in *os.File) {
+		err := in.Close()
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+	}(in)
 
 	out, err := os.Create(destination)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func(out *os.File) {
+		err := out.Close()
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+	}(out)
 
 	_, err = io.Copy(out, in)
 	if err != nil {
