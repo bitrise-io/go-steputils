@@ -87,6 +87,6 @@ func (m Model) validateInventory(inventory templateInventory) {
 
 func (m Model) warnIfEmpty(name, value string) {
 	if value == "" {
-		m.logger.Warnf("Template variable .%s is not defined", name)
+		m.logger.Debugf("Template variable .%s is not defined", name)
 	}
 }
