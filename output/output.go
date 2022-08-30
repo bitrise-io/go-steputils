@@ -12,10 +12,12 @@ import (
 	"github.com/bitrise-io/go-utils/ziputil"
 )
 
+// Exporter ...
 type Exporter struct {
 	cmdFactory command.Factory
 }
 
+// NewExporter ...
 func NewExporter(cmdFactory command.Factory) Exporter {
 	return Exporter{cmdFactory: cmdFactory}
 }
@@ -31,6 +33,7 @@ func (e *Exporter) ExportOutput(key, value string) error {
 	return cmd.Run()
 }
 
+// ExportOutputFile ...
 func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) error {
 	pathModifier := pathutil.NewPathModifier()
 	absSourcePath, err := pathModifier.AbsPath(sourcePath)
@@ -51,6 +54,7 @@ func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) err
 	return e.ExportOutput(key, absDestinationPath)
 }
 
+// ExportOutputFilesZip ...
 func (e *Exporter) ExportOutputFilesZip(key string, sourcePaths []string, zipPath string) error {
 	tempZipPath, err := zipFilePath()
 	if err != nil {
