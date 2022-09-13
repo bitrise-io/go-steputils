@@ -10,18 +10,18 @@ import (
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
 )
 
-type downloadParams struct {
+type DownloadParams struct {
 	APIBaseURL   string
 	Token        string
 	CacheKeys    []string
 	DownloadPath string
 }
 
-var errCacheNotFound = errors.New("no cache archive found for the provided keys")
+var ErrCacheNotFound = errors.New("no cache archive found for the provided keys")
 
 // Download archive from the cache API based on the provided keys in params.
-// If there is no match for any of the keys, the error is errCacheNotFound.
-func download(params downloadParams, logger log.Logger) error {
+// If there is no match for any of the keys, the error is ErrCacheNotFound.
+func Download(params DownloadParams, logger log.Logger) error {
 	if params.APIBaseURL == "" {
 		return fmt.Errorf("API base URL is empty")
 	}

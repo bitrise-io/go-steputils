@@ -169,7 +169,7 @@ func (c apiClient) restore(cacheKeys []string) (string, error) {
 	}(resp.Body)
 
 	if resp.StatusCode == http.StatusNotFound {
-		return "", errCacheNotFound
+		return "", ErrCacheNotFound
 	}
 	if resp.StatusCode != http.StatusOK {
 		errorResp, err := ioutil.ReadAll(resp.Body)

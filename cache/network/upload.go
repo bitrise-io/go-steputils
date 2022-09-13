@@ -9,7 +9,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
 )
 
-type uploadParams struct {
+type UploadParams struct {
 	APIBaseURL  string
 	Token       string
 	ArchivePath string
@@ -17,7 +17,7 @@ type uploadParams struct {
 	CacheKey    string
 }
 
-func upload(params uploadParams, logger log.Logger) error {
+func Upload(params UploadParams, logger log.Logger) error {
 	validatedKey, err := validateKey(params.CacheKey)
 	if err != nil {
 		return err
