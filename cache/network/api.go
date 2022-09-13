@@ -40,7 +40,7 @@ type apiClient struct {
 	accessToken string
 }
 
-func newApiClient(client *retryablehttp.Client, baseURL string, accessToken string) apiClient {
+func newAPIClient(client *retryablehttp.Client, baseURL string, accessToken string) apiClient {
 	return apiClient{
 		httpClient:  client,
 		baseURL:     baseURL,
@@ -110,15 +110,14 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 		return err
 	}
 
-	if resp.StatusCode == http.StatusOK {
-		return nil
-	} else {
+	if resp.StatusCode != http.StatusOK {
 		errorResp, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
 		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorResp)
 	}
+	return nil
 }
 
 func (c apiClient) acknowledgeUpload(uploadID string) error {
@@ -135,15 +134,14 @@ func (c apiClient) acknowledgeUpload(uploadID string) error {
 		return err
 	}
 
-	if resp.StatusCode == http.StatusOK {
-		return nil
-	} else {
+	if resp.StatusCode != http.StatusOK {
 		errorResp, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
 		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorResp)
 	}
+	return nil
 }
 
 func (c apiClient) restore(cacheKeys []string) (string, error) {
@@ -171,7 +169,7 @@ func (c apiClient) restore(cacheKeys []string) (string, error) {
 	}(resp.Body)
 
 	if resp.StatusCode == http.StatusNotFound {
-		return "", ErrCacheNotFound
+		return "", errCacheNotFound
 	}
 	if resp.StatusCode != http.StatusOK {
 		errorResp, err := ioutil.ReadAll(resp.Body)
@@ -195,9 +193,7 @@ func (c apiClient) downloadArchive(url string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode == http.StatusOK {
-		return resp.Body, nil
-	} else {
+	if resp.StatusCode != http.StatusOK {
 		defer func(Body io.ReadCloser) {
 			err := Body.Close()
 			if err != nil {
@@ -210,6 +206,8 @@ func (c apiClient) downloadArchive(url string) (io.ReadCloser, error) {
 		}
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorResp)
 	}
+
+	return resp.Body, nil
 }
 
 func validateKeys(keys []string) (string, error) {
