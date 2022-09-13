@@ -47,13 +47,23 @@ func download(params downloadParams, logger log.Logger) error {
 	if err != nil {
 		return fmt.Errorf("can't open download location: %w", err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			logger.Errorf(err.Error())
+		}
+	}(file)
 
 	respBody, err := client.downloadArchive(url)
 	if err != nil {
 		return fmt.Errorf("failed to download archive: %w", err)
 	}
-	defer respBody.Close()
+	defer func(respBody io.ReadCloser) {
+		err := respBody.Close()
+		if err != nil {
+			logger.Errorf(err.Error())
+		}
+	}(respBody)
 	_, err = io.Copy(file, respBody)
 	if err != nil {
 		return fmt.Errorf("failed to save archive to disk: %w", err)
