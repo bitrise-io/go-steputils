@@ -1,9 +1,7 @@
 package output
 
 import (
-	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"testing"
 
@@ -107,19 +105,4 @@ func TestZipMixedFilesAndFoldersAndExportOutput(t *testing.T) {
 	destinationZip := filepath.Join(tmpDir, "destination.zip")
 
 	require.Error(t, ZipAndExportOutput(sourceFilePaths, destinationZip, "EXPORTED_ZIP_PATH"))
-}
-
-func givenTmpLogFilePath(t *testing.T) string {
-	tmp, err := ioutil.TempDir("", "log")
-	require.NoError(t, err)
-
-	return path.Join(tmp, "log.txt")
-}
-
-func requireFileContents(t *testing.T, contents, filePath string) {
-	byteContents, err := ioutil.ReadFile(filePath)
-	require.NoError(t, err)
-
-	stringContents := string(byteContents)
-	require.Equal(t, contents, stringContents)
 }

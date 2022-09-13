@@ -146,7 +146,7 @@ func isSpecifiedRbenvRubyInstalled(message string) (bool, string, error) {
 
 	//
 	// Installed
-	reg, err = regexp.Compile(".* \\(set by")
+	reg, err = regexp.Compile(`.* \(set by`)
 	if err != nil {
 		return false, "", fmt.Errorf("failed to parse regex ( %s ) on the error message, error: %s", ".* \\(set by", err)
 	}
