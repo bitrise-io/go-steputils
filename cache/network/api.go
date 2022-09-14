@@ -57,7 +57,7 @@ func (c apiClient) prepareUpload(requestBody prepareUploadRequest) (prepareUploa
 		return prepareUploadResponse{}, err
 	}
 
-	req, err := retryablehttp.NewRequest("POST", url, body)
+	req, err := retryablehttp.NewRequest(http.MethodPost, url, body)
 	if err != nil {
 		return prepareUploadResponse{}, err
 	}
@@ -123,7 +123,7 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 func (c apiClient) acknowledgeUpload(uploadID string) error {
 	url := fmt.Sprintf("%s/upload/%s/acknowledge", c.baseURL, uploadID)
 
-	req, err := retryablehttp.NewRequest("PATCH", url, nil)
+	req, err := retryablehttp.NewRequest(http.MethodPatch, url, nil)
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func (c apiClient) restore(cacheKeys []string) (string, error) {
 	}
 	apiURL := fmt.Sprintf("%s/restore?cache_keys=%s", c.baseURL, keysInQuery)
 
-	req, err := retryablehttp.NewRequest("GET", apiURL, nil)
+	req, err := retryablehttp.NewRequest(http.MethodGet, apiURL, nil)
 	if err != nil {
 		return "", err
 	}
