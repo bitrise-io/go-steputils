@@ -67,19 +67,15 @@ func (c apiClient) prepareUpload(requestBody prepareUploadRequest) (prepareUploa
 	if err != nil {
 		return prepareUploadResponse{}, err
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
+	defer func(body io.ReadCloser) {
+		err := body.Close()
 		if err != nil {
 			panic(err)
 		}
 	}(resp.Body)
 
 	if resp.StatusCode != http.StatusCreated {
-		errorResp, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return prepareUploadResponse{}, err
-		}
-		return prepareUploadResponse{}, fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorResp)
+		return prepareUploadResponse{}, unwrapError(resp)
 	}
 
 	var response prepareUploadResponse
@@ -109,14 +105,17 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 	if err != nil {
 		return err
 	}
+	defer func(body io.ReadCloser) {
+		err := body.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		errorResp, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorResp)
+		return unwrapError(resp)
 	}
+
 	return nil
 }
 
@@ -133,13 +132,15 @@ func (c apiClient) acknowledgeUpload(uploadID string) error {
 	if err != nil {
 		return err
 	}
+	defer func(body io.ReadCloser) {
+		err := body.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		errorResp, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorResp)
+		return unwrapError(resp)
 	}
 	return nil
 }
@@ -161,8 +162,8 @@ func (c apiClient) restore(cacheKeys []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
+	defer func(body io.ReadCloser) {
+		err := body.Close()
 		if err != nil {
 			panic(err)
 		}
@@ -172,11 +173,7 @@ func (c apiClient) restore(cacheKeys []string) (string, error) {
 		return "", ErrCacheNotFound
 	}
 	if resp.StatusCode != http.StatusOK {
-		errorResp, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return "", err
-		}
-		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorResp)
+		return "", unwrapError(resp)
 	}
 
 	var response restoreResponse
@@ -194,30 +191,34 @@ func (c apiClient) downloadArchive(url string) (io.ReadCloser, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		defer func(Body io.ReadCloser) {
-			err := Body.Close()
+		defer func(body io.ReadCloser) {
+			err := body.Close()
 			if err != nil {
 				panic(err)
 			}
 		}(resp.Body)
-		errorResp, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorResp)
+		return nil, unwrapError(resp)
 	}
 
 	return resp.Body, nil
 }
 
+func unwrapError(resp *http.Response) error {
+	errorResp, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorResp)
+}
+
 func validateKeys(keys []string) (string, error) {
 	if len(keys) > maxKeyCount {
-		return "", fmt.Errorf("maximum number of keys is %d", maxKeyCount)
+		return "", fmt.Errorf("maximum number of keys is %d, %d provided", maxKeyCount, len(keys))
 	}
 	var truncatedKeys []string
 	for _, key := range keys {
 		if strings.Contains(key, ",") {
-			return "", fmt.Errorf("commas are not allowed in keys")
+			return "", fmt.Errorf("commas are not allowed in keys (invalid key: %s)", key)
 		}
 		if len(key) > maxKeyLength {
 			truncatedKeys = append(truncatedKeys, key[:maxKeyLength])

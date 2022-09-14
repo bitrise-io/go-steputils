@@ -52,7 +52,7 @@ func Download(params DownloadParams, logger log.Logger) error {
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
-			logger.Errorf(err.Error())
+			logger.Warnf(err.Error())
 		}
 	}(file)
 
@@ -63,7 +63,7 @@ func Download(params DownloadParams, logger log.Logger) error {
 	defer func(respBody io.ReadCloser) {
 		err := respBody.Close()
 		if err != nil {
-			logger.Errorf(err.Error())
+			logger.Warnf(err.Error())
 		}
 	}(respBody)
 	_, err = io.Copy(file, respBody)

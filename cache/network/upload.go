@@ -40,14 +40,14 @@ func Upload(params UploadParams, logger log.Logger) error {
 	}
 	logger.Debugf("Upload ID: %s", resp.ID)
 
-	logger.Println()
+	logger.Debugf("")
 	logger.Debugf("Upload archive")
 	err = client.uploadArchive(params.ArchivePath, resp.UploadMethod, resp.UploadURL, resp.UploadHeaders)
 	if err != nil {
 		return fmt.Errorf("failed to upload archive: %w", err)
 	}
 
-	logger.Println()
+	logger.Debugf("")
 	logger.Debugf("Acknowledge upload")
 	err = client.acknowledgeUpload(resp.ID)
 	if err != nil {
