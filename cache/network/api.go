@@ -216,7 +216,7 @@ func validateKeys(keys []string) (string, error) {
 	if len(keys) > maxKeyCount {
 		return "", fmt.Errorf("maximum number of keys is %d, %d provided", maxKeyCount, len(keys))
 	}
-	var truncatedKeys []string
+	truncatedKeys := make([]string, 0, len(keys))
 	for _, key := range keys {
 		if strings.Contains(key, ",") {
 			return "", fmt.Errorf("commas are not allowed in keys (invalid key: %s)", key)
