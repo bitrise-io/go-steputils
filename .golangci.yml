@@ -1,6 +1,6 @@
 run:
   skip-dirs:
-  - ".*/mocks"
+  - .*/mocks
 
 issues:
   # https://github.com/golangci/golangci-lint/issues/2439
@@ -24,4 +24,3 @@ linters-settings:
     - name: exported
       arguments:
       - checkPrivateReceivers
-
