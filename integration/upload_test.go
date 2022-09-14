@@ -60,7 +60,7 @@ func downloadArchive(cacheKey string, baseURL string, token string) (string, err
 
 	// Obtain pre-signed download URL
 	url := fmt.Sprintf("%s/restore?cache_keys=%s", baseURL, cacheKey)
-	req, err := retryablehttp.NewRequest("GET", url, nil)
+	req, err := retryablehttp.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
@@ -85,7 +85,7 @@ func downloadArchive(cacheKey string, baseURL string, token string) (string, err
 	downloadURL := parsedResp["url"].(string)
 
 	// Download archive using pre-signed URL
-	req2, err := retryablehttp.NewRequest("GET", downloadURL, nil)
+	req2, err := retryablehttp.NewRequest(http.MethodGet, downloadURL, nil)
 	req2.Header.Set("Content-Type", "application/octet-stream")
 	resp2, err := client.Do(req2)
 	defer func(Body io.ReadCloser) {
