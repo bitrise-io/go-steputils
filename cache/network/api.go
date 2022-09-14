@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -70,7 +71,7 @@ func (c apiClient) prepareUpload(requestBody prepareUploadRequest) (prepareUploa
 	defer func(body io.ReadCloser) {
 		err := body.Close()
 		if err != nil {
-			panic(err)
+			log.Print(err.Error())
 		}
 	}(resp.Body)
 
@@ -108,7 +109,7 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 	defer func(body io.ReadCloser) {
 		err := body.Close()
 		if err != nil {
-			panic(err)
+			log.Print(err.Error())
 		}
 	}(resp.Body)
 
@@ -135,7 +136,7 @@ func (c apiClient) acknowledgeUpload(uploadID string) error {
 	defer func(body io.ReadCloser) {
 		err := body.Close()
 		if err != nil {
-			panic(err)
+			log.Print(err.Error())
 		}
 	}(resp.Body)
 
@@ -165,7 +166,7 @@ func (c apiClient) restore(cacheKeys []string) (string, error) {
 	defer func(body io.ReadCloser) {
 		err := body.Close()
 		if err != nil {
-			panic(err)
+			log.Print(err.Error())
 		}
 	}(resp.Body)
 
@@ -194,7 +195,7 @@ func (c apiClient) downloadArchive(url string) (io.ReadCloser, error) {
 		defer func(body io.ReadCloser) {
 			err := body.Close()
 			if err != nil {
-				panic(err)
+				log.Print(err.Error())
 			}
 		}(resp.Body)
 		return nil, unwrapError(resp)
