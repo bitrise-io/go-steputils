@@ -9,4 +9,5 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.2.0
 	github.com/hashicorp/go-retryablehttp v0.7.1
 	github.com/stretchr/testify v1.7.0
+	golang.org/x/text v0.3.7 // indirect
 )
