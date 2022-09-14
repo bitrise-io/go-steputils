@@ -10,6 +10,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
 )
 
+// DownloadParams ...
 type DownloadParams struct {
 	APIBaseURL   string
 	Token        string
@@ -17,6 +18,7 @@ type DownloadParams struct {
 	DownloadPath string
 }
 
+// ErrCacheNotFound ...
 var ErrCacheNotFound = errors.New("no cache archive found for the provided keys")
 
 // Download archive from the cache API based on the provided keys in params.
