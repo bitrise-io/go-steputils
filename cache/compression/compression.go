@@ -11,6 +11,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/log"
 )
 
+// Compress creates a compressed archive from the provided files and folders using absolute paths.
 func Compress(archivePath string, includePaths []string, logger log.Logger, envRepo env.Repository) error {
 	cmdFactory := command.NewFactory(envRepo)
 
@@ -38,6 +39,7 @@ func Compress(archivePath string, includePaths []string, logger log.Logger, envR
 	return nil
 }
 
+// Decompress takes an archive path and extracts files. This assumes an archive created with absolute file paths.
 func Decompress(archivePath string, logger log.Logger, envRepo env.Repository, additionalArgs ...string) error {
 	commandFactory := command.NewFactory(envRepo)
 
