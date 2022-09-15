@@ -24,7 +24,7 @@ func Test_compression(t *testing.T) {
 	}}
 
 	// When
-	err := compression.Compress(archivePath, []string{"../step/testdata/"}, logger, envRepo)
+	err := compression.Compress(archivePath, []string{"testdata/subfolder"}, logger, envRepo)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -34,10 +34,8 @@ func Test_compression(t *testing.T) {
 	}
 
 	expected := []string{
-		"../step/testdata/",
-		"../step/testdata/subfolder/",
-		"../step/testdata/dummy_file.txt",
-		"../step/testdata/subfolder/nested_file.txt",
+		"testdata/subfolder/",
+		"testdata/subfolder/nested_file.txt",
 	}
 	assert.ElementsMatch(t, expected, archiveContents)
 }
