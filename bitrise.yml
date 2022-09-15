@@ -5,6 +5,7 @@ workflows:
   ci:
     before_run:
     - test
+    - test_integration
 
   test:
     steps:
@@ -18,3 +19,43 @@ workflows:
         - exclude: |-
             */mocks
     - go-test: { }
+
+  test_integration:
+    before_run:
+    - _generate_cache_api_token
+    steps:
+    - script:
+        title: Integration tests
+        deps:
+          brew:
+          - name: zstd
+          apt_get:
+          - name: zstd
+        inputs:
+        - content: |-
+            #!/bin/bash
+            set -ex
+            go test -v -tags integration ./integration
+
+  _generate_cache_api_token:
+    steps:
+    - script:
+        title: Generate cache API access token
+        description: Generate an expiring API token using $API_CLIENT_SECRET
+        inputs:
+        - content: |
+            #!/bin/env bash
+            set -e
+
+            json_response=$(curl --fail -X POST https://auth.services.bitrise.io/auth/realms/bitrise-services/protocol/openid-connect/token -k \
+                --data "client_id=abcs-steps" \
+                --data "client_secret=$CACHE_API_CLIENT_SECRET" \
+                --data "grant_type=urn:ietf:params:oauth:grant-type:uma-ticket" \
+                --data "claim_token=eyJhcHBfaWQiOlsic3RlcC1zYXZlLWNhY2hlLWUyZS10ZXN0cyJdLCAiaXNfY3JlZGl0X2Jhc2VkIjpbInRydWUiXSwgImlzX3ByaXZhdGVfY2xvdWQiOlsidHJ1ZSJdfQ==" \
+                --data "claim_token_format=urn:ietf:params:oauth:token-type:jwt" \
+                --data "audience=advanced-build-cache-service")
+
+            auth_token=$(echo $json_response | jq -r .access_token)
+
+            envman add --key BITRISEIO_ABCS_API_URL --value $CACHE_API_URL
+            envman add --key BITRISEIO_ABCS_ACCESS_TOKEN --value $auth_token --sensitive
