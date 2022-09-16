@@ -2,9 +2,11 @@ package compression
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
@@ -22,7 +24,6 @@ func Compress(archivePath string, includePaths []string, logger log.Logger, envR
 			Storing absolute paths in the archive allows paths outside the current directory (such as ~/.gradle)
 		-c: Create archive
 		-f: Output file
-		--directory: Change the working directory
 	*/
 	tarArgs := []string{
 		"--use-compress-program",
@@ -30,8 +31,6 @@ func Compress(archivePath string, includePaths []string, logger log.Logger, envR
 		"-P",
 		"-cf",
 		archivePath,
-		"--directory",
-		envRepo.Get("BITRISE_SOURCE_DIR"),
 	}
 	tarArgs = append(tarArgs, includePaths...)
 
@@ -41,8 +40,11 @@ func Compress(archivePath string, includePaths []string, logger log.Logger, envR
 
 	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
-		logger.Errorf("Compression command failed: %s", out)
-		return err
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return fmt.Errorf("command failed with exit status %d (%s):\n%w", exitErr.ExitCode(), cmd.PrintableCommandArgs(), errors.New(out))
+		}
+		return fmt.Errorf("command failed (%s): \n%w", cmd.PrintableCommandArgs(), errors.New(out))
 	}
 
 	return nil
@@ -75,10 +77,13 @@ func Decompress(archivePath string, logger log.Logger, envRepo env.Repository, a
 	cmd := commandFactory.Create("tar", decompressTarArgs, nil)
 	logger.Debugf("$ %s", cmd.PrintableCommandArgs())
 
-	output, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
-		logger.Errorf("Failed to decompress cache archive: %s", output)
-		return err
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return fmt.Errorf("command failed with exit status %d (%s):\n%w", exitErr.ExitCode(), cmd.PrintableCommandArgs(), errors.New(out))
+		}
+		return fmt.Errorf("command failed (%s): \n%w", cmd.PrintableCommandArgs(), errors.New(out))
 	}
 
 	return nil
