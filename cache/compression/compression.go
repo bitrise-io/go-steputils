@@ -52,12 +52,20 @@ func Compress(archivePath string, includePaths []string, logger log.Logger, envR
 func Decompress(archivePath string, logger log.Logger, envRepo env.Repository, additionalArgs ...string) error {
 	commandFactory := command.NewFactory(envRepo)
 
+	/*
+		tar arguments:
+		--use-compress-program: Pipe the input to zstd instead of using the built-in gzip compression
+		-P: Alias for --absolute-paths in BSD tar and --absolute-names in GNU tar (step runs on both Linux and macOS)
+			Storing absolute paths in the archive allows paths outside the current directory (such as ~/.gradle)
+		-x: Extract archive
+		-f: Output file
+	*/
 	decompressTarArgs := []string{
 		"--use-compress-program",
 		"zstd -d",
 		"-xf",
 		archivePath,
-		"-P", // Same as --absolute-paths in BSD tar, --absolute-names in GNU tar
+		"-P",
 	}
 
 	if len(additionalArgs) > 0 {
