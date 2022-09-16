@@ -15,10 +15,19 @@ import (
 func Compress(archivePath string, includePaths []string, logger log.Logger, envRepo env.Repository) error {
 	cmdFactory := command.NewFactory(envRepo)
 
+	/*
+		tar arguments:
+		--use-compress-program: Pipe the output to zstd instead of using the built-in gzip compression
+		-P: Alias for --absolute-paths in BSD tar and --absolute-names in GNU tar (step runs on both Linux and macOS)
+			Storing absolute paths in the archive allows paths outside the current directory (such as ~/.gradle)
+		-c: Create archive
+		-f: Output file
+		--directory: Change the working directory
+	*/
 	tarArgs := []string{
 		"--use-compress-program",
 		"zstd --threads=0", // Use CPU count threads
-		"-P",               // Same as --absolute-paths in BSD tar, --absolute-names in GNU tar
+		"-P",
 		"-cf",
 		archivePath,
 		"--directory",
