@@ -62,10 +62,9 @@ func Decompress(archivePath string, logger log.Logger, envRepo env.Repository, a
 		-f: Output file
 	*/
 	decompressTarArgs := []string{
-		"--use-compress-program",
-		"zstd -d",
-		"-xf",
-		archivePath,
+		"--use-compress-program", "zstd -d",
+		"-x",
+		"-f", archivePath,
 		"-P",
 	}
 
@@ -82,7 +81,7 @@ func Decompress(archivePath string, logger log.Logger, envRepo env.Repository, a
 		if errors.As(err, &exitErr) {
 			return fmt.Errorf("command failed with exit status %d (%s):\n%w", exitErr.ExitCode(), cmd.PrintableCommandArgs(), errors.New(out))
 		}
-		return fmt.Errorf("command failed (%s): \n%w", cmd.PrintableCommandArgs(), errors.New(out))
+		return fmt.Errorf("executing command failed (%s): %w", cmd.PrintableCommandArgs(), err)
 	}
 
 	return nil
