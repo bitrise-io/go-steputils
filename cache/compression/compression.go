@@ -26,11 +26,10 @@ func Compress(archivePath string, includePaths []string, logger log.Logger, envR
 		-f: Output file
 	*/
 	tarArgs := []string{
-		"--use-compress-program",
-		"zstd --threads=0", // Use CPU count threads
+		"--use-compress-program", "zstd --threads=0", // Use CPU count threads
 		"-P",
-		"-cf",
-		archivePath,
+		"-c",
+		"-f", archivePath,
 	}
 	tarArgs = append(tarArgs, includePaths...)
 
