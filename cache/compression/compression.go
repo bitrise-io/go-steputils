@@ -44,7 +44,7 @@ func Compress(archivePath string, includePaths []string, logger log.Logger, envR
 		if errors.As(err, &exitErr) {
 			return fmt.Errorf("command failed with exit status %d (%s):\n%w", exitErr.ExitCode(), cmd.PrintableCommandArgs(), errors.New(out))
 		}
-		return fmt.Errorf("command failed (%s): \n%w", cmd.PrintableCommandArgs(), errors.New(out))
+		return fmt.Errorf("executing command failed (%s): %w", cmd.PrintableCommandArgs(), err)
 	}
 
 	return nil
