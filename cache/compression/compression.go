@@ -87,7 +87,8 @@ func Decompress(archivePath string, logger log.Logger, envRepo env.Repository, a
 	return nil
 }
 
-func areAllPathsEmpty(includePaths []string) bool {
+// AreAllPathsEmpty checks if the provided paths are all nonexistent files or empty directories
+func AreAllPathsEmpty(includePaths []string) bool {
 	allEmpty := true
 
 	for _, path := range includePaths {
