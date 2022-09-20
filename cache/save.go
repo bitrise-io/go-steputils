@@ -49,8 +49,20 @@ type saver struct {
 }
 
 // NewSaver ...
-func NewSaver(envRepo env.Repository, logger log.Logger, pathProvider pathutil.PathProvider, pathModifier pathutil.PathModifier, pathChecker pathutil.PathChecker) *saver {
-	return &saver{envRepo: envRepo, logger: logger, pathProvider: pathProvider, pathModifier: pathModifier, pathChecker: pathChecker}
+func NewSaver(
+	envRepo env.Repository,
+	logger log.Logger,
+	pathProvider pathutil.PathProvider,
+	pathModifier pathutil.PathModifier,
+	pathChecker pathutil.PathChecker,
+) *saver {
+	return &saver{
+		envRepo:      envRepo,
+		logger:       logger,
+		pathProvider: pathProvider,
+		pathModifier: pathModifier,
+		pathChecker:  pathChecker,
+	}
 }
 
 // Save ...
