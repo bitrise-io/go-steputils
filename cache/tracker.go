@@ -14,8 +14,9 @@ type stepTracker struct {
 	logger  log.Logger
 }
 
-func newStepTracker(envRepo env.Repository, logger log.Logger) stepTracker {
+func newStepTracker(stepId string, envRepo env.Repository, logger log.Logger) stepTracker {
 	p := analytics.Properties{
+		"step_id":     stepId,
 		"build_slug":  envRepo.Get("BITRISE_BUILD_SLUG"),
 		"app_slug":    envRepo.Get("BITRISE_APP_SLUG"),
 		"workflow":    envRepo.Get("BITRISE_TRIGGERED_WORKFLOW_ID"),

@@ -31,7 +31,7 @@ func Test_ProcessConfig(t *testing.T) {
 			input: SaveCacheInput{
 				Verbose: false,
 				Key:     "  ",
-				Paths:   "/dev/null",
+				Paths:   []string{"/dev/null"},
 			},
 			want:    saveCacheConfig{},
 			wantErr: true,
@@ -41,7 +41,7 @@ func Test_ProcessConfig(t *testing.T) {
 			input: SaveCacheInput{
 				Verbose: false,
 				Key:     "cache-key",
-				Paths:   "testdata/dummy_file.txt",
+				Paths:   []string{"testdata/dummy_file.txt"},
 			},
 			want: saveCacheConfig{
 				Verbose:        false,
@@ -57,7 +57,7 @@ func Test_ProcessConfig(t *testing.T) {
 			input: SaveCacheInput{
 				Verbose: false,
 				Key:     "cache-key",
-				Paths:   "~/.bash_h*",
+				Paths:   []string{"~/.bash_h*"},
 			},
 			want: saveCacheConfig{
 				Verbose:        false,
@@ -73,7 +73,10 @@ func Test_ProcessConfig(t *testing.T) {
 			input: SaveCacheInput{
 				Verbose: false,
 				Key:     "cache-key",
-				Paths:   "testdata/dummy_file.txt\ntestdata/**/nested_*.txt",
+				Paths: []string{
+					"testdata/dummy_file.txt",
+					"testdata/**/nested_*.txt",
+				},
 			},
 			want: saveCacheConfig{
 				Verbose: false,

@@ -18,11 +18,13 @@ import (
 	"github.com/docker/go-units"
 )
 
-// SaveCacheInput ...
+// SaveCacheInput is the information that comes from the cache steps that call this shared implementation
 type SaveCacheInput struct {
+	// StepId identifies the exact cache step. Used for logging events.
+	StepId  string
 	Verbose bool
 	Key     string
-	Paths   string
+	Paths   []string
 }
 
 // Saver ...
@@ -58,7 +60,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 		return fmt.Errorf("failed to parse inputs: %w", err)
 	}
 
-	tracker := newStepTracker(s.envRepo, s.logger)
+	tracker := newStepTracker(input.StepId, s.envRepo, s.logger)
 
 	s.logger.Println()
 	s.logger.Infof("Creating archive...")
@@ -129,12 +131,10 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 	}, nil
 }
 
-func (s *saver) evaluatePaths(pathInput string) ([]string, error) {
-	pathSlice := strings.Split(pathInput, "\n")
-
+func (s *saver) evaluatePaths(paths []string) ([]string, error) {
 	// Expand wildcard paths
 	var expandedPaths []string
-	for _, path := range pathSlice {
+	for _, path := range paths {
 		if !strings.Contains(path, "*") {
 			expandedPaths = append(expandedPaths, path)
 			continue
