@@ -60,6 +60,10 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	downloadStartTime := time.Now()
 	archivePath, err := r.download(config)
 	if err != nil {
+		if errors.Is(err, network.ErrCacheNotFound) {
+			r.logger.Donef("No cache entry found for the provided key")
+			return nil
+		}
 		return fmt.Errorf("download failed: %w", err)
 	}
 	fileInfo, err := os.Stat(archivePath)
@@ -151,10 +155,6 @@ func (r *restorer) download(config restoreCacheConfig) (string, error) {
 	}
 	err = network.Download(params, r.logger)
 	if err != nil {
-		if errors.Is(err, network.ErrCacheNotFound) {
-			r.logger.Donef("No cache entry found for the provided key")
-			os.Exit(0)
-		}
 		return "", err
 	}
 
