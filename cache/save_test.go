@@ -10,7 +10,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/pathutil"
 )
 
-func Test_ProcessConfig(t *testing.T) {
+func Test_ProcessSaveConfig(t *testing.T) {
 	testdataAbsPath, err := filepath.Abs("testdata")
 	if err != nil {
 		t.Fatalf(err.Error())

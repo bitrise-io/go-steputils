@@ -45,6 +45,23 @@ func (t *stepTracker) logArchiveCompressed(compressionTime time.Duration, pathCo
 	t.tracker.Enqueue("step_save_cache_archive_compressed", properties)
 }
 
+func (t *stepTracker) logArchiveDownloaded(downloadTime time.Duration, info fs.FileInfo, keyCount int) {
+	properties := analytics.Properties{
+		"download_time_s":     downloadTime.Truncate(time.Second).Seconds(),
+		"download_size_bytes": info.Size(),
+		"key_count":           keyCount,
+	}
+	t.tracker.Enqueue("step_restore_cache_archive_downloaded", properties)
+}
+
+func (t *stepTracker) logArchiveExtracted(extractionTime time.Duration, keyCount int) {
+	properties := analytics.Properties{
+		"extraction_time_s": extractionTime.Truncate(time.Second).Seconds(),
+		"key_count":         keyCount,
+	}
+	t.tracker.Enqueue("step_restore_cache_archive_extracted", properties)
+}
+
 func (t *stepTracker) wait() {
 	t.tracker.Wait()
 }
