@@ -37,6 +37,22 @@ func Test_ProcessSaveConfig(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "Key with template",
+			input: SaveCacheInput{
+				Verbose: false,
+				Key:     `test-key-{{ getenv "INTEGRATION_TEST_ENV" }}`,
+				Paths:   []string{"/dev/null"},
+			},
+			want: saveCacheConfig{
+				Verbose:        false,
+				Key:            "test-key-test_value",
+				Paths:          []string{"/dev/null"},
+				APIBaseURL:     "fake cache service URL",
+				APIAccessToken: "fake cache service access token",
+			},
+			wantErr: false,
+		},
+		{
 			name: "Single file path",
 			input: SaveCacheInput{
 				Verbose: false,
@@ -101,6 +117,7 @@ func Test_ProcessSaveConfig(t *testing.T) {
 				envRepo: fakeEnvRepo{envVars: map[string]string{
 					"BITRISEIO_ABCS_API_URL":      "fake cache service URL",
 					"BITRISEIO_ABCS_ACCESS_TOKEN": "fake cache service access token",
+					"INTEGRATION_TEST_ENV":        "test_value",
 				}},
 			}
 			got, err := step.createConfig(tt.input)
