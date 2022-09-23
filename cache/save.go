@@ -136,7 +136,7 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 
 	return saveCacheConfig{
 		Verbose:        input.Verbose,
-		Key:            input.Key,
+		Key:            evaluatedKey,
 		Paths:          finalPaths,
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
