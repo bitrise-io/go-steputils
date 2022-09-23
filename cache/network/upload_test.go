@@ -3,6 +3,8 @@ package network
 import (
 	"strings"
 	"testing"
+
+	"github.com/bitrise-io/go-utils/v2/log"
 )
 
 func Test_validateKey(t *testing.T) {
@@ -30,7 +32,7 @@ func Test_validateKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := validateKey(tt.key)
+			got, err := validateKey(tt.key, log.NewLogger())
 			if (err != nil) != tt.wantErr {
 				t.Errorf("validateKey() error = %v, wantErr %v", err, tt.wantErr)
 				return
