@@ -114,11 +114,6 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 
 func (r *restorer) evaluateKeys(keys []string) ([]string, error) {
 	model := keytemplate.NewModel(r.envRepo, r.logger)
-	buildContext := keytemplate.BuildContext{
-		Workflow:   r.envRepo.Get("BITRISE_TRIGGERED_WORKFLOW_ID"),
-		Branch:     r.envRepo.Get("BITRISE_GIT_BRANCH"),
-		CommitHash: r.envRepo.Get("BITRISE_GIT_COMMIT"),
-	}
 
 	var evaluatedKeys []string
 	for _, key := range keys {
@@ -128,7 +123,7 @@ func (r *restorer) evaluateKeys(keys []string) ([]string, error) {
 
 		r.logger.Println()
 		r.logger.Printf("Evaluating key template: %s", key)
-		evaluatedKey, err := model.Evaluate(key, buildContext)
+		evaluatedKey, err := model.Evaluate(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate key template: %s", err)
 		}

@@ -6,17 +6,16 @@ import (
 	"github.com/bitrise-io/go-utils/v2/log"
 )
 
-var buildContext = BuildContext{
-	Workflow:   "primary",
-	Branch:     "PLANG-2007-key-template–parsing",
-	CommitHash: "8d722f4cc4e70373bd0b42139fa428d43e0527f0",
+var triggerEnvVars = map[string]string{
+	"BITRISE_TRIGGERED_WORKFLOW_ID": "primary",
+	"BITRISE_GIT_BRANCH":            "PLANG-2007-key-template–parsing",
+	"BITRISE_GIT_COMMIT":            "8d722f4cc4e70373bd0b42139fa428d43e0527f0",
 }
 
 func TestEvaluate(t *testing.T) {
 	type args struct {
-		input        string
-		buildContext BuildContext
-		envVars      map[string]string
+		input   string
+		envVars map[string]string
 	}
 	tests := []struct {
 		name    string
@@ -27,8 +26,8 @@ func TestEvaluate(t *testing.T) {
 		{
 			name: "Static key",
 			args: args{
-				input:        "my-cache-key",
-				buildContext: buildContext,
+				input:   "my-cache-key",
+				envVars: triggerEnvVars,
 			},
 			want:    "my-cache-key",
 			wantErr: false,
@@ -36,8 +35,8 @@ func TestEvaluate(t *testing.T) {
 		{
 			name: "Key with variables",
 			args: args{
-				input:        "npm-cache-{{ .OS }}-{{ .Arch }}-{{ .Branch }}",
-				buildContext: buildContext,
+				input:   "npm-cache-{{ .OS }}-{{ .Arch }}-{{ .Branch }}",
+				envVars: triggerEnvVars,
 			},
 			want:    "npm-cache-darwin-arm64-PLANG-2007-key-template–parsing",
 			wantErr: false,
@@ -46,10 +45,8 @@ func TestEvaluate(t *testing.T) {
 			name: "Key with missing variables",
 			args: args{
 				input: "npm-cache-{{ .Branch }}-{{ .CommitHash }}-v1",
-				buildContext: BuildContext{
-					Workflow:   "primary",
-					Branch:     "",
-					CommitHash: "",
+				envVars: map[string]string{
+					"BITRISE_TRIGGERED_WORKFLOW_ID": "primary",
 				},
 			},
 			want:    "npm-cache---v1",
@@ -58,8 +55,7 @@ func TestEvaluate(t *testing.T) {
 		{
 			name: "Key with env vars",
 			args: args{
-				input:        `npm-cache-{{ getenv "BUILD_TYPE" }}`,
-				buildContext: buildContext,
+				input: `npm-cache-{{ getenv "BUILD_TYPE" }}`,
 				envVars: map[string]string{
 					"BUILD_TYPE":  "release",
 					"ANOTHER_ENV": "false",
@@ -71,8 +67,7 @@ func TestEvaluate(t *testing.T) {
 		{
 			name: "Key with missing env var",
 			args: args{
-				input:        `npm-cache-{{ getenv "BUILD_TYPE" }}`,
-				buildContext: buildContext,
+				input: `npm-cache-{{ getenv "BUILD_TYPE" }}`,
 				envVars: map[string]string{
 					"ANOTHER_ENV": "false",
 				},
@@ -83,8 +78,8 @@ func TestEvaluate(t *testing.T) {
 		{
 			name: "Key with file checksum",
 			args: args{
-				input:        `gradle-cache-{{ checksum "testdata/**/*.gradle*" }}`,
-				buildContext: buildContext,
+				input:   `gradle-cache-{{ checksum "testdata/**/*.gradle*" }}`,
+				envVars: triggerEnvVars,
 			},
 			want:    "gradle-cache-563cf037f336453ee1888c3dcbe1c687ebeb6c593d4d0bd57ccc5fc49daa3951",
 			wantErr: false,
@@ -92,10 +87,22 @@ func TestEvaluate(t *testing.T) {
 		{
 			name: "Key with multiple file checksum params",
 			args: args{
-				input:        `gradle-cache-{{ checksum "testdata/**/*.gradle*" "testdata/package-lock.json" }}`,
-				buildContext: buildContext,
+				input:   `gradle-cache-{{ checksum "testdata/**/*.gradle*" "testdata/package-lock.json" }}`,
+				envVars: triggerEnvVars,
 			},
 			want:    "gradle-cache-f7a92b852d03a958a99e8c04b831d1e709ee2e9b7a00d851317e66d617188a8b",
+			wantErr: false,
+		},
+		{
+			name: "No explicit commit hash",
+			args: args{
+				input: "cache-key-{{ .CommitHash }}",
+				envVars: map[string]string{
+					"BITRISE_GIT_COMMIT":    "",
+					"GIT_CLONE_COMMIT_HASH": "8d722f4cc4e70373bd0b42139fa428d43e0527f0",
+				},
+			},
+			want:    "cache-key-8d722f4cc4e70373bd0b42139fa428d43e0527f0",
 			wantErr: false,
 		},
 	}
@@ -107,7 +114,7 @@ func TestEvaluate(t *testing.T) {
 				os:      "darwin",
 				arch:    "arm64",
 			}
-			got, err := model.Evaluate(tt.args.input, tt.args.buildContext)
+			got, err := model.Evaluate(tt.args.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Evaluate() error = %v, wantErr %v", err, tt.wantErr)
 				return
