@@ -198,13 +198,7 @@ func (s *saver) evaluatePaths(paths []string) ([]string, error) {
 
 func (s *saver) evaluateKey(keyTemplate string) (string, error) {
 	model := keytemplate.NewModel(s.envRepo, s.logger)
-	buildContext := keytemplate.BuildContext{
-		Workflow:   s.envRepo.Get("BITRISE_TRIGGERED_WORKFLOW_ID"),
-		Branch:     s.envRepo.Get("BITRISE_GIT_BRANCH"),
-		CommitHash: s.envRepo.Get("BITRISE_GIT_COMMIT"),
-	}
-
-	return model.Evaluate(keyTemplate, buildContext)
+	return model.Evaluate(keyTemplate)
 }
 
 func (s *saver) compress(paths []string) (string, error) {
