@@ -32,7 +32,8 @@ type prepareUploadResponse struct {
 }
 
 type restoreResponse struct {
-	URL string `json:"url"`
+	URL        string `json:"url"`
+	MatchedKey string `json:"matched_cache_key"`
 }
 
 type apiClient struct {
@@ -146,22 +147,22 @@ func (c apiClient) acknowledgeUpload(uploadID string) error {
 	return nil
 }
 
-func (c apiClient) restore(cacheKeys []string) (string, error) {
+func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 	keysInQuery, err := validateKeys(cacheKeys)
 	if err != nil {
-		return "", err
+		return restoreResponse{}, err
 	}
 	apiURL := fmt.Sprintf("%s/restore?cache_keys=%s", c.baseURL, keysInQuery)
 
 	req, err := retryablehttp.NewRequest(http.MethodGet, apiURL, nil)
 	if err != nil {
-		return "", err
+		return restoreResponse{}, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return restoreResponse{}, err
 	}
 	defer func(body io.ReadCloser) {
 		err := body.Close()
@@ -171,19 +172,19 @@ func (c apiClient) restore(cacheKeys []string) (string, error) {
 	}(resp.Body)
 
 	if resp.StatusCode == http.StatusNotFound {
-		return "", ErrCacheNotFound
+		return restoreResponse{}, ErrCacheNotFound
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", unwrapError(resp)
+		return restoreResponse{}, unwrapError(resp)
 	}
 
 	var response restoreResponse
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
-		return "", err
+		return restoreResponse{}, err
 	}
 
-	return response.URL, nil
+	return response, nil
 }
 
 func (c apiClient) downloadArchive(url string) (io.ReadCloser, error) {

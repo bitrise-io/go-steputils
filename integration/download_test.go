@@ -43,12 +43,15 @@ func TestSuccessfulDownload(t *testing.T) {
 		DownloadPath: downloadPath,
 	}
 	logger.EnableDebugLog(true)
-	err = network.Download(params, logger)
+	matchedKey, err := network.Download(params, logger)
 
 	// Then
 	if err != nil {
 		t.Errorf(err.Error())
 	}
+
+	assert.Equal(t, cacheKeys[0], matchedKey)
+
 	testFileBytes, err := ioutil.ReadFile(testFile)
 	if err != nil {
 		t.Fatalf(err.Error())
@@ -79,9 +82,10 @@ func TestNotFoundDownload(t *testing.T) {
 		DownloadPath: downloadPath,
 	}
 	logger.EnableDebugLog(true)
-	err := network.Download(params, logger)
+	matchedKey, err := network.Download(params, logger)
 
 	// Then
+	assert.Equal(t, "", matchedKey)
 	assert.ErrorIs(t, err, network.ErrCacheNotFound)
 }
 

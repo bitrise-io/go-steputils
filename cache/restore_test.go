@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/bitrise-io/go-utils/v2/log"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_ProcessRestoreConfig(t *testing.T) {
@@ -150,6 +151,55 @@ func Test_evaluateKeys(t *testing.T) {
 			if !reflect.DeepEqual(evaluatedKeys, testCase.want) {
 				t.Errorf("evaluateKey() = %v, want %v", evaluatedKeys, testCase.want)
 			}
+		})
+	}
+}
+
+func Test_exposeCacheHit(t *testing.T) {
+	tests := []struct {
+		name string
+		downloadResult
+		wantEnvs []string
+		wantErr  bool
+	}{
+		{
+			name:           "no cache hit",
+			downloadResult: downloadResult{},
+			wantEnvs:       []string{},
+			wantErr:        false,
+		},
+		{
+			name: "exact cache hit",
+			downloadResult: downloadResult{
+				filePath:   "testdata/dummy_file.txt",
+				matchedKey: "my-cache-key",
+			},
+			wantEnvs: []string{
+				"BITRISE_CACHE_HIT__my-cache-key=9a30a503b2862c51c3c5acd7fbce2f1f784cf4658ccf8e87d5023a90c21c0714",
+			},
+		},
+		{
+			name: "exact cache hit",
+			downloadResult: downloadResult{
+				filePath:   "testdata/dummy_file.txt",
+				matchedKey: "my-cache-key",
+			},
+			wantEnvs: []string{
+				"BITRISE_CACHE_HIT__my-cache-key=9a30a503b2862c51c3c5acd7fbce2f1f784cf4658ccf8e87d5023a90c21c0714",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			envRepo := fakeEnvRepo{envVars: map[string]string{}}
+			r := &restorer{
+				envRepo: envRepo,
+				logger:  log.NewLogger(),
+			}
+			if err := r.exposeCacheHit(tt.downloadResult); (err != nil) != tt.wantErr {
+				t.Errorf("exposeCacheHit() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			assert.Equal(t, tt.wantEnvs, envRepo.List())
 		})
 	}
 }
