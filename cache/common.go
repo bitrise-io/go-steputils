@@ -6,6 +6,7 @@ import (
 	"os"
 )
 
+// We need this prefix because there could be multiple restore steps in one workflow with multiple cache keys
 const cacheHitEnvVarPrefix = "BITRISE_CACHE_HIT__"
 
 func checksumOfFile(path string) (string, error) {

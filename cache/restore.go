@@ -100,6 +100,9 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	tracker.logArchiveExtracted(extractionTime, len(config.Keys))
 
 	err = r.exposeCacheHit(result)
+	if err != nil {
+		return err
+	}
 
 	tracker.logRestoreResult(true, result.matchedKey, config.Keys)
 	tracker.wait()
