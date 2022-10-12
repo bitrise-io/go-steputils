@@ -25,12 +25,12 @@ type SaveCacheInput struct {
 	Verbose bool
 	Key     string
 	Paths   []string
-	// SkipChecksumChecking indicates that the cache key is enough for knowing the cache archive is different from
+	// IsKeyUnique indicates that the cache key is enough for knowing the cache archive is different from
 	// another cache archive.
 	// This can be set to true if the cache key contains a checksum that changes when any of the cached files change.
 	// Example of such key: my-cache-key-{{ checksum "package-lock.json" }}
 	// Example where this is not true: my-cache-key-{{ .OS }}-{{ .Arch }}
-	SkipChecksumChecking bool
+	IsKeyUnique bool
 }
 
 // Saver ...
@@ -80,7 +80,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 
 	tracker := newStepTracker(input.StepId, s.envRepo, s.logger)
 
-	canSkipSave, reason := s.canSkipSave(input.Key, config.Key, input.SkipChecksumChecking)
+	canSkipSave, reason := s.canSkipSave(input.Key, config.Key, input.IsKeyUnique)
 	s.logger.Println()
 	if canSkipSave {
 		s.logger.Donef("Cache save can be skipped, reason: %s", reason)
