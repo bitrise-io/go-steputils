@@ -3,6 +3,7 @@ package cache
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
 	"os"
 )
 
@@ -11,10 +12,17 @@ const cacheHitEnvVarPrefix = "BITRISE_CACHE_HIT__"
 
 func checksumOfFile(path string) (string, error) {
 	hash := sha256.New()
-	b, err := os.ReadFile(path)
+
+	file, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
-	hash.Write(b)
+	defer file.Close() //nolint:errcheck
+
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		return "", err
+	}
+
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
