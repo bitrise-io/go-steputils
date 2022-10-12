@@ -81,6 +81,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 	tracker := newStepTracker(input.StepId, s.envRepo, s.logger)
 
 	canSkipSave, reason := s.canSkipSave(input.Key, config.Key, input.SkipChecksumChecking)
+	s.logger.Println()
 	if canSkipSave {
 		s.logger.Donef("Cache save can be skipped, reason: %s", reason)
 		return nil
@@ -112,6 +113,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 		// fail silently and continue
 	}
 	canSkipUpload, reason := s.canSkipUpload(config.Key, archiveChecksum)
+	s.logger.Println()
 	if canSkipUpload {
 		s.logger.Donef("Cache upload can be skipped, reason: %s", reason)
 		return nil

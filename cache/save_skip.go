@@ -1,6 +1,9 @@
 package cache
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 func (s *saver) canSkipSave(keyTemplate, evaluatedKey string, onlyCheckCacheKey bool) (canSkip bool, reason string) {
 	if keyTemplate == evaluatedKey {
@@ -20,7 +23,12 @@ func (s *saver) canSkipSave(keyTemplate, evaluatedKey string, onlyCheckCacheKey 
 		}
 	}
 
-	return false, "there was no cache restore in the workflow with this key"
+	otherKeys := []string{}
+	for k := range cacheHits {
+		otherKeys = append(otherKeys, k)
+	}
+	fullReason := fmt.Sprintf("there was no cache restore in the workflow with this key\nOther restored cache keys found:\n%s", strings.Join(otherKeys, "\n"))
+	return false, fullReason
 }
 
 func (s *saver) canSkipUpload(newCacheKey, newCacheChecksum string) (canSkip bool, reason string) {
