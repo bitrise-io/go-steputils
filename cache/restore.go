@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/bitrise-io/go-steputils/tools"
 	"github.com/bitrise-io/go-steputils/v2/cache/compression"
 	"github.com/bitrise-io/go-steputils/v2/cache/keytemplate"
 	"github.com/bitrise-io/go-steputils/v2/cache/network"
@@ -41,6 +42,11 @@ type restorer struct {
 	logger  log.Logger
 }
 
+type downloadResult struct {
+	filePath   string
+	matchedKey string
+}
+
 // NewRestorer ...
 func NewRestorer(envRepo env.Repository, logger log.Logger) *restorer {
 	return &restorer{envRepo: envRepo, logger: logger}
@@ -58,15 +64,23 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	r.logger.Println()
 	r.logger.Infof("Downloading archive...")
 	downloadStartTime := time.Now()
-	archivePath, err := r.download(config)
+	result, err := r.download(config)
 	if err != nil {
 		if errors.Is(err, network.ErrCacheNotFound) {
 			r.logger.Donef("No cache entry found for the provided key")
+			tracker.logRestoreResult(false, "", config.Keys)
+			tracker.wait()
 			return nil
 		}
 		return fmt.Errorf("download failed: %w", err)
 	}
-	fileInfo, err := os.Stat(archivePath)
+	if result.matchedKey == config.Keys[0] {
+		r.logger.Printf("Exact hit for first key")
+	} else {
+		r.logger.Printf("Cache hit for key: %s", result.matchedKey)
+	}
+
+	fileInfo, err := os.Stat(result.filePath)
 	if err != nil {
 		return err
 	}
@@ -78,14 +92,20 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	r.logger.Println()
 	r.logger.Infof("Restoring archive...")
 	extractionStartTime := time.Now()
-	if err := compression.Decompress(archivePath, r.logger, r.envRepo); err != nil {
+	if err := compression.Decompress(result.filePath, r.logger, r.envRepo); err != nil {
 		return fmt.Errorf("failed to decompress cache archive: %w", err)
 	}
 	extractionTime := time.Since(extractionStartTime).Round(time.Second)
 	r.logger.Donef("Restored archive in %s", extractionTime)
 	tracker.logArchiveExtracted(extractionTime, len(config.Keys))
-	tracker.wait()
 
+	err = r.exposeCacheHit(result)
+	if err != nil {
+		return err
+	}
+
+	tracker.logRestoreResult(true, result.matchedKey, config.Keys)
+	tracker.wait()
 	return nil
 }
 
@@ -134,10 +154,10 @@ func (r *restorer) evaluateKeys(keys []string) ([]string, error) {
 	return evaluatedKeys, nil
 }
 
-func (r *restorer) download(config restoreCacheConfig) (string, error) {
+func (r *restorer) download(config restoreCacheConfig) (downloadResult, error) {
 	dir, err := os.MkdirTemp("", "restore-cache")
 	if err != nil {
-		return "", err
+		return downloadResult{}, err
 	}
 	name := fmt.Sprintf("cache-%s.tzst", time.Now().UTC().Format("20060102-150405"))
 	downloadPath := filepath.Join(dir, name)
@@ -148,12 +168,34 @@ func (r *restorer) download(config restoreCacheConfig) (string, error) {
 		CacheKeys:    config.Keys,
 		DownloadPath: downloadPath,
 	}
-	err = network.Download(params, r.logger)
+	matchedKey, err := network.Download(params, r.logger)
 	if err != nil {
-		return "", err
+		return downloadResult{}, err
 	}
 
 	r.logger.Debugf("Archive downloaded to %s", downloadPath)
 
-	return downloadPath, nil
+	return downloadResult{filePath: downloadPath, matchedKey: matchedKey}, nil
+}
+
+func (r *restorer) exposeCacheHit(result downloadResult) error {
+	if result.filePath == "" || result.matchedKey == "" {
+		return nil
+	}
+
+	checksum, err := checksumOfFile(result.filePath)
+	if err != nil {
+		return err
+	}
+
+	r.logger.Debugf("Exposing cache hit info:")
+	r.logger.Debugf("Matched key: %s", result.matchedKey)
+	r.logger.Debugf("Archive checksum: %s", checksum)
+
+	envKey := cacheHitEnvVarPrefix + result.matchedKey
+	err = tools.ExportEnvironmentWithEnvman(envKey, checksum)
+	if err != nil {
+		return err
+	}
+	return r.envRepo.Set(envKey, checksum)
 }

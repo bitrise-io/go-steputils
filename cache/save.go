@@ -25,6 +25,12 @@ type SaveCacheInput struct {
 	Verbose bool
 	Key     string
 	Paths   []string
+	// IsKeyUnique indicates that the cache key is enough for knowing the cache archive is different from
+	// another cache archive.
+	// This can be set to true if the cache key contains a checksum that changes when any of the cached files change.
+	// Example of such key: my-cache-key-{{ checksum "package-lock.json" }}
+	// Example where this is not true: my-cache-key-{{ .OS }}-{{ .Arch }}
+	IsKeyUnique bool
 }
 
 // Saver ...
@@ -74,6 +80,15 @@ func (s *saver) Save(input SaveCacheInput) error {
 
 	tracker := newStepTracker(input.StepId, s.envRepo, s.logger)
 
+	canSkipSave, reason := s.canSkipSave(input.Key, config.Key, input.IsKeyUnique)
+	s.logger.Println()
+	if canSkipSave {
+		s.logger.Donef("Cache save can be skipped, reason: %s", reason)
+		return nil
+	} else {
+		s.logger.Infof("Can't skip saving the cache, reason: %s", reason)
+	}
+
 	s.logger.Println()
 	s.logger.Infof("Creating archive...")
 	compressionStartTime := time.Now()
@@ -91,6 +106,20 @@ func (s *saver) Save(input SaveCacheInput) error {
 	}
 	s.logger.Printf("Archive size: %s", units.HumanSizeWithPrecision(float64(fileInfo.Size()), 3))
 	s.logger.Debugf("Archive path: %s", archivePath)
+
+	archiveChecksum, err := checksumOfFile(archivePath)
+	if err != nil {
+		s.logger.Warnf(err.Error())
+		// fail silently and continue
+	}
+	canSkipUpload, reason := s.canSkipUpload(config.Key, archiveChecksum)
+	s.logger.Println()
+	if canSkipUpload {
+		s.logger.Donef("Cache upload can be skipped, reason: %s", reason)
+		return nil
+	} else {
+		s.logger.Infof("Can't skip uploading the cache, reason: %s", reason)
+	}
 
 	s.logger.Println()
 	s.logger.Infof("Uploading archive...")

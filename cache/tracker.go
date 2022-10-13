@@ -62,6 +62,19 @@ func (t *stepTracker) logArchiveExtracted(extractionTime time.Duration, keyCount
 	t.tracker.Enqueue("step_restore_cache_archive_extracted", properties)
 }
 
+func (t *stepTracker) logRestoreResult(isMatch bool, matchedKey string, evaluatedKeys []string) {
+	if len(evaluatedKeys) == 0 {
+		return
+	}
+
+	properties := analytics.Properties{
+		"is_match":             isMatch,
+		"is_first_key_matched": matchedKey == evaluatedKeys[0],
+		"key_count":            len(evaluatedKeys),
+	}
+	t.tracker.Enqueue("step_restore_cache_result", properties)
+}
+
 func (t *stepTracker) wait() {
 	t.tracker.Wait()
 }

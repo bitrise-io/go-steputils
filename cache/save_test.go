@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -209,9 +210,9 @@ func (repo fakeEnvRepo) Unset(key string) error {
 }
 
 func (repo fakeEnvRepo) List() []string {
-	var values []string
-	for _, v := range repo.envVars {
-		values = append(values, v)
+	envs := []string{}
+	for k, v := range repo.envVars {
+		envs = append(envs, fmt.Sprintf("%s=%s", k, v))
 	}
-	return values
+	return envs
 }
