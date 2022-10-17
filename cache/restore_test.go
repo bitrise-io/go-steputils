@@ -197,7 +197,7 @@ func Test_exposeCacheHit(t *testing.T) {
 				logger:  log.NewLogger(),
 			}
 			if err := r.exposeCacheHit(tt.downloadResult); (err != nil) != tt.wantErr {
-				t.Errorf("exposeCacheHit() error = %v, wantErr %v", err, tt.wantErr)
+				t.Fatalf("exposeCacheHit() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			assert.Equal(t, tt.wantEnvs, envRepo.List())
 		})

@@ -86,7 +86,7 @@ func setField(field reflect.Value, value, constraint string) error {
 		field = field.Elem()
 	}
 
-	switch field.Kind() {
+	switch field.Kind() { //nolint:exhaustive
 	case reflect.String:
 		field.SetString(value)
 	case reflect.Bool:

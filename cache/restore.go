@@ -60,6 +60,7 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	}
 
 	tracker := newStepTracker(input.StepId, r.envRepo, r.logger)
+	defer tracker.wait()
 
 	r.logger.Println()
 	r.logger.Infof("Downloading archive...")
@@ -69,7 +70,6 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 		if errors.Is(err, network.ErrCacheNotFound) {
 			r.logger.Donef("No cache entry found for the provided key")
 			tracker.logRestoreResult(false, "", config.Keys)
-			tracker.wait()
 			return nil
 		}
 		return fmt.Errorf("download failed: %w", err)
@@ -105,7 +105,6 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	}
 
 	tracker.logRestoreResult(true, result.matchedKey, config.Keys)
-	tracker.wait()
 	return nil
 }
 
