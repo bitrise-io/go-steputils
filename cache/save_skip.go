@@ -11,7 +11,7 @@ const (
 	reasonNoRestore
 	reasonRestoreSameUniqueKey
 	reasonRestoreSameKeyNotUnique
-	reasonRestoreOtherKey
+	reasonNoRestoreThisKey
 	reasonNewArchiveChecksumMatch
 	reasonNewArchiveChecksumMismatch
 )
@@ -26,8 +26,8 @@ func (r skipReason) String() string {
 		return "restore_same_unique_key"
 	case reasonRestoreSameKeyNotUnique:
 		return "restore_same_key_not_unique"
-	case reasonRestoreOtherKey:
-		return "restore_other_key"
+	case reasonNoRestoreThisKey:
+		return "no_restore_with_this_key"
 	case reasonNewArchiveChecksumMatch:
 		return "new_archive_checksum_match"
 	case reasonNewArchiveChecksumMismatch:
@@ -47,8 +47,8 @@ func (r skipReason) description() string {
 		return "a cache with the same key was restored in the workflow, new cache would have the same content"
 	case reasonRestoreSameKeyNotUnique:
 		return "a cache with the same key was restored in the workflow, but contents might have changed since then"
-	case reasonRestoreOtherKey:
-		return "there was no cache restore in the workflow with this key"
+	case reasonNoRestoreThisKey:
+		return "there was no cache restore in the workflow with this key, but was for other(s)"
 	case reasonNewArchiveChecksumMatch:
 		return "new cache archive is the same as the restored one"
 	case reasonNewArchiveChecksumMismatch:
@@ -76,7 +76,7 @@ func (s *saver) canSkipSave(keyTemplate, evaluatedKey string, isKeyUnique bool) 
 		}
 	}
 
-	return false, reasonRestoreOtherKey
+	return false, reasonNoRestoreThisKey
 }
 
 func (s *saver) canSkipUpload(newCacheKey, newCacheChecksum string) (bool, skipReason) {
@@ -88,7 +88,7 @@ func (s *saver) canSkipUpload(newCacheKey, newCacheChecksum string) (bool, skipR
 
 	checksumForNewKey, ok := cacheHits[newCacheKey]
 	if !ok {
-		return false, reasonRestoreOtherKey
+		return false, reasonNoRestoreThisKey
 	}
 	if checksumForNewKey == newCacheChecksum {
 		return true, reasonNewArchiveChecksumMatch

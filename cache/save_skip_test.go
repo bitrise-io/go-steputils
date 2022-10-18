@@ -47,7 +47,7 @@ func Test_canSkipSave(t *testing.T) {
 				onlyCheckCacheKey: true,
 			},
 			want:       false,
-			wantReason: reasonRestoreOtherKey,
+			wantReason: reasonNoRestoreThisKey,
 		},
 		{
 			name: "Cache hit on multiple keys, one is same key",
@@ -128,7 +128,7 @@ func Test_canSkipUpload(t *testing.T) {
 				newCacheChecksum: "9a30a503b2862c51c3c5acd7fbce2f1f784cf4658ccf8e87d5023a90c21c0714",
 			},
 			want:       false,
-			wantReason: reasonRestoreOtherKey,
+			wantReason: reasonNoRestoreThisKey,
 		},
 		{
 			name: "Cache hit on same key, checksum matches",

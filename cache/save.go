@@ -89,7 +89,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 		return nil
 	} else {
 		s.logger.Infof("Can't skip saving the cache, reason: %s", reason.description())
-		if reason == reasonRestoreOtherKey {
+		if reason == reasonNoRestoreThisKey {
 			s.logOtherHits()
 		}
 	}
