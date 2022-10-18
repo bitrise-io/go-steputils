@@ -79,14 +79,19 @@ func (s *saver) Save(input SaveCacheInput) error {
 	}
 
 	tracker := newStepTracker(input.StepId, s.envRepo, s.logger)
+	defer tracker.wait()
 
 	canSkipSave, reason := s.canSkipSave(input.Key, config.Key, input.IsKeyUnique)
+	tracker.logSkipSaveResult(canSkipSave, reason)
 	s.logger.Println()
 	if canSkipSave {
-		s.logger.Donef("Cache save can be skipped, reason: %s", reason)
+		s.logger.Donef("Cache save can be skipped, reason: %s", reason.description())
 		return nil
 	} else {
-		s.logger.Infof("Can't skip saving the cache, reason: %s", reason)
+		s.logger.Infof("Can't skip saving the cache, reason: %s", reason.description())
+		if reason == reasonNoRestoreThisKey {
+			s.logOtherHits()
+		}
 	}
 
 	s.logger.Println()
@@ -113,13 +118,13 @@ func (s *saver) Save(input SaveCacheInput) error {
 		// fail silently and continue
 	}
 	canSkipUpload, reason := s.canSkipUpload(config.Key, archiveChecksum)
+	tracker.logSkipUploadResult(canSkipUpload, reason)
 	s.logger.Println()
 	if canSkipUpload {
-		s.logger.Donef("Cache upload can be skipped, reason: %s", reason)
+		s.logger.Donef("Cache upload can be skipped, reason: %s", reason.description())
 		return nil
-	} else {
-		s.logger.Infof("Can't skip uploading the cache, reason: %s", reason)
 	}
+	s.logger.Infof("Can't skip uploading the cache, reason: %s", reason.description())
 
 	s.logger.Println()
 	s.logger.Infof("Uploading archive...")
@@ -131,7 +136,6 @@ func (s *saver) Save(input SaveCacheInput) error {
 	uploadTime := time.Since(uploadStartTime).Round(time.Second)
 	s.logger.Donef("Archive uploaded in %s", uploadTime)
 	tracker.logArchiveUploaded(uploadTime, fileInfo, len(config.Paths))
-	tracker.wait()
 
 	return nil
 }

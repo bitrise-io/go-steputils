@@ -16,6 +16,7 @@ linters:
   - typecheck
   - unused
   - revive
+  - exhaustive
 
 linters-settings:
   revive:

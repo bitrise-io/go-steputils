@@ -15,10 +15,11 @@ func Test_canSkipSave(t *testing.T) {
 		onlyCheckCacheKey bool
 	}
 	tests := []struct {
-		name string
-		args args
-		envs map[string]string
-		want bool
+		name       string
+		args       args
+		envs       map[string]string
+		want       bool
+		wantReason skipReason
 	}{
 		{
 			name: "No cache hit, dynamic key",
@@ -30,7 +31,8 @@ func Test_canSkipSave(t *testing.T) {
 				evaluatedKey:      "my-cache-key-8d722f4cc4e70373bd0b42139fa428d43e0527f0",
 				onlyCheckCacheKey: true,
 			},
-			want: false,
+			want:       false,
+			wantReason: reasonNoRestore,
 		},
 		{
 			name: "Cache hit on different keys",
@@ -44,7 +46,8 @@ func Test_canSkipSave(t *testing.T) {
 				evaluatedKey:      "npm-cache-8d722f4cc4e70373bd0b42139fa428d43e0527f0",
 				onlyCheckCacheKey: true,
 			},
-			want: false,
+			want:       false,
+			wantReason: reasonNoRestoreThisKey,
 		},
 		{
 			name: "Cache hit on multiple keys, one is same key",
@@ -58,7 +61,8 @@ func Test_canSkipSave(t *testing.T) {
 				evaluatedKey:      "my-key-8d722f4cc4e70373bd0b42139fa428d43e0527f0",
 				onlyCheckCacheKey: true,
 			},
-			want: true,
+			want:       true,
+			wantReason: reasonRestoreSameUniqueKey,
 		},
 		{
 			name: "Cache hit on static key",
@@ -70,7 +74,8 @@ func Test_canSkipSave(t *testing.T) {
 				evaluatedKey:      "static-key",
 				onlyCheckCacheKey: false,
 			},
-			want: false,
+			want:       false,
+			wantReason: reasonKeyNotDynamic,
 		},
 	}
 	for _, tt := range tests {
@@ -83,8 +88,9 @@ func Test_canSkipSave(t *testing.T) {
 				pathModifier: pathutil.NewPathModifier(),
 				pathChecker:  pathutil.NewPathChecker(),
 			}
-			canSkipSave, _ := s.canSkipSave(tt.args.keyTemplate, tt.args.evaluatedKey, tt.args.onlyCheckCacheKey)
+			canSkipSave, reason := s.canSkipSave(tt.args.keyTemplate, tt.args.evaluatedKey, tt.args.onlyCheckCacheKey)
 			assert.Equalf(t, tt.want, canSkipSave, "canSkipSave(%v, %v, %v)", tt.args.keyTemplate, tt.args.evaluatedKey, tt.args.onlyCheckCacheKey)
+			assert.Equalf(t, tt.wantReason.String(), reason.String(), "canSkipSave(%v, %v, %v)", tt.args.keyTemplate, tt.args.evaluatedKey, tt.args.onlyCheckCacheKey)
 		})
 	}
 }
@@ -95,10 +101,11 @@ func Test_canSkipUpload(t *testing.T) {
 		newCacheChecksum string
 	}
 	tests := []struct {
-		name string
-		args args
-		envs map[string]string
-		want bool
+		name       string
+		args       args
+		envs       map[string]string
+		want       bool
+		wantReason skipReason
 	}{
 		{
 			name: "No cache hit",
@@ -107,7 +114,8 @@ func Test_canSkipUpload(t *testing.T) {
 				newCacheKey:      "my-cache-key-8d722f4cc4e70373bd0b42139fa428d43e0527f0",
 				newCacheChecksum: "9a30a503b2862c51c3c5acd7fbce2f1f784cf4658ccf8e87d5023a90c21c0714",
 			},
-			want: false,
+			want:       false,
+			wantReason: reasonNoRestore,
 		},
 		{
 			name: "Cache hit on different keys",
@@ -119,7 +127,8 @@ func Test_canSkipUpload(t *testing.T) {
 				newCacheKey:      "npm-cache-8d722f4cc4e70373bd0b42139fa428d43e0527f0",
 				newCacheChecksum: "9a30a503b2862c51c3c5acd7fbce2f1f784cf4658ccf8e87d5023a90c21c0714",
 			},
-			want: false,
+			want:       false,
+			wantReason: reasonNoRestoreThisKey,
 		},
 		{
 			name: "Cache hit on same key, checksum matches",
@@ -131,7 +140,8 @@ func Test_canSkipUpload(t *testing.T) {
 				newCacheKey:      "my-key-8d722f4cc4e70373bd0b42139fa428d43e0527f0",
 				newCacheChecksum: "9a30a503b2862c51c3c5acd7fbce2f1f784cf4658ccf8e87d5023a90c21c0714",
 			},
-			want: true,
+			want:       true,
+			wantReason: reasonNewArchiveChecksumMatch,
 		},
 		{
 			name: "Cache hit on same key, checksum is different",
@@ -143,7 +153,8 @@ func Test_canSkipUpload(t *testing.T) {
 				newCacheKey:      "my-key-8d722f4cc4e70373bd0b42139fa428d43e0527f0",
 				newCacheChecksum: "6717e97f16450f0a6bb02213484ee34dd67dcda51e8660de0a0388e77c131654",
 			},
-			want: false,
+			want:       false,
+			wantReason: reasonNewArchiveChecksumMismatch,
 		},
 	}
 	for _, tt := range tests {
@@ -156,8 +167,9 @@ func Test_canSkipUpload(t *testing.T) {
 				pathModifier: pathutil.NewPathModifier(),
 				pathChecker:  pathutil.NewPathChecker(),
 			}
-			canSkipUpload, _ := s.canSkipUpload(tt.args.newCacheKey, tt.args.newCacheChecksum)
+			canSkipUpload, reason := s.canSkipUpload(tt.args.newCacheKey, tt.args.newCacheChecksum)
 			assert.Equalf(t, tt.want, canSkipUpload, "canSkipUpload(%v, %v)", tt.args.newCacheKey, tt.args.newCacheChecksum)
+			assert.Equalf(t, tt.wantReason.String(), reason.String(), "canSkipUpload(%v, %v)", tt.args.newCacheKey, tt.args.newCacheChecksum)
 		})
 	}
 }

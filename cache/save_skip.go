@@ -1,48 +1,100 @@
 package cache
 
 import (
-	"fmt"
 	"strings"
 )
 
-func (s *saver) canSkipSave(keyTemplate, evaluatedKey string, onlyCheckCacheKey bool) (canSkip bool, reason string) {
+type skipReason int
+
+const (
+	reasonKeyNotDynamic skipReason = iota
+	reasonNoRestore
+	reasonRestoreSameUniqueKey
+	reasonRestoreSameKeyNotUnique
+	reasonNoRestoreThisKey
+	reasonNewArchiveChecksumMatch
+	reasonNewArchiveChecksumMismatch
+)
+
+func (r skipReason) String() string {
+	switch r {
+	case reasonKeyNotDynamic:
+		return "key_not_dynamic"
+	case reasonNoRestore:
+		return "no_restore_found"
+	case reasonRestoreSameUniqueKey:
+		return "restore_same_unique_key"
+	case reasonRestoreSameKeyNotUnique:
+		return "restore_same_key_not_unique"
+	case reasonNoRestoreThisKey:
+		return "no_restore_with_this_key"
+	case reasonNewArchiveChecksumMatch:
+		return "new_archive_checksum_match"
+	case reasonNewArchiveChecksumMismatch:
+		return "new_archive_checksum_mismatch"
+	default:
+		return "unknown"
+	}
+}
+
+func (r skipReason) description() string {
+	switch r {
+	case reasonKeyNotDynamic:
+		return "key is not dynamic; the expectation is that the same key is used for saving different cache contents over and over"
+	case reasonNoRestore:
+		return "no cache was restored in the workflow, creating a new cache entry"
+	case reasonRestoreSameUniqueKey:
+		return "a cache with the same key was restored in the workflow, new cache would have the same content"
+	case reasonRestoreSameKeyNotUnique:
+		return "a cache with the same key was restored in the workflow, but contents might have changed since then"
+	case reasonNoRestoreThisKey:
+		return "there was no cache restore in the workflow with this key, but was for other(s)"
+	case reasonNewArchiveChecksumMatch:
+		return "new cache archive is the same as the restored one"
+	case reasonNewArchiveChecksumMismatch:
+		return "new cache archive doesn't match the restored one"
+	default:
+		return "unrecognized skipReason"
+	}
+}
+
+func (s *saver) canSkipSave(keyTemplate, evaluatedKey string, isKeyUnique bool) (bool, skipReason) {
 	if keyTemplate == evaluatedKey {
-		return false, "key is not dynamic; the expectation is that the same key is used for saving different cache contents over and over"
+		return false, reasonKeyNotDynamic
 	}
 
 	cacheHits := s.getCacheHits()
 	if len(cacheHits) == 0 {
-		return false, "no cache was restored in the workflow, creating a new cache entry"
+		return false, reasonNoRestore
 	}
 
 	if _, ok := cacheHits[evaluatedKey]; ok {
-		if onlyCheckCacheKey {
-			return true, "a cache with the same key was restored in the workflow, new cache would have the same content"
+		if isKeyUnique {
+			return true, reasonRestoreSameUniqueKey
 		} else {
-			return false, "a cache with the same key was restored in the workflow, but contents might have changed since then"
+			return false, reasonRestoreSameKeyNotUnique
 		}
 	}
 
-	otherKeys := []string{}
-	for k := range cacheHits {
-		otherKeys = append(otherKeys, k)
-	}
-	fullReason := fmt.Sprintf("there was no cache restore in the workflow with this key\nOther restored cache keys found:\n%s", strings.Join(otherKeys, "\n"))
-	return false, fullReason
+	return false, reasonNoRestoreThisKey
 }
 
-func (s *saver) canSkipUpload(newCacheKey, newCacheChecksum string) (canSkip bool, reason string) {
+func (s *saver) canSkipUpload(newCacheKey, newCacheChecksum string) (bool, skipReason) {
 	cacheHits := s.getCacheHits()
 
 	if len(cacheHits) == 0 {
-		return false, "no cache was restored in the workflow"
+		return false, reasonNoRestore
 	}
 
-	if cacheHits[newCacheKey] == newCacheChecksum {
-		return true, "new cache archive is the same as the restored one"
-	} else {
-		return false, "new cache archive doesn't match the restored one"
+	checksumForNewKey, ok := cacheHits[newCacheKey]
+	if !ok {
+		return false, reasonNoRestoreThisKey
 	}
+	if checksumForNewKey == newCacheChecksum {
+		return true, reasonNewArchiveChecksumMatch
+	}
+
+	return false, reasonNewArchiveChecksumMismatch
 }
 
 // Returns cache hit information exposed by previous restore cache steps.
@@ -63,4 +115,16 @@ func (s *saver) getCacheHits() map[string]string {
 		}
 	}
 	return cacheHits
+}
+
+func (s *saver) logOtherHits() {
+	otherKeys := []string{}
+	for k := range s.getCacheHits() {
+		otherKeys = append(otherKeys, k)
+	}
+	if len(otherKeys) == 0 {
+		return
+	}
+	s.logger.Printf("Other restored cache keys:")
+	s.logger.Printf(strings.Join(otherKeys, "\n"))
 }
