@@ -13,6 +13,12 @@ import (
 	"github.com/bitrise-io/go-utils/ziputil"
 )
 
+const (
+	filesType              = "files"
+	foldersType            = "folders"
+	mixedFileAndFolderType = "mixed"
+)
+
 // Exporter ...
 type Exporter struct {
 	cmdFactory command.Factory
@@ -23,7 +29,9 @@ func NewExporter(cmdFactory command.Factory) Exporter {
 	return Exporter{cmdFactory: cmdFactory}
 }
 
-// ExportOutput ...
+// ExportOutput is used for exposing values for other steps.
+// Regular env vars are isolated between steps, so instead of calling `os.Setenv()`, use this to explicitly expose
+// a value for subsequent steps.
 func (e *Exporter) ExportOutput(key, value string) error {
 	opts := command.Opts{
 		Stdout: os.Stdout,
@@ -34,7 +42,8 @@ func (e *Exporter) ExportOutput(key, value string) error {
 	return cmd.Run()
 }
 
-// ExportOutputFile ...
+// ExportOutputFile is a convenience method for copying sourcePath to destinationPath and then exporting the
+// absolute destination path with ExportOutput()
 func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) error {
 	pathModifier := pathutil.NewPathModifier()
 	absSourcePath, err := pathModifier.AbsPath(sourcePath)
@@ -55,7 +64,8 @@ func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) err
 	return e.ExportOutput(key, absDestinationPath)
 }
 
-// ExportOutputFilesZip ...
+// ExportOutputFilesZip is a convenience method for creating a ZIP archive from sourcePaths at zipPath and then
+// exporting the absolute path of the ZIP with ExportOutput()
 func (e *Exporter) ExportOutputFilesZip(key string, sourcePaths []string, zipPath string) error {
 	tempZipPath, err := zipFilePath()
 	if err != nil {
@@ -95,12 +105,6 @@ func zipFilePath() (string, error) {
 
 	return filepath.Join(tmpDir, "temp-zip-file.zip"), nil
 }
-
-const (
-	filesType              = "files"
-	foldersType            = "folders"
-	mixedFileAndFolderType = "mixed"
-)
 
 func getInputType(sourcePths []string) (string, error) {
 	var folderCount, fileCount int
