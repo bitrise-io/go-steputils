@@ -1,6 +1,7 @@
 package output
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -121,8 +122,6 @@ func requireEnvmanContainsValueForKey(t *testing.T, key, value, envmanStorePath 
 
 func setupEnvman(t *testing.T) (string, func() error) {
 	tmpDir := t.TempDir()
-
-	tmpDir, err := ioutil.TempDir("", "envman")
 	revokeFn, err := pathutil.RevokableChangeDir(tmpDir)
 	require.NoError(t, err)
 
