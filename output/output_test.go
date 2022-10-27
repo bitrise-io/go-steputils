@@ -15,6 +15,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestExportOutput(t *testing.T) {
+	envmanStorePath, envmanClearFn := setupEnvman(t)
+	defer func() {
+		err := envmanClearFn()
+		require.NoError(t, err)
+	}()
+
+	e := NewExporter(command.NewFactory(env.NewRepository()))
+	require.NoError(t, e.ExportOutput("my_key", "my value"))
+
+	requireEnvmanContainsValueForKey(t, "my_key", "my value", envmanStorePath)
+}
+
+func TestExportOutputFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	envmanStorePath, envmanClearFn := setupEnvman(t)
+	defer func() {
+		err := envmanClearFn()
+		require.NoError(t, err)
+	}()
+
+	sourcePath := filepath.Join(tmpDir, "test_file_source")
+	destinationPath := filepath.Join(tmpDir, "test_file_destination")
+	require.NoError(t, ioutil.WriteFile(sourcePath, []byte("hello"), 0700))
+
+	e := NewExporter(command.NewFactory(env.NewRepository()))
+	require.NoError(t, e.ExportOutputFile("my_key", sourcePath, destinationPath))
+
+	requireEnvmanContainsValueForKey(t, "my_key", destinationPath, envmanStorePath)
+}
+
 func TestZipDirectoriesAndExportOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 
