@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/pathutil"
@@ -33,13 +32,12 @@ func NewExporter(cmdFactory command.Factory) Exporter {
 // Regular env vars are isolated between steps, so instead of calling `os.Setenv()`, use this to explicitly expose
 // a value for subsequent steps.
 func (e *Exporter) ExportOutput(key, value string) error {
-	opts := command.Opts{
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-		Stdin:  strings.NewReader(value),
+	cmd := e.cmdFactory.Create("envman", []string{"add", "--key", key, "--value", value}, nil)
+	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	if err != nil {
+		return fmt.Errorf("exporting output with envman failed: %s, output: %s", err, out)
 	}
-	cmd := e.cmdFactory.Create("envman", []string{"add", "--key", key}, &opts)
-	return cmd.Run()
+	return nil
 }
 
 // ExportOutputFile is a convenience method for copying sourcePath to destinationPath and then exporting the
@@ -114,18 +112,17 @@ func getInputType(sourcePths []string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-
-		if exist {
-			folderCount++
+		if !exist {
 			continue
 		}
 
-		exist, err = pathutil.NewPathChecker().IsPathExists(path)
+		fileInfo, err := os.Stat(path)
 		if err != nil {
 			return "", err
 		}
-
-		if exist {
+		if fileInfo.IsDir() {
+			folderCount++
+		} else {
 			fileCount++
 		}
 	}
@@ -146,12 +143,7 @@ func copyFile(source, destination string) error {
 	if err != nil {
 		return err
 	}
-	defer func(in *os.File) {
-		err := in.Close()
-		if err != nil {
-			log.Fatalf(err.Error())
-		}
-	}(in)
+	defer in.Close() //nolint:errcheck
 
 	out, err := os.Create(destination)
 	if err != nil {
@@ -168,5 +160,5 @@ func copyFile(source, destination string) error {
 	if err != nil {
 		return err
 	}
-	return out.Close()
+	return nil
 }

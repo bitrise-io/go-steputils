@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/stretchr/testify/assert"
 )
@@ -51,12 +52,14 @@ func Test_ProcessRestoreConfig(t *testing.T) {
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			// Given
+			envRepo := fakeEnvRepo{envVars: map[string]string{
+				"BITRISEIO_ABCS_API_URL":      "fake service URL",
+				"BITRISEIO_ABCS_ACCESS_TOKEN": "fake access token",
+			}}
 			step := restorer{
-				logger: log.NewLogger(),
-				envRepo: fakeEnvRepo{envVars: map[string]string{
-					"BITRISEIO_ABCS_API_URL":      "fake service URL",
-					"BITRISEIO_ABCS_ACCESS_TOKEN": "fake access token",
-				}},
+				logger:     log.NewLogger(),
+				envRepo:    envRepo,
+				cmdFactory: command.NewFactory(envRepo),
 			}
 
 			// When
@@ -138,8 +141,9 @@ func Test_evaluateKeys(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			// Given
 			step := restorer{
-				logger:  log.NewLogger(),
-				envRepo: testCase.args.envRepo,
+				logger:     log.NewLogger(),
+				envRepo:    testCase.args.envRepo,
+				cmdFactory: command.NewFactory(testCase.args.envRepo),
 			}
 
 			// When
@@ -193,8 +197,9 @@ func Test_exposeCacheHit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			envRepo := fakeEnvRepo{envVars: map[string]string{}}
 			r := &restorer{
-				envRepo: envRepo,
-				logger:  log.NewLogger(),
+				envRepo:    envRepo,
+				logger:     log.NewLogger(),
+				cmdFactory: command.NewFactory(envRepo),
 			}
 			if err := r.exposeCacheHit(tt.downloadResult); (err != nil) != tt.wantErr {
 				t.Fatalf("exposeCacheHit() error = %v, wantErr %v", err, tt.wantErr)
