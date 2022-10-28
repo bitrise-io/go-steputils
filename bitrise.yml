@@ -58,4 +58,4 @@ workflows:
             auth_token=$(echo $json_response | jq -r .access_token)
 
             envman add --key BITRISEIO_ABCS_API_URL --value $CACHE_API_URL
-            envman add --key BITRISEIO_ABCS_ACCESS_TOKEN --value $auth_token --sensitive
+            envman add --key BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN --value $auth_token --sensitive

@@ -22,7 +22,7 @@ func TestUpload(t *testing.T) {
 	// Given
 	cacheKey := "integration-test"
 	baseURL := os.Getenv("BITRISEIO_ABCS_API_URL")
-	token := os.Getenv("BITRISEIO_ABCS_ACCESS_TOKEN")
+	token := os.Getenv("BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN")
 	testFile := "testdata/single-item.tzst"
 	params := network.UploadParams{
 		APIBaseURL:  baseURL,
