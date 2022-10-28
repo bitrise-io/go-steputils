@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/bitrise-io/go-utils/colorstring"
+	"github.com/bitrise-io/go-utils/v2/log/colorstring"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )

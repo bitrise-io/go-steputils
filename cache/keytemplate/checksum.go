@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bitrise-io/go-utils/pathutil"
+	"github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/bmatcuk/doublestar/v4"
 )
 
