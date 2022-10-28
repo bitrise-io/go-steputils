@@ -10,7 +10,7 @@ import (
 	"github.com/bitrise-io/go-steputils/v2/cache/compression"
 	"github.com/bitrise-io/go-steputils/v2/cache/keytemplate"
 	"github.com/bitrise-io/go-steputils/v2/cache/network"
-	"github.com/bitrise-io/go-steputils/v2/output"
+	"github.com/bitrise-io/go-steputils/v2/export"
 	"github.com/bitrise-io/go-steputils/v2/stepconf"
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
@@ -194,7 +194,7 @@ func (r *restorer) exposeCacheHit(result downloadResult) error {
 	r.logger.Debugf("Archive checksum: %s", checksum)
 
 	envKey := cacheHitEnvVarPrefix + result.matchedKey
-	exporter := output.NewExporter(r.cmdFactory)
+	exporter := export.NewExporter(r.cmdFactory)
 	err = exporter.ExportOutput(envKey, checksum)
 	if err != nil {
 		return err

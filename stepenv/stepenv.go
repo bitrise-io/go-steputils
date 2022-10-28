@@ -1,7 +1,7 @@
 package stepenv
 
 import (
-	"github.com/bitrise-io/go-steputils/v2/output"
+	"github.com/bitrise-io/go-steputils/v2/export"
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 )
@@ -10,13 +10,13 @@ import (
 func NewRepository(osRepository env.Repository) env.Repository {
 	return defaultRepository{
 		osRepository: osRepository,
-		exporter:     output.NewExporter(command.NewFactory(osRepository)),
+		exporter:     export.NewExporter(command.NewFactory(osRepository)),
 	}
 }
 
 type defaultRepository struct {
 	osRepository env.Repository
-	exporter     output.Exporter
+	exporter     export.Exporter
 }
 
 // Get ...

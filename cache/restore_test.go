@@ -57,8 +57,8 @@ func Test_ProcessRestoreConfig(t *testing.T) {
 				"BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN": "fake access token",
 			}}
 			step := restorer{
-				logger: log.NewLogger(),
-				envRepo: envRepo,
+				logger:     log.NewLogger(),
+				envRepo:    envRepo,
 				cmdFactory: command.NewFactory(envRepo),
 			}
 
