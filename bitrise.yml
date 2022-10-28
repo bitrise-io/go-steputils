@@ -51,9 +51,9 @@ workflows:
                 --data "client_id=bitrise-steps" \
                 --data "client_secret=$CACHE_API_CLIENT_SECRET" \
                 --data "grant_type=urn:ietf:params:oauth:grant-type:uma-ticket" \
-                --data "claim_token=eyJhcHBfaWQiOlsic3RlcC1zYXZlLWNhY2hlLWUyZS10ZXN0cyJdLCAiYWNjZXNzX2dyYW50ZWQiOlsidHJ1ZSJdfQ==" \
+                --data "claim_token=eyJhcHBfaWQiOlsidGVzdC1hcHAtaWQiXSwgIm9yZ19pZCI6WyJ0ZXN0LW9yZy1pZCJdLCAiYWJjc19hY2Nlc3NfZ3JhbnRlZCI6WyJ0cnVlIl19" \
                 --data "claim_token_format=urn:ietf:params:oauth:token-type:jwt" \
-                --data "audience=advanced-build-cache-service")
+                --data "audience=bitrise-services")
 
             auth_token=$(echo $json_response | jq -r .access_token)
 
