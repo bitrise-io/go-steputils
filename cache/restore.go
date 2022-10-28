@@ -115,9 +115,9 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 	if apiBaseURL == "" {
 		return restoreCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_ABCS_API_URL' is not defined")
 	}
-	apiAccessToken := r.envRepo.Get("BITRISEIO_ABCS_ACCESS_TOKEN")
+	apiAccessToken := r.envRepo.Get("BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN")
 	if apiAccessToken == "" {
-		return restoreCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_ABCS_ACCESS_TOKEN' is not defined")
+		return restoreCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
 
 	keys, err := r.evaluateKeys(input.Keys)

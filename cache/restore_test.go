@@ -53,12 +53,12 @@ func Test_ProcessRestoreConfig(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			// Given
 			envRepo := fakeEnvRepo{envVars: map[string]string{
-				"BITRISEIO_ABCS_API_URL":      "fake service URL",
-				"BITRISEIO_ABCS_ACCESS_TOKEN": "fake access token",
+				"BITRISEIO_ABCS_API_URL":                  "fake service URL",
+				"BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN": "fake access token",
 			}}
 			step := restorer{
-				logger:     log.NewLogger(),
-				envRepo:    envRepo,
+				logger: log.NewLogger(),
+				envRepo: envRepo,
 				cmdFactory: command.NewFactory(envRepo),
 			}
 

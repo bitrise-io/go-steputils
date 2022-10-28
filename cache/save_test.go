@@ -116,9 +116,9 @@ func Test_ProcessSaveConfig(t *testing.T) {
 				pathProvider: pathutil.NewPathProvider(),
 				pathModifier: pathutil.NewPathModifier(),
 				envRepo: fakeEnvRepo{envVars: map[string]string{
-					"BITRISEIO_ABCS_API_URL":      "fake cache service URL",
-					"BITRISEIO_ABCS_ACCESS_TOKEN": "fake cache service access token",
-					"INTEGRATION_TEST_ENV":        "test_value",
+					"BITRISEIO_ABCS_API_URL":                  "fake cache service URL",
+					"BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN": "fake cache service access token",
+					"INTEGRATION_TEST_ENV":                    "test_value",
 				}},
 			}
 			got, err := step.createConfig(tt.input)

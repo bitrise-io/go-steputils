@@ -162,9 +162,9 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 	if apiBaseURL == "" {
 		return saveCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_ABCS_API_URL' is not defined")
 	}
-	apiAccessToken := s.envRepo.Get("BITRISEIO_ABCS_ACCESS_TOKEN")
+	apiAccessToken := s.envRepo.Get("BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN")
 	if apiAccessToken == "" {
-		return saveCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_ABCS_ACCESS_TOKEN' is not defined")
+		return saveCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
 
 	return saveCacheConfig{

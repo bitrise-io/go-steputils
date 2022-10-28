@@ -26,7 +26,7 @@ func TestSuccessfulDownload(t *testing.T) {
 		strings.Repeat("cache-key-", 60),
 	}
 	baseURL := os.Getenv("BITRISEIO_ABCS_API_URL")
-	token := os.Getenv("BITRISEIO_ABCS_ACCESS_TOKEN")
+	token := os.Getenv("BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN")
 	testFile := "testdata/single-item.tzst"
 
 	err := uploadArchive(cacheKeys[0], testFile, baseURL, token)
@@ -71,7 +71,7 @@ func TestNotFoundDownload(t *testing.T) {
 		fmt.Sprintf("no-cache-for-this-%d", rand.Int()),
 	}
 	baseURL := os.Getenv("BITRISEIO_ABCS_API_URL")
-	token := os.Getenv("BITRISEIO_ABCS_ACCESS_TOKEN")
+	token := os.Getenv("BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN")
 
 	// When
 	downloadPath := filepath.Join(t.TempDir(), "cache-test.tzst")
