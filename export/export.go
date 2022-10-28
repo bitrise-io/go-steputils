@@ -106,23 +106,25 @@ func zipFilePath() (string, error) {
 
 func getInputType(sourcePths []string) (string, error) {
 	var folderCount, fileCount int
+	pathChecker := pathutil.NewPathChecker()
 
 	for _, path := range sourcePths {
-		exist, err := pathutil.NewPathChecker().IsPathExists(path)
+		exist, err := pathChecker.IsDirExists(path)
 		if err != nil {
 			return "", err
 		}
-		if !exist {
+
+		if exist {
+			folderCount++
 			continue
 		}
 
-		fileInfo, err := os.Stat(path)
+		exist, err = pathChecker.IsPathExists(path)
 		if err != nil {
 			return "", err
 		}
-		if fileInfo.IsDir() {
-			folderCount++
-		} else {
+
+		if exist {
 			fileCount++
 		}
 	}
