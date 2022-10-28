@@ -48,7 +48,7 @@ workflows:
             set -e
 
             json_response=$(curl --fail -X POST https://auth.services.bitrise.io/auth/realms/bitrise-services/protocol/openid-connect/token -k \
-                --data "client_id=abcs-steps" \
+                --data "client_id=bitrise-steps" \
                 --data "client_secret=$CACHE_API_CLIENT_SECRET" \
                 --data "grant_type=urn:ietf:params:oauth:grant-type:uma-ticket" \
                 --data "claim_token=eyJhcHBfaWQiOlsic3RlcC1zYXZlLWNhY2hlLWUyZS10ZXN0cyJdLCAiYWNjZXNzX2dyYW50ZWQiOlsidHJ1ZSJdfQ==" \
