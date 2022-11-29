@@ -323,6 +323,7 @@ func isSpecifiedASDFRubyInstalled(message string) (isInstalled bool, versionInst
 	return true, version, nil
 }
 
+// IsSpecifiedASDFRubyInstalled checks if the selected ruby version is installed via asdf
 func IsSpecifiedASDFRubyInstalled(workdir string) (isInstalled bool, versionInstalled string, error error) {
 	absWorkdir, err := pathutil.AbsPath(workdir)
 	if err != nil {
