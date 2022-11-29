@@ -26,6 +26,7 @@ func TestSudoNeeded(t *testing.T) {
 		require.Equal(t, false, sudoNeeded(BrewRuby, "ls"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "ls"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "ls"))
+		require.Equal(t, false, sudoNeeded(ASDFRuby, "ls"))
 	}
 
 	t.Log("sudo needed for SystemRuby in case of gem list management command")
@@ -35,12 +36,14 @@ func TestSudoNeeded(t *testing.T) {
 		require.Equal(t, false, sudoNeeded(BrewRuby, "gem", "install", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "gem", "install", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "gem", "install", "fastlane"))
+		require.Equal(t, false, sudoNeeded(ASDFRuby, "gem", "install", "fastlane"))
 
 		require.Equal(t, false, sudoNeeded(Unkown, "gem", "uninstall", "fastlane"))
 		require.Equal(t, true, sudoNeeded(SystemRuby, "gem", "uninstall", "fastlane"))
 		require.Equal(t, false, sudoNeeded(BrewRuby, "gem", "uninstall", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "gem", "uninstall", "fastlane"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "gem", "uninstall", "fastlane"))
+		require.Equal(t, false, sudoNeeded(ASDFRuby, "gem", "uninstall", "fastlane"))
 
 		require.Equal(t, false, sudoNeeded(Unkown, "bundle", "install"))
 		require.Equal(t, false, sudoNeeded(Unkown, "bundle", "_2.0.2_", "install"))
@@ -50,6 +53,7 @@ func TestSudoNeeded(t *testing.T) {
 		require.Equal(t, false, sudoNeeded(BrewRuby, "bundle", "install"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "bundle", "install"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "bundle", "install"))
+		require.Equal(t, false, sudoNeeded(ASDFRuby, "bundle", "install"))
 
 		require.Equal(t, false, sudoNeeded(Unkown, "bundle", "update"))
 		require.Equal(t, false, sudoNeeded(Unkown, "bundle", "_2.0.2_", "update"))
@@ -58,6 +62,7 @@ func TestSudoNeeded(t *testing.T) {
 		require.Equal(t, false, sudoNeeded(BrewRuby, "bundle", "update"))
 		require.Equal(t, false, sudoNeeded(RVMRuby, "bundle", "update"))
 		require.Equal(t, false, sudoNeeded(RbenvRuby, "bundle", "update"))
+		require.Equal(t, false, sudoNeeded(ASDFRuby, "bundle", "update"))
 	}
 }
 
@@ -192,6 +197,45 @@ func Test_isSpecifiedRbenvRubyInstalled(t *testing.T) {
 		require.Equal(t, true, installed)
 		require.Equal(t, "2.3.5", version)
 	}
+}
+
+func Test_isSpecifiedASDFRubyInstalled_VersionIsSetByToolVersionFile(t *testing.T) {
+	// Given
+	message := `ruby            2.7.4           /Users/hisaac/.tool-versions`
+
+	// When
+	installed, version, err := isSpecifiedASDFRubyInstalled(message)
+
+	// Then
+	require.True(t, installed)
+	require.Equal(t, "2.7.4", version)
+	require.NoError(t, err)
+}
+
+func Test_isSpecifiedASDFRubyInstalled_VersionIsSetByEnvironmentVariable(t *testing.T) {
+	// Given
+	message := `ruby            2.7.4           ASDF_RUBY_VERSION environment variable`
+
+	// When
+	installed, version, err := isSpecifiedASDFRubyInstalled(message)
+
+	// Then
+	require.True(t, installed)
+	require.Equal(t, "2.7.4", version)
+	require.NoError(t, err)
+}
+
+func Test_isSpecifiedASDFRubyInstalled_VersionIsNotInstalled(t *testing.T) {
+	// Given
+	message := `Not installed. Run "asdf install ruby 2.7.4"`
+
+	// When
+	installed, version, err := isSpecifiedASDFRubyInstalled(message)
+
+	// Then
+	require.False(t, installed)
+	require.Equal(t, "2.7.4", version)
+	require.NoError(t, err)
 }
 
 func Test_gemInstallCommand(t *testing.T) {
