@@ -72,7 +72,8 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 		if errors.Is(err, network.ErrCacheNotFound) {
 			r.logger.Donef("No cache entry found for the provided key")
 			tracker.logRestoreResult(false, "", config.Keys)
-			return nil
+			exporter := export.NewExporter(r.cmdFactory)
+			return exporter.ExportOutput(cacheHitEnvVar, "false")
 		}
 		return fmt.Errorf("download failed: %w", err)
 	}
@@ -101,7 +102,7 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	r.logger.Donef("Restored archive in %s", extractionTime)
 	tracker.logArchiveExtracted(extractionTime, len(config.Keys))
 
-	err = r.exposeCacheHit(result)
+	err = r.exposeCacheHit(result, config.Keys)
 	if err != nil {
 		return err
 	}
@@ -179,9 +180,25 @@ func (r *restorer) download(config restoreCacheConfig) (downloadResult, error) {
 	return downloadResult{filePath: downloadPath, matchedKey: matchedKey}, nil
 }
 
-func (r *restorer) exposeCacheHit(result downloadResult) error {
-	if result.filePath == "" || result.matchedKey == "" {
+func (r *restorer) exposeCacheHit(result downloadResult, evaluatedKeys []string) error {
+	if result.filePath == "" || result.matchedKey == "" || len(evaluatedKeys) == 0 {
 		return nil
+	}
+
+	exporter := export.NewExporter(r.cmdFactory)
+	var cacheHitValue string
+	if result.matchedKey == evaluatedKeys[0] {
+		cacheHitValue = "exact"
+	} else {
+		cacheHitValue = "partial"
+	}
+	err := exporter.ExportOutput(cacheHitEnvVar, cacheHitValue)
+	if err != nil {
+		return err
+	}
+	err = r.envRepo.Set(cacheHitEnvVar, cacheHitValue)
+	if err != nil {
+		return err
 	}
 
 	checksum, err := checksumOfFile(result.filePath)
@@ -193,8 +210,7 @@ func (r *restorer) exposeCacheHit(result downloadResult) error {
 	r.logger.Debugf("Matched key: %s", result.matchedKey)
 	r.logger.Debugf("Archive checksum: %s", checksum)
 
-	envKey := cacheHitEnvVarPrefix + result.matchedKey
-	exporter := export.NewExporter(r.cmdFactory)
+	envKey := cacheHitUniqueEnvVarPrefix + result.matchedKey
 	err = exporter.ExportOutput(envKey, checksum)
 	if err != nil {
 		return err

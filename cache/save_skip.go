@@ -52,7 +52,7 @@ func (r skipReason) description() string {
 	case reasonNewArchiveChecksumMatch:
 		return "new cache archive is the same as the restored one"
 	case reasonNewArchiveChecksumMismatch:
-		return "new cache archive doesn't match the restored one"
+		return "new cache archive contains changed files"
 	default:
 		return "unrecognized skipReason"
 	}
@@ -109,8 +109,8 @@ func (s *saver) getCacheHits() map[string]string {
 		envKey := envParts[0]
 		envValue := envParts[1]
 
-		if strings.HasPrefix(envKey, cacheHitEnvVarPrefix) {
-			cacheKey := strings.TrimPrefix(envKey, cacheHitEnvVarPrefix)
+		if strings.HasPrefix(envKey, cacheHitUniqueEnvVarPrefix) {
+			cacheKey := strings.TrimPrefix(envKey, cacheHitUniqueEnvVarPrefix)
 			cacheHits[cacheKey] = envValue
 		}
 	}

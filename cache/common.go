@@ -7,8 +7,10 @@ import (
 	"os"
 )
 
+const cacheHitEnvVar = "BITRISE_CACHE_HIT"
+
 // We need this prefix because there could be multiple restore steps in one workflow with multiple cache keys
-const cacheHitEnvVarPrefix = "BITRISE_CACHE_HIT__"
+const cacheHitUniqueEnvVarPrefix = "BITRISE_CACHE_HIT__"
 
 func checksumOfFile(path string) (string, error) {
 	hash := sha256.New()

@@ -161,34 +161,40 @@ func Test_evaluateKeys(t *testing.T) {
 
 func Test_exposeCacheHit(t *testing.T) {
 	tests := []struct {
-		name string
+		name          string
+		evaluatedKeys []string
 		downloadResult
 		wantEnvs []string
 		wantErr  bool
 	}{
 		{
 			name:           "no cache hit",
+			evaluatedKeys:  []string{"my-cache-key"},
 			downloadResult: downloadResult{},
 			wantEnvs:       []string{},
 			wantErr:        false,
 		},
 		{
-			name: "exact cache hit",
+			name:          "exact cache hit",
+			evaluatedKeys: []string{"my-cache-key"},
 			downloadResult: downloadResult{
 				filePath:   "testdata/dummy_file.txt",
 				matchedKey: "my-cache-key",
 			},
 			wantEnvs: []string{
+				"BITRISE_CACHE_HIT=exact",
 				"BITRISE_CACHE_HIT__my-cache-key=9a30a503b2862c51c3c5acd7fbce2f1f784cf4658ccf8e87d5023a90c21c0714",
 			},
 		},
 		{
-			name: "exact cache hit",
+			name:          "partial cache hit",
+			evaluatedKeys: []string{"my-primary-cache-key", "my-cache-key"},
 			downloadResult: downloadResult{
 				filePath:   "testdata/dummy_file.txt",
 				matchedKey: "my-cache-key",
 			},
 			wantEnvs: []string{
+				"BITRISE_CACHE_HIT=partial",
 				"BITRISE_CACHE_HIT__my-cache-key=9a30a503b2862c51c3c5acd7fbce2f1f784cf4658ccf8e87d5023a90c21c0714",
 			},
 		},
@@ -201,7 +207,7 @@ func Test_exposeCacheHit(t *testing.T) {
 				logger:     log.NewLogger(),
 				cmdFactory: command.NewFactory(envRepo),
 			}
-			if err := r.exposeCacheHit(tt.downloadResult); (err != nil) != tt.wantErr {
+			if err := r.exposeCacheHit(tt.downloadResult, tt.evaluatedKeys); (err != nil) != tt.wantErr {
 				t.Fatalf("exposeCacheHit() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			assert.Equal(t, tt.wantEnvs, envRepo.List())
