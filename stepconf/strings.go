@@ -43,7 +43,8 @@ func toString(config interface{}) string {
 		t = t.Elem()
 	}
 
-	str := fmt.Sprint(colorstring.Bluef("%s:\n", strings.Title(t.Name())))
+	configName := strings.Title(t.Name()) //nolint:staticcheck (it's not worth pulling the heavy /x/text lib for this simple case)
+	str := fmt.Sprint(colorstring.Bluef("%s:\n", configName))
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		var key, _ = parseTag(field.Tag.Get("env"))
