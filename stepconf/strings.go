@@ -43,7 +43,8 @@ func toString(config interface{}) string {
 		t = t.Elem()
 	}
 
-	configName := strings.Title(t.Name()) //nolint:staticcheck (it's not worth pulling the heavy /x/text lib for this simple case)
+	configName := strings.Title(t.Name()) //nolint:staticcheck
+	// It's not worth pulling the heavy /x/text lib for this simple case, string.Title() can handle the struct name
 	str := fmt.Sprint(colorstring.Bluef("%s:\n", configName))
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
