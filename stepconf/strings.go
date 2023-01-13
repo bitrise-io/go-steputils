@@ -3,10 +3,9 @@ package stepconf
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/bitrise-io/go-utils/v2/log/colorstring"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // Print the name of the struct with Title case in blue color with followed by a newline,
@@ -44,8 +43,7 @@ func toString(config interface{}) string {
 		t = t.Elem()
 	}
 
-	titleCaseName := cases.Title(language.English, cases.NoLower).String(t.Name())
-	str := fmt.Sprint(colorstring.Bluef("%s:\n", titleCaseName))
+	str := fmt.Sprint(colorstring.Bluef("%s:\n", strings.Title(t.Name())))
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		var key, _ = parseTag(field.Tag.Get("env"))
