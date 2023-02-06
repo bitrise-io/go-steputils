@@ -31,6 +31,11 @@ type prepareUploadResponse struct {
 	UploadHeaders map[string]string `json:"headers"`
 }
 
+type acknowledgeResponse struct {
+	Message  string `json:"message"`
+	Severity string `json:"severity"`
+}
+
 type restoreResponse struct {
 	URL        string `json:"url"`
 	MatchedKey string `json:"matched_cache_key"`
@@ -121,18 +126,18 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 	return nil
 }
 
-func (c apiClient) acknowledgeUpload(uploadID string) error {
+func (c apiClient) acknowledgeUpload(uploadID string) (acknowledgeResponse, error) {
 	url := fmt.Sprintf("%s/upload/%s/acknowledge", c.baseURL, uploadID)
 
 	req, err := retryablehttp.NewRequest(http.MethodPatch, url, nil)
 	if err != nil {
-		return err
+		return acknowledgeResponse{}, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return acknowledgeResponse{}, err
 	}
 	defer func(body io.ReadCloser) {
 		err := body.Close()
@@ -142,9 +147,15 @@ func (c apiClient) acknowledgeUpload(uploadID string) error {
 	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return unwrapError(resp)
+		return acknowledgeResponse{}, unwrapError(resp)
 	}
-	return nil
+
+	var response acknowledgeResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return acknowledgeResponse{}, err
+	}
+	return response, nil
 }
 
 func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {

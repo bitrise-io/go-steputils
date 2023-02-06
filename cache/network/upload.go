@@ -49,11 +49,13 @@ func Upload(params UploadParams, logger log.Logger) error {
 
 	logger.Debugf("")
 	logger.Debugf("Acknowledge upload")
-	err = client.acknowledgeUpload(resp.ID)
+	response, err := client.acknowledgeUpload(resp.ID)
 	if err != nil {
 		return fmt.Errorf("failed to finalize upload: %w", err)
 	}
+
 	logger.Debugf("Upload acknowledged")
+	logResponseMessage(response, logger)
 
 	return nil
 }
@@ -68,4 +70,28 @@ func validateKey(key string, logger log.Logger) (string, error) {
 		return key[:maxKeyLength], nil
 	}
 	return key, nil
+}
+
+func logResponseMessage(response acknowledgeResponse, logger log.Logger) {
+	if response.Message == "" || response.Severity == "" {
+		return
+	}
+
+	var loggerFn func(format string, v ...interface{})
+	switch response.Severity {
+	case "debug":
+		loggerFn = logger.Debugf
+	case "info":
+		loggerFn = logger.Infof
+	case "warning":
+		loggerFn = logger.Warnf
+	case "error":
+		loggerFn = logger.Errorf
+	default:
+		loggerFn = logger.Printf
+	}
+
+	loggerFn("\n")
+	loggerFn(response.Message)
+	loggerFn("\n")
 }

@@ -38,9 +38,7 @@ func TestUpload(t *testing.T) {
 	err := network.Upload(params, logger)
 
 	// Then
-	if err != nil {
-		t.Errorf(err.Error())
-	}
+	assert.NoError(t, err)
 
 	bytes, err := ioutil.ReadFile(testFile)
 	if err != nil {
