@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/bitrise-io/go-utils/v2/log"
+	"github.com/stretchr/testify/mock"
 )
 
 func Test_validateKey(t *testing.T) {
@@ -40,6 +41,66 @@ func Test_validateKey(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("validateKey() got = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_logResponseMessage(t *testing.T) {
+	tests := []struct {
+		name           string
+		response       acknowledgeResponse
+		wantLogMessage string
+		wantLogFn      string
+		wantSkip       bool
+	}{
+		{
+			name: "Debug message",
+			response: acknowledgeResponse{
+				Message:  "Upload acknowledged: 1.6 GB used of 2 GB storage.",
+				Severity: "debug",
+			},
+			wantLogMessage: "Upload acknowledged: 1.6 GB used of 2 GB storage.",
+			wantLogFn:      "Debugf",
+		},
+		{
+			name: "Warning message",
+			response: acknowledgeResponse{
+				Message:  "Upload acknowledged but quota exceeded: 8.6 GB used of 2 GB storage.",
+				Severity: "warning",
+			},
+			wantLogMessage: "Upload acknowledged but quota exceeded: 8.6 GB used of 2 GB storage.",
+			wantLogFn:      "Warnf",
+		},
+		{
+			name:     "Empty response",
+			response: acknowledgeResponse{},
+			wantSkip: true,
+		},
+		{
+			name: "Unrecognized severity",
+			response: acknowledgeResponse{
+				Message:  "Message from the future!",
+				Severity: "fatal",
+			},
+			wantLogMessage: "Message from the future!",
+			wantLogFn:      "Printf",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			mockLogger := new(MockLogger)
+			if !tt.wantSkip {
+				mockLogger.On(tt.wantLogFn, "\n", mock.Anything).Return()
+				mockLogger.On(tt.wantLogFn, tt.wantLogMessage, mock.Anything).Return()
+				mockLogger.On(tt.wantLogFn, "\n", mock.Anything).Return()
+			}
+
+			// When
+			logResponseMessage(tt.response, mockLogger)
+
+			// Then
+			mockLogger.AssertExpectations(t)
 		})
 	}
 }
