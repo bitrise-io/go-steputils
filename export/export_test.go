@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bitrise-io/go-utils/envutil"
-	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	pathutil2 "github.com/bitrise-io/go-utils/v2/pathutil"
@@ -16,11 +14,7 @@ import (
 )
 
 func TestExportOutput(t *testing.T) {
-	envmanStorePath, envmanClearFn := setupEnvman(t)
-	defer func() {
-		err := envmanClearFn()
-		require.NoError(t, err)
-	}()
+	envmanStorePath := setupEnvman(t)
 
 	e := NewExporter(command.NewFactory(env.NewRepository()))
 	require.NoError(t, e.ExportOutput("my_key", "my value"))
@@ -31,11 +25,7 @@ func TestExportOutput(t *testing.T) {
 func TestExportOutputFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	envmanStorePath, envmanClearFn := setupEnvman(t)
-	defer func() {
-		err := envmanClearFn()
-		require.NoError(t, err)
-	}()
+	envmanStorePath := setupEnvman(t)
 
 	sourcePath := filepath.Join(tmpDir, "test_file_source")
 	destinationPath := filepath.Join(tmpDir, "test_file_destination")
@@ -50,11 +40,7 @@ func TestExportOutputFile(t *testing.T) {
 func TestZipDirectoriesAndExportOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	envmanStorePath, envmanClearFn := setupEnvman(t)
-	defer func() {
-		err := envmanClearFn()
-		require.NoError(t, err)
-	}()
+	envmanStorePath := setupEnvman(t)
 
 	sourceA := filepath.Join(tmpDir, "sourceA")
 	require.NoError(t, os.MkdirAll(sourceA, 0777))
@@ -80,11 +66,7 @@ func TestZipDirectoriesAndExportOutput(t *testing.T) {
 func TestZipFilesAndExportOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	envmanStorePath, envmanClearFn := setupEnvman(t)
-	defer func() {
-		err := envmanClearFn()
-		require.NoError(t, err)
-	}()
+	envmanStorePath := setupEnvman(t)
 
 	sourceDir := filepath.Join(tmpDir, "source")
 	require.NoError(t, os.MkdirAll(sourceDir, 0777))
@@ -115,11 +97,7 @@ func TestZipFilesAndExportOutput(t *testing.T) {
 func TestZipMixedFilesAndFoldersAndExportOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	_, envmanClearFn := setupEnvman(t)
-	defer func() {
-		err := envmanClearFn()
-		require.NoError(t, err)
-	}()
+	_ = setupEnvman(t)
 
 	sourceDir := filepath.Join(tmpDir, "source")
 	require.NoError(t, os.MkdirAll(sourceDir, 0777))
@@ -152,22 +130,24 @@ func requireEnvmanContainsValueForKey(t *testing.T, key, value, envmanStorePath 
 	require.Equal(t, true, strings.Contains(envstoreContent, "- "+key+": "+value), envstoreContent)
 }
 
-func setupEnvman(t *testing.T) (string, func() error) {
+func setupEnvman(t *testing.T) string {
+	originalWorkDir, err := os.Getwd()
+	require.NoError(t, err)
+
 	tmpDir := t.TempDir()
-	revokeFn, err := pathutil.RevokableChangeDir(tmpDir)
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = os.Chdir(originalWorkDir)
+		require.NoError(t, err)
+	})
 	require.NoError(t, err)
 
 	tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
 	require.NoError(t, ioutil.WriteFile(tmpEnvStorePth, []byte(""), 0777))
 
-	envstoreRevokeFn, err := envutil.RevokableSetenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
-	require.NoError(t, err)
+	t.Setenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
 
-	return tmpEnvStorePth, func() error {
-		if err := revokeFn(); err != nil {
-			return err
-		}
-
-		return envstoreRevokeFn()
-	}
+	return tmpEnvStorePth
 }

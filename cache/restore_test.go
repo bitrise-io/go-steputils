@@ -2,6 +2,7 @@ package cache
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/v2/command"
@@ -210,7 +211,10 @@ func Test_exposeCacheHit(t *testing.T) {
 			if err := r.exposeCacheHit(tt.downloadResult, tt.evaluatedKeys); (err != nil) != tt.wantErr {
 				t.Fatalf("exposeCacheHit() error = %v, wantErr %v", err, tt.wantErr)
 			}
-			assert.Equal(t, tt.wantEnvs, envRepo.List())
+			sort.Strings(tt.wantEnvs)
+			got := envRepo.List()
+			sort.Strings(got)
+			assert.Equal(t, tt.wantEnvs, got)
 		})
 	}
 }
