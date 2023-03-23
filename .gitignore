@@ -2,3 +2,4 @@ _tmp/
 _bin/
 .gows*
 .idea/
+.bitrise.secrets.yml

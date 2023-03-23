@@ -1,0 +1,1 @@
+dummy Gradle KotlinScript file, used for checksum tests
