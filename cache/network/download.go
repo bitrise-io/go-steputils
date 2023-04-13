@@ -36,7 +36,7 @@ func Download(params DownloadParams, logger log.Logger) (matchedKey string, err 
 		return "", fmt.Errorf("cache key list is empty")
 	}
 
-	client := newAPIClient(retryhttp.NewClient(logger), params.APIBaseURL, params.Token)
+	client := newAPIClient(retryhttp.NewClient(logger), params.APIBaseURL, params.Token, logger)
 
 	logger.Debugf("Get download URL")
 	restoreResponse, err := client.restore(params.CacheKeys)
