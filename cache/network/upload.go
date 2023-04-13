@@ -25,7 +25,7 @@ func Upload(params UploadParams, logger log.Logger) error {
 		return err
 	}
 
-	client := newAPIClient(retryhttp.NewClient(logger), params.APIBaseURL, params.Token)
+	client := newAPIClient(retryhttp.NewClient(logger), params.APIBaseURL, params.Token, logger)
 
 	logger.Debugf("Get upload URL")
 	prepareUploadRequest := prepareUploadRequest{
