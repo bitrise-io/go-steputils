@@ -122,7 +122,7 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 		log.Printf("\t\t%s: %s", k, v)
 	}
 
-	dumpRequest, err := httputil.DumpRequest(req, true)
+	dumpRequest, err := httputil.DumpRequest(req, false)
 	if err != nil {
 		return err
 	}
