@@ -74,12 +74,12 @@ func Test_ProcessSaveConfig(t *testing.T) {
 			input: SaveCacheInput{
 				Verbose: false,
 				Key:     "cache-key",
-				Paths:   []string{"~/.prof*"},
+				Paths:   []string{"~/.ss*"},
 			},
 			want: saveCacheConfig{
 				Verbose:        false,
 				Key:            "cache-key",
-				Paths:          []string{filepath.Join(homeAbsPath, ".profile")},
+				Paths:          []string{filepath.Join(homeAbsPath, ".ssh")},
 				APIBaseURL:     "fake cache service URL",
 				APIAccessToken: "fake cache service access token",
 			},
