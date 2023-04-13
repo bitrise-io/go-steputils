@@ -42,6 +42,13 @@ func Upload(params UploadParams, logger log.Logger) error {
 
 	logger.Debugf("")
 	logger.Debugf("Upload archive")
+	logger.Debugf("Method: %s", resp.UploadMethod)
+	logger.Debugf("Path: %s", params.ArchivePath)
+	logger.Debugf("URL: %s", resp.UploadURL)
+	logger.Debugf("Headers from backend:")
+	for k, v := range resp.UploadHeaders {
+		logger.Debugf("\t\t%s: %s", k, v)
+	}
 	err = client.uploadArchive(params.ArchivePath, resp.UploadMethod, resp.UploadURL, resp.UploadHeaders)
 	if err != nil {
 		return fmt.Errorf("failed to upload archive: %w", err)

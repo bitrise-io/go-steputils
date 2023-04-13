@@ -108,6 +108,12 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 		req.Header.Set(k, v)
 	}
 
+	log.Printf("HTTP request content length: %d", req.ContentLength)
+	log.Println("HTTP request headers:")
+	for k, v := range req.Header {
+		log.Printf("\t\t%s: %s", k, v)
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
