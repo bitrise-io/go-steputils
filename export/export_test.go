@@ -11,7 +11,7 @@ import (
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
-	pathutil2 "github.com/bitrise-io/go-utils/v2/pathutil"
+	"github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,7 +47,7 @@ func TestExportOutputFile(t *testing.T) {
 	requireEnvmanContainsValueForKey(t, "my_key", destinationPath, envmanStorePath)
 }
 
-func TestZipDirectoriesAndExportOutput(t *testing.T) {
+func TestExportOutputDirZip(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	envmanStorePath, envmanClearFn := setupEnvman(t)
@@ -56,20 +56,20 @@ func TestZipDirectoriesAndExportOutput(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	sourceA := filepath.Join(tmpDir, "sourceA")
-	require.NoError(t, os.MkdirAll(sourceA, 0777))
+	sourceA := filepath.Join(tmpDir, "sourceA.txt")
+	require.NoError(t, ioutil.WriteFile(sourceA, []byte("hello"), 0777))
 
-	sourceB := filepath.Join(tmpDir, "sourceB")
-	require.NoError(t, os.MkdirAll(sourceB, 0777))
+	sourceB := filepath.Join(tmpDir, "sourceB.txt")
+	require.NoError(t, ioutil.WriteFile(sourceB, []byte(strings.Repeat("bitrise", 10)), 0777))
 
-	destinationZip := filepath.Join(tmpDir, "destination.zip")
+	destinationZip := filepath.Join(t.TempDir(), "destination.zip")
 
 	key := "EXPORTED_ZIP_PATH"
 	e := NewExporter(command.NewFactory(env.NewRepository()))
-	require.NoError(t, e.ExportOutputFilesZip(key, []string{sourceA, sourceB}, destinationZip))
+	require.NoError(t, e.ExportOutputDirZip(key, tmpDir, destinationZip))
 
 	// destination should exist
-	exist, err := pathutil2.NewPathChecker().IsPathExists(destinationZip)
+	exist, err := pathutil.NewPathChecker().IsPathExists(destinationZip)
 	require.NoError(t, err)
 	require.Equal(t, true, exist, tmpDir)
 
@@ -77,7 +77,7 @@ func TestZipDirectoriesAndExportOutput(t *testing.T) {
 	requireEnvmanContainsValueForKey(t, key, destinationZip, envmanStorePath)
 }
 
-func TestZipFilesAndExportOutput(t *testing.T) {
+func TestExportOutputFilesZip(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	envmanStorePath, envmanClearFn := setupEnvman(t)
@@ -104,7 +104,7 @@ func TestZipFilesAndExportOutput(t *testing.T) {
 	require.NoError(t, e.ExportOutputFilesZip(key, sourceFilePaths, destinationZip))
 
 	// destination should exist
-	exist, err := pathutil2.NewPathChecker().IsPathExists(destinationZip)
+	exist, err := pathutil.NewPathChecker().IsPathExists(destinationZip)
 	require.NoError(t, err)
 	require.Equal(t, true, exist, tmpDir)
 
