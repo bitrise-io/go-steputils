@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
@@ -108,11 +109,24 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 		req.Header.Set(k, v)
 	}
 
+	fileInfo, err := file.Stat()
+	if err != nil {
+		log.Printf("Failed to get file info: %s", err.Error())
+	} else {
+		log.Printf("Uploading %s (%d bytes)", archivePath, fileInfo.Size())
+	}
+
 	log.Printf("HTTP request content length: %d", req.ContentLength)
 	log.Println("HTTP request headers:")
 	for k, v := range req.Header {
 		log.Printf("\t\t%s: %s", k, v)
 	}
+
+	dumpRequest, err := httputil.DumpRequest(req.Request, true)
+	if err != nil {
+		return err
+	}
+	log.Printf("Raw HTTP request: %s", string(dumpRequest))
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -124,6 +138,12 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 			log.Print(err.Error())
 		}
 	}(resp.Body)
+
+	dumpResponse, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		return err
+	}
+	log.Printf("Raw HTTP response: %s", string(dumpResponse))
 
 	if resp.StatusCode != http.StatusOK {
 		return unwrapError(resp)
