@@ -108,6 +108,14 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 		req.Header.Set(k, v)
 	}
 
+	// Add Content-Length header manually because retryablehttp doesn't do it automatically
+	fileInfo, err := os.Stat(archivePath)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+	req.ContentLength = fileInfo.Size()
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
