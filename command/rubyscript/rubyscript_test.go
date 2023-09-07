@@ -1,6 +1,7 @@
 package rubyscript
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -73,6 +74,7 @@ func TestBundleInstallCommand(t *testing.T) {
 		require.NotNil(t, runner)
 
 		bundleInstallCmd, err := runner.BundleInstallCommand(gemfileContent, gemfileLockContent)
+		bundleInstallCmd.SetStdout(os.Stdout).SetStderr(os.Stderr)
 		require.NoError(t, err)
 
 		cmd := bundleInstallCmd.GetCmd()
