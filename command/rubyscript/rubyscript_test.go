@@ -1,6 +1,7 @@
 package rubyscript
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,7 +19,7 @@ gem "json"
 const gemfileLockContent = `GEM
   remote: https://rubygems.org/
   specs:
-    json (2.3.0)
+    json (2.6.3)
 
 PLATFORMS
   ruby
@@ -27,7 +28,7 @@ DEPENDENCIES
   json
 
 BUNDLED WITH
-   1.15.3
+   2.4.19
 `
 
 const rubyScriptWithGemContent = `require 'json'
@@ -73,6 +74,7 @@ func TestBundleInstallCommand(t *testing.T) {
 		require.NotNil(t, runner)
 
 		bundleInstallCmd, err := runner.BundleInstallCommand(gemfileContent, gemfileLockContent)
+		bundleInstallCmd.SetStdout(os.Stdout).SetStderr(os.Stderr)
 		require.NoError(t, err)
 
 		cmd := bundleInstallCmd.GetCmd()
