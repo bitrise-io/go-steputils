@@ -19,7 +19,7 @@ gem "json"
 const gemfileLockContent = `GEM
   remote: https://rubygems.org/
   specs:
-    json (2.3.0)
+    json (2.6.3)
 
 PLATFORMS
   ruby
@@ -28,7 +28,7 @@ DEPENDENCIES
   json
 
 BUNDLED WITH
-   1.15.3
+   2.4.19
 `
 
 const rubyScriptWithGemContent = `require 'json'
