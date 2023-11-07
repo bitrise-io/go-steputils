@@ -3,6 +3,8 @@ package network
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/bitrise-io/go-utils/v2/log"
+	"github.com/zachgrayio/go-retryablehttp"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -10,9 +12,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-
-	"github.com/bitrise-io/go-utils/v2/log"
-	"github.com/hashicorp/go-retryablehttp"
 )
 
 const maxKeyLength = 512
