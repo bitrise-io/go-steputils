@@ -19,7 +19,7 @@ import (
 	"github.com/bitrise-io/go-steputils/v2/stepconf"
 )
 
-const MultipartFileSizeLimit = 200 * 1024 * 1024 // above 200MB we upload using multi-part
+const MultipartFileSizeLimit = 200 * 1024 * 1024 // MultipartFileSizeLimit above 200MB we upload using multi-part
 
 // SaveCacheInput is the information that comes from the cache steps that call this shared implementation
 type SaveCacheInput struct {
