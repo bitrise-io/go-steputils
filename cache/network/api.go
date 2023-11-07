@@ -25,6 +25,11 @@ type prepareUploadRequest struct {
 	ArchiveSizeInBytes int64  `json:"archive_size_in_bytes"`
 }
 
+type acknowledgeRequest struct {
+	Successful bool     `json:"successful"`
+	Etags      []string `json:"etags"`
+}
+
 type uploadURL struct {
 	URL     string              `json:"url"`
 	Method  string              `json:"method"`
@@ -66,7 +71,7 @@ func newAPIClient(client *retryablehttp.Client, baseURL string, accessToken stri
 }
 
 func (c apiClient) prepareUpload(requestBody prepareUploadRequest) (prepareUploadResponse, error) {
-	url := fmt.Sprintf("%s/upload", c.baseURL) // TODO url
+	url := fmt.Sprintf("%s/multipart-upload", c.baseURL)
 
 	body, err := json.Marshal(requestBody)
 	if err != nil {
@@ -168,16 +173,21 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 		}
 	}(file)
 
+	etags := make([]string, 0, chunkCount)
+
 	if chunkCount == 1 {
 		fileInfo, err := os.Stat(archivePath)
 		if err != nil {
 			return nil, fmt.Errorf("stat file: %s", err)
 		}
 		c.logger.Debugf("Uploading single chunk (non multipart upload)", uploadURLs[0].URL)
-		_, err = c.uploadArchiveChunk(uploadURLs[0], file, fileInfo.Size())
-	}
 
-	etags := make([]string, 0, chunkCount)
+		_, err = c.uploadArchiveChunk(uploadURLs[0], file, fileInfo.Size())
+		if err != nil {
+			return nil, fmt.Errorf("upload single chunk (non multipart): %s", err)
+		}
+		return nil, nil
+	}
 
 	c.logger.Debugf("Uploading %d chunks, %dB each", chunkCount, chunkSize)
 
@@ -206,9 +216,17 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 }
 
 func (c apiClient) acknowledgeUpload(successful bool, uploadID string, partTags []string) (acknowledgeResponse, error) {
-	url := fmt.Sprintf("%s/upload/%s/acknowledge", c.baseURL, uploadID) // TODO add success, and parts (etags)
+	url := fmt.Sprintf("%s/multipart-upload/%s/acknowledge", c.baseURL, uploadID)
 
-	req, err := retryablehttp.NewRequest(http.MethodPatch, url, nil)
+	body, err := json.Marshal(acknowledgeRequest{
+		Successful: successful,
+		Etags:      partTags,
+	})
+	if err != nil {
+		return acknowledgeResponse{}, err
+	}
+
+	req, err := retryablehttp.NewRequest(http.MethodPatch, url, body)
 	if err != nil {
 		return acknowledgeResponse{}, err
 	}
