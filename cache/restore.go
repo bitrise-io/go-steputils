@@ -36,6 +36,7 @@ type restoreCacheConfig struct {
 	Keys           []string
 	APIBaseURL     stepconf.Secret
 	APIAccessToken stepconf.Secret
+	FeatureFlags   map[Feature]bool
 }
 
 type restorer struct {
@@ -121,6 +122,9 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 		return restoreCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
 
+	featureFlagsEnv := r.envRepo.Get("BITRISEIO_FEATURE_FLAGS")
+	featureFlags := parseFeatureFlags(featureFlagsEnv, r.logger)
+
 	keys, err := r.evaluateKeys(input.Keys)
 	if err != nil {
 		return restoreCacheConfig{}, fmt.Errorf("failed to evaluate keys: %w", err)
@@ -131,6 +135,7 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 		Keys:           keys,
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
+		FeatureFlags:   featureFlags,
 	}, nil
 }
 
@@ -169,6 +174,7 @@ func (r *restorer) download(config restoreCacheConfig) (downloadResult, error) {
 		Token:        string(config.APIAccessToken),
 		CacheKeys:    config.Keys,
 		DownloadPath: downloadPath,
+		FeatureFlags: config.FeatureFlags,
 	}
 	matchedKey, err := network.Download(params, r.logger)
 	if err != nil {

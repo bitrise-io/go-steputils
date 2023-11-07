@@ -3,6 +3,7 @@ package network
 import (
 	"errors"
 	"fmt"
+	"github.com/bitrise-io/go-steputils/v2/cache"
 	"io"
 	"os"
 
@@ -16,6 +17,7 @@ type DownloadParams struct {
 	Token        string
 	CacheKeys    []string
 	DownloadPath string
+	FeatureFlags map[cache.Feature]bool
 }
 
 // ErrCacheNotFound ...
@@ -36,7 +38,12 @@ func Download(params DownloadParams, logger log.Logger) (matchedKey string, err 
 		return "", fmt.Errorf("cache key list is empty")
 	}
 
-	client := newAPIClient(retryhttp.NewClient(logger), params.APIBaseURL, params.Token, logger)
+	var client apiClient
+	if params.FeatureFlags[cache.RemoteDownloader] == true {
+		client = newAPIClient(retryhttp.NewClientExperimental(logger), params.APIBaseURL, params.Token, logger)
+	} else {
+		client = newAPIClient(retryhttp.NewClient(logger), params.APIBaseURL, params.Token, logger)
+	}
 
 	logger.Debugf("Get download URL")
 	restoreResponse, err := client.restore(params.CacheKeys)

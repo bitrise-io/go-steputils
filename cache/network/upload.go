@@ -2,6 +2,7 @@ package network
 
 import (
 	"fmt"
+	"github.com/bitrise-io/go-steputils/v2/cache"
 	"path/filepath"
 	"strings"
 
@@ -11,11 +12,12 @@ import (
 
 // UploadParams ...
 type UploadParams struct {
-	APIBaseURL  string
-	Token       string
-	ArchivePath string
-	ArchiveSize int64
-	CacheKey    string
+	APIBaseURL   string
+	Token        string
+	ArchivePath  string
+	ArchiveSize  int64
+	CacheKey     string
+	FeatureFlags map[cache.Feature]bool
 }
 
 // Upload a cache archive and associate it with the provided cache key

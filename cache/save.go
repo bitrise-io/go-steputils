@@ -44,6 +44,7 @@ type saveCacheConfig struct {
 	Paths          []string
 	APIBaseURL     stepconf.Secret
 	APIAccessToken stepconf.Secret
+	FeatureFlags   map[Feature]bool
 }
 
 type saver struct {
@@ -167,12 +168,16 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 		return saveCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
 
+	featureFlagsEnv := s.envRepo.Get("BITRISEIO_FEATURE_FLAGS")
+	featureFlags := parseFeatureFlags(featureFlagsEnv, s.logger)
+
 	return saveCacheConfig{
 		Verbose:        input.Verbose,
 		Key:            evaluatedKey,
 		Paths:          finalPaths,
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
+		FeatureFlags:   featureFlags,
 	}, nil
 }
 
