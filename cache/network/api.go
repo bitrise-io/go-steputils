@@ -195,8 +195,11 @@ func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.logger.Debugf("Error from the client during restore: %s", err)
 		return restoreResponse{}, err
 	}
+	c.logger.Debugf("Response from the client during restore: %v", resp)
+
 	//defer func(body io.ReadCloser) {
 	//	err := body.Close()
 	//	if err != nil {
@@ -212,12 +215,16 @@ func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 		return restoreResponse{}, unwrapError(resp)
 	}
 
+	c.logger.Debugf("resp status code: %v", resp.StatusCode)
+
 	var response restoreResponse
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
+		c.logger.Debugf("couldn't decode body: %v", resp)
+
 		return restoreResponse{}, err
 	}
-
+	c.logger.Debugf("returning response: %v", resp)
 	return response, nil
 }
 

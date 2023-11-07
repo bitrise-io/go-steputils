@@ -41,6 +41,9 @@ func Download(params DownloadParams, logger log.Logger) (matchedKey string, err 
 	logger.Debugf("Get download URL")
 	restoreResponse, err := client.restore(params.CacheKeys)
 	if err != nil {
+		logger.Debugf("failed to get URLS: %+v", restoreResponse)
+		logger.Infof(" info failed to get URLS: %+v", restoreResponse)
+
 		return "", fmt.Errorf("failed to get download URL: %w", err)
 	}
 
