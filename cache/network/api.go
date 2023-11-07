@@ -25,11 +25,18 @@ type prepareUploadRequest struct {
 	ArchiveSizeInBytes int64  `json:"archive_size_in_bytes"`
 }
 
+type uploadURL struct {
+	URL     string              `json:"url"`
+	Method  string              `json:"method"`
+	Headers map[string][]string `json:"headers"`
+}
+
 type prepareUploadResponse struct {
-	ID            string            `json:"id"`
-	UploadMethod  string            `json:"method"`
-	UploadURL     string            `json:"url"`
-	UploadHeaders map[string]string `json:"headers"`
+	ID                  string      `json:"id"`
+	UploadURLs          []uploadURL `json:"urls"`
+	UploadChunkSize     int         `json:"chunk_size"`
+	UploadChunkCount    int         `json:"chunk_count"`
+	UploadLastChunkSize int         `json:"last_chunk_size"`
 }
 
 type acknowledgeResponse struct {
@@ -59,7 +66,7 @@ func newAPIClient(client *retryablehttp.Client, baseURL string, accessToken stri
 }
 
 func (c apiClient) prepareUpload(requestBody prepareUploadRequest) (prepareUploadResponse, error) {
-	url := fmt.Sprintf("%s/upload", c.baseURL)
+	url := fmt.Sprintf("%s/upload", c.baseURL) // TODO url
 
 	body, err := json.Marshal(requestBody)
 	if err != nil {
@@ -97,27 +104,16 @@ func (c apiClient) prepareUpload(requestBody prepareUploadRequest) (prepareUploa
 	return response, nil
 }
 
-func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, headers map[string]string) error {
-	file, err := os.Open(archivePath)
+func (c apiClient) uploadArchiveChunk(uploadURL uploadURL, data []byte, size int64) (string, error) {
+	req, err := retryablehttp.NewRequest(uploadURL.Method, uploadURL.URL, data)
 	if err != nil {
-		return err
+		return "", err
 	}
-
-	req, err := retryablehttp.NewRequest(uploadMethod, uploadURL, file)
-	if err != nil {
-		return err
-	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	req.Header = uploadURL.Headers
 
 	// Add Content-Length header manually because retryablehttp doesn't do it automatically
-	fileInfo, err := os.Stat(archivePath)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
-	req.ContentLength = fileInfo.Size()
+	req.Header.Set("Content-Length", fmt.Sprintf("%d", size))
+	req.ContentLength = size
 
 	dump, err := httputil.DumpRequest(req.Request, false)
 	if err != nil {
@@ -127,7 +123,7 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func(body io.ReadCloser) {
 		err := body.Close()
@@ -143,14 +139,56 @@ func (c apiClient) uploadArchive(archivePath, uploadMethod, uploadURL string, he
 	c.logger.Debugf("Response dump: %s", string(dump))
 
 	if resp.StatusCode != http.StatusOK {
-		return unwrapError(resp)
+		return "", unwrapError(resp)
 	}
 
-	return nil
+	etag := resp.Header.Get("ETag")
+
+	return etag, nil
 }
 
-func (c apiClient) acknowledgeUpload(uploadID string) (acknowledgeResponse, error) {
-	url := fmt.Sprintf("%s/upload/%s/acknowledge", c.baseURL, uploadID)
+func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, lastChunkSize int, uploadURLs []uploadURL) ([]string, error) {
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return nil, fmt.Errorf("open file: %s", err)
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			c.logger.Errorf("failed to close file: %s", err)
+		}
+	}(file)
+
+	etags := make([]string, 0, chunkCount)
+
+	c.logger.Debugf("Uploading %d chunks, %dB each", chunkCount, chunkSize)
+
+	for i := 0; i < chunkCount; i++ {
+		chunkData, err := io.ReadAll(io.NewSectionReader(file, int64(i)*int64(chunkSize), int64(chunkSize)))
+		if err != nil {
+			return nil, fmt.Errorf("read chunk: %s", err)
+		}
+
+		if i < chunkCount-1 && len(chunkData) != chunkSize {
+			c.logger.Warnf("chunk size mismatch, expected %d, got %d", chunkSize, len(chunkData))
+		}
+		if i == chunkCount-1 && len(chunkData) != lastChunkSize {
+			c.logger.Warnf("last chunk size mismatch, expected %d, got %d", lastChunkSize, len(chunkData))
+		}
+
+		c.logger.Debugf("Uploading chunk %d to %s", i, uploadURLs[i].URL)
+		etag, err := c.uploadArchiveChunk(uploadURLs[i], chunkData, int64(len(chunkData)))
+		if err != nil {
+			return nil, fmt.Errorf("upload chunk: %s", err)
+		}
+		etags = append(etags, etag)
+	}
+
+	return etags, nil
+}
+
+func (c apiClient) acknowledgeUpload(successful bool, uploadID string, partTags []string) (acknowledgeResponse, error) {
+	url := fmt.Sprintf("%s/upload/%s/acknowledge", c.baseURL, uploadID) // TODO add success, and parts (etags)
 
 	req, err := retryablehttp.NewRequest(http.MethodPatch, url, nil)
 	if err != nil {
