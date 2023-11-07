@@ -42,7 +42,7 @@ func Upload(params UploadParams, logger log.Logger) error {
 
 	logger.Debugf("")
 	logger.Debugf("Upload archive")
-	partTags, err := client.uploadArchive(params.ArchivePath, resp.UploadChunkSize, resp.UploadChunkCount, resp.UploadLastChunkSize, resp.UploadURLs)
+	partTags, err := client.uploadArchive(params.ArchivePath, resp.UploadChunkSizeBytes, resp.UploadChunkCount, resp.UploadLastChunkSizeBytes, resp.UploadURLs)
 	if err != nil {
 		_, err2 := client.acknowledgeUpload(false, resp.ID, partTags)
 		if err2 != nil {

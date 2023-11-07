@@ -32,11 +32,11 @@ type uploadURL struct {
 }
 
 type prepareUploadResponse struct {
-	ID                  string      `json:"id"`
-	UploadURLs          []uploadURL `json:"urls"`
-	UploadChunkSize     int         `json:"chunk_size"`
-	UploadChunkCount    int         `json:"chunk_count"`
-	UploadLastChunkSize int         `json:"last_chunk_size"`
+	ID                       string      `json:"id"`
+	UploadURLs               []uploadURL `json:"urls"`
+	UploadChunkSizeBytes     int         `json:"chunk_size_bytes"`
+	UploadChunkCount         int         `json:"chunk_count"`
+	UploadLastChunkSizeBytes int         `json:"last_chunk_size_bytes"`
 }
 
 type acknowledgeResponse struct {
@@ -104,7 +104,16 @@ func (c apiClient) prepareUpload(requestBody prepareUploadRequest) (prepareUploa
 	return response, nil
 }
 
-func (c apiClient) uploadArchiveChunk(uploadURL uploadURL, data []byte, size int64) (string, error) {
+// Data can be either byte[] or io.ReaderSeeker
+func (c apiClient) uploadArchiveChunk(uploadURL uploadURL, data interface{}, size int64) (string, error) {
+
+	switch body := data.(type) {
+	case []byte, io.ReadSeeker:
+		// do nothing
+	default:
+		return "", fmt.Errorf("invalid body type: %T", body)
+	}
+
 	req, err := retryablehttp.NewRequest(uploadURL.Method, uploadURL.URL, data)
 	if err != nil {
 		return "", err
@@ -159,6 +168,15 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 		}
 	}(file)
 
+	if chunkCount == 1 {
+		fileInfo, err := os.Stat(archivePath)
+		if err != nil {
+			return nil, fmt.Errorf("stat file: %s", err)
+		}
+		c.logger.Debugf("Uploading single chunk (non multipart upload)", uploadURLs[0].URL)
+		_, err = c.uploadArchiveChunk(uploadURLs[0], file, fileInfo.Size())
+	}
+
 	etags := make([]string, 0, chunkCount)
 
 	c.logger.Debugf("Uploading %d chunks, %dB each", chunkCount, chunkSize)
@@ -179,7 +197,7 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 		c.logger.Debugf("Uploading chunk %d to %s", i, uploadURLs[i].URL)
 		etag, err := c.uploadArchiveChunk(uploadURLs[i], chunkData, int64(len(chunkData)))
 		if err != nil {
-			return nil, fmt.Errorf("upload chunk: %s", err)
+			return nil, fmt.Errorf("upload chunk part %d: %s", i, err)
 		}
 		etags = append(etags, etag)
 	}
