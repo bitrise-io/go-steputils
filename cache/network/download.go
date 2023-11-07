@@ -39,7 +39,7 @@ func Download(params DownloadParams, logger log.Logger) (matchedKey string, err 
 	}
 
 	var client apiClient
-	if params.FeatureFlags[cache.RemoteDownloader] == true {
+	if params.FeatureFlags[cache.Multithreading] == true {
 		client = newAPIClient(retryhttp.NewClientExperimental(logger), params.APIBaseURL, params.Token, logger)
 	} else {
 		client = newAPIClient(retryhttp.NewClient(logger), params.APIBaseURL, params.Token, logger)

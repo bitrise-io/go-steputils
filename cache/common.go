@@ -35,13 +35,13 @@ func checksumOfFile(path string) (string, error) {
 type Feature string
 
 const (
-	RemoteDownloader  Feature = "REMOTE_DOWNLOADER"
+	Multithreading    Feature = "MULTITHREADING"
 	MultipartUploader Feature = "MULTIPART_UPLOADER"
 )
 
 func isValidFeature(f string) bool {
 	switch Feature(f) {
-	case RemoteDownloader, MultipartUploader:
+	case Multithreading, MultipartUploader:
 		return true
 	default:
 		return false
