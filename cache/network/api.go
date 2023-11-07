@@ -197,12 +197,13 @@ func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 	if err != nil {
 		return restoreResponse{}, err
 	}
-	defer func(body io.ReadCloser) {
-		err := body.Close()
-		if err != nil {
-			c.logger.Printf(err.Error())
-		}
-	}(resp.Body)
+	//defer func(body io.ReadCloser) {
+	//	err := body.Close()
+	//	if err != nil {
+	//		c.logger.Printf(err.Error())
+	//	}
+	//}(resp.Body)
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return restoreResponse{}, ErrCacheNotFound
