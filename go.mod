@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/bitrise-io/go-utils v1.0.1
-	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.19.0.20231108015658-cf98fe10ce26
+	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.19.0.20231108063943-a4d5990e7f28
 	github.com/bmatcuk/doublestar/v4 v4.2.0
 	github.com/docker/go-units v0.4.0
 	github.com/hashicorp/go-retryablehttp v0.7.1
