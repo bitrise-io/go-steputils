@@ -24,7 +24,7 @@ var ErrCacheNotFound = errors.New("no cache archive found for the provided keys"
 
 // Download archive from the cache API based on the provided keys in params.
 // If there is no match for any of the keys, the error is ErrCacheNotFound.
-func Download(params DownloadParams, logger log.Logger) (matchedKey string, err error) {
+func Download(ctx context.Context, params DownloadParams, logger log.Logger) (matchedKey string, err error) {
 	if params.APIBaseURL == "" {
 		return "", fmt.Errorf("API base URL is empty")
 	}
@@ -48,7 +48,7 @@ func Download(params DownloadParams, logger log.Logger) (matchedKey string, err 
 
 	logger.Debugf("Download archive")
 
-	downloadErr := downloadFile(retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+	downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
 	if downloadErr != nil {
 		return "", fmt.Errorf("failed to download archive: %w", downloadErr)
 	}
@@ -56,9 +56,9 @@ func Download(params DownloadParams, logger log.Logger) (matchedKey string, err 
 	return restoreResponse.MatchedKey, nil
 }
 
-func downloadFile(client *http.Client, url string, dest string) error {
+func downloadFile(ctx context.Context, client *http.Client, url string, dest string) error {
 	downloader := got.New()
 	downloader.Client = client
 
-	return downloader.Do(got.NewDownload(context.Background(), url, dest))
+	return downloader.Do(got.NewDownload(ctx, url, dest))
 }
