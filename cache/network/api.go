@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -229,6 +230,9 @@ func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 }
 
 func (c apiClient) downloadArchive(url string) (io.ReadCloser, error) {
+
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("X-Content-Size", strconv.Itoa(1048576000)) //hard-coded header
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
 		return nil, err
