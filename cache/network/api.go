@@ -231,9 +231,9 @@ func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 
 func (c apiClient) downloadArchive(url string) (io.ReadCloser, error) {
 
-	req, _ := http.NewRequest(http.MethodGet, url, nil)
-	req.Header.Set("X-Content-Size", strconv.Itoa(1048576000)) //hard-coded header
-	resp, err := c.httpClient.Get(url)
+	req, _ := retryablehttp.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("X-Content-Size", strconv.Itoa(1048601051)) //hard-coded header
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
