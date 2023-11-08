@@ -39,6 +39,7 @@ func Download(params DownloadParams, logger log.Logger) (matchedKey string, err 
 	client := newAPIClient(retryhttp.NewClient(logger), params.APIBaseURL, params.Token, logger)
 
 	logger.Debugf("Get download URL")
+
 	restoreResponse, err := client.restore(params.CacheKeys)
 	if err != nil {
 		logger.Debugf("failed to get URLS: %+v", restoreResponse)
