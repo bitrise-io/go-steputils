@@ -31,9 +31,9 @@ type acknowledgeRequest struct {
 }
 
 type uploadURL struct {
-	URL     string              `json:"url"`
-	Method  string              `json:"method"`
-	Headers map[string][]string `json:"headers"`
+	URL     string            `json:"url"`
+	Method  string            `json:"method"`
+	Headers map[string]string `json:"headers"`
 }
 
 type prepareUploadResponse struct {
@@ -123,7 +123,9 @@ func (c apiClient) uploadArchiveChunk(uploadURL uploadURL, data interface{}, siz
 	if err != nil {
 		return "", err
 	}
-	req.Header = uploadURL.Headers
+	for k, v := range uploadURL.Headers {
+		req.Header.Set(k, v)
+	}
 
 	// Add Content-Length header manually because retryablehttp doesn't do it automatically
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", size))
