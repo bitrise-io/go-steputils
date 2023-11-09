@@ -135,7 +135,7 @@ func (c apiClient) uploadArchiveChunk(uploadURL uploadURL, data interface{}, siz
 	if err != nil {
 		c.logger.Warnf("error while dumping request: %s", err)
 	}
-	c.logger.Debugf("Request dump: %s", string(dump))
+	c.logger.Debugf("Chunk request dump: %s", string(dump))
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -152,7 +152,7 @@ func (c apiClient) uploadArchiveChunk(uploadURL uploadURL, data interface{}, siz
 	if err != nil {
 		c.logger.Warnf("error while dumping response: %s", err)
 	}
-	c.logger.Debugf("Response dump: %s", string(dump))
+	c.logger.Debugf("Chunk response dump: %s", string(dump))
 
 	if resp.StatusCode != http.StatusOK {
 		return "", unwrapError(resp)
@@ -234,6 +234,12 @@ func (c apiClient) acknowledgeUpload(successful bool, uploadID string, partTags 
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 
+	dump, err := httputil.DumpRequest(req.Request, true)
+	if err != nil {
+		c.logger.Warnf("error while dumping request: %s", err)
+	}
+	c.logger.Debugf("Acknowledge request dump: %s", string(dump))
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return acknowledgeResponse{}, err
@@ -244,6 +250,12 @@ func (c apiClient) acknowledgeUpload(successful bool, uploadID string, partTags 
 			c.logger.Printf(err.Error())
 		}
 	}(resp.Body)
+
+	dump, err = httputil.DumpResponse(resp, true)
+	if err != nil {
+		c.logger.Warnf("error while dumping response: %s", err)
+	}
+	c.logger.Debugf("Acknowledge response dump: %s", string(dump))
 
 	if resp.StatusCode != http.StatusOK {
 		return acknowledgeResponse{}, unwrapError(resp)
