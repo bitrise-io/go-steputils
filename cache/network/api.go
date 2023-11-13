@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/hashicorp/go-retryablehttp"
@@ -199,6 +200,8 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 
 	worker := func() {
 		for job := range jobs {
+			time.Sleep(30 * time.Second)
+
 			chunkData, err := io.ReadAll(io.NewSectionReader(file, job.ChunkStart, job.ChunkSize))
 			if err != nil {
 				errors <- fmt.Errorf("read chunk %d: %s", job.ChunkNumber, err)
