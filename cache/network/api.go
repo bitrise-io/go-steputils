@@ -185,57 +185,77 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 		return nil, nil
 	}
 
-	const numWorkers = 10 // TODO:adjust
+	type Job struct {
+		ChunkNumber int
+		ChunkStart  int64
+		ChunkSize   int64
+		UploadURL   uploadURL
+	}
 
-	tasks := make(chan int, chunkCount)
+	jobs := make(chan Job, chunkCount)
 	results := make(chan string, chunkCount)
-	errors := make(chan error, 1)
+	errors := make(chan error, chunkCount)
+	wg := sync.WaitGroup{}
 
-	var wg sync.WaitGroup
-	for w := 0; w < numWorkers; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := range tasks {
-				chunkSizeToRead := chunkSize
-				if i == chunkCount-1 {
-					chunkSizeToRead = lastChunkSize
-				}
-				chunkData, err := io.ReadAll(io.NewSectionReader(file, int64(i)*int64(chunkSize), int64(chunkSizeToRead)))
-				if err != nil {
-					errors <- fmt.Errorf("read chunk %d: %s", i, err)
-					return
-				}
-
-				c.logger.Debugf("Uploading chunk %d to %s", i, uploadURLs[i].URL)
-				etag, err := c.uploadArchiveChunk(uploadURLs[i], chunkData, int64(len(chunkData)))
-				if err != nil {
-					errors <- fmt.Errorf("upload chunk part %d: %s", i, err)
-					return
-				}
-				results <- etag
+	worker := func() {
+		for job := range jobs {
+			chunkData, err := io.ReadAll(io.NewSectionReader(file, job.ChunkStart, job.ChunkSize))
+			if err != nil {
+				errors <- fmt.Errorf("read chunk %d: %s", job.ChunkNumber, err)
+				wg.Done()
+				continue
 			}
-		}()
+
+			c.logger.Debugf("Uploading chunk %d to %s", job.ChunkNumber, job.UploadURL.URL)
+			etag, err := c.uploadArchiveChunk(job.UploadURL, chunkData, int64(len(chunkData)))
+			if err != nil {
+				errors <- fmt.Errorf("upload chunk part %d: %s", job.ChunkNumber, err)
+				wg.Done()
+				continue
+			}
+
+			results <- etag
+			wg.Done()
+		}
+	}
+
+	workerCount := 10 // 10?
+	for w := 0; w < workerCount; w++ {
+		go worker()
 	}
 
 	for i := 0; i < chunkCount; i++ {
-		tasks <- i
+		chunkStart := int64(i) * int64(chunkSize)
+		chunkEnd := int64(chunkSize)
+		if i == chunkCount-1 {
+			chunkEnd = int64(lastChunkSize)
+		}
+
+		wg.Add(1)
+		jobs <- Job{
+			ChunkNumber: i,
+			ChunkStart:  chunkStart,
+			ChunkSize:   chunkEnd,
+			UploadURL:   uploadURLs[i],
+		}
 	}
-	close(tasks)
+	close(jobs)
 
 	wg.Wait()
 	close(results)
-
 	close(errors)
-	if len(errors) > 0 {
-		return nil, <-errors
-	}
 
 	etags := make([]string, 0, chunkCount)
 	for etag := range results {
 		etags = append(etags, etag)
 	}
+	c.logger.Debugf("Etags:   %+v to  \n\r", etags)
 
+	for err := range errors {
+		if err != nil {
+			return nil, err
+		}
+	}
 	return etags, nil
 }
 
