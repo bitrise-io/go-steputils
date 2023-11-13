@@ -194,13 +194,17 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 	}
 
 	jobs := make(chan Job, chunkCount)
-	results := make(chan string, chunkCount)
+	results := make(chan struct {
+		ChunkNumber int
+		ChunkSize   int64
+		ETag        string
+	}, chunkCount)
 	errors := make(chan error, chunkCount)
 	wg := sync.WaitGroup{}
 
 	worker := func() {
 		for job := range jobs {
-			time.Sleep(30 * time.Second)
+			time.Sleep(30 * time.Second) // Simulated processing delay
 
 			chunkData, err := io.ReadAll(io.NewSectionReader(file, job.ChunkStart, job.ChunkSize))
 			if err != nil {
@@ -217,12 +221,16 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 				continue
 			}
 
-			results <- etag
+			results <- struct {
+				ChunkNumber int
+				ChunkSize   int64
+				ETag        string
+			}{job.ChunkNumber, job.ChunkSize, etag}
 			wg.Done()
 		}
 	}
 
-	workerCount := 10 // 10?
+	workerCount := 10 // Number of concurrent workers
 	for w := 0; w < workerCount; w++ {
 		go worker()
 	}
@@ -248,11 +256,11 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 	close(results)
 	close(errors)
 
-	etags := make([]string, 0, chunkCount)
-	for etag := range results {
-		etags = append(etags, etag)
+	etags := make([]string, chunkCount)
+	for result := range results {
+		etags[result.ChunkNumber] = result.ETag
 	}
-	c.logger.Debugf("Etags:   %+v to  \n\r", etags)
+	c.logger.Debugf("Etags: %+v to  \n\r", etags)
 
 	for err := range errors {
 		if err != nil {
