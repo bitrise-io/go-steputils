@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/hashicorp/go-retryablehttp"
@@ -168,14 +169,7 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 	if err != nil {
 		return nil, fmt.Errorf("open file: %s", err)
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			c.logger.Errorf("failed to close file: %s", err)
-		}
-	}(file)
-
-	etags := make([]string, 0, chunkCount)
+	defer file.Close()
 
 	if chunkCount == 1 {
 		fileInfo, err := os.Stat(archivePath)
@@ -191,26 +185,54 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 		return nil, nil
 	}
 
-	c.logger.Debugf("Uploading %d chunks, %dB each", chunkCount, chunkSize)
+	const numWorkers = 10 // TODO:adjust
+
+	tasks := make(chan int, chunkCount)
+	results := make(chan string, chunkCount)
+	errors := make(chan error, 1)
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range tasks {
+				chunkSizeToRead := chunkSize
+				if i == chunkCount-1 {
+					chunkSizeToRead = lastChunkSize
+				}
+				chunkData, err := io.ReadAll(io.NewSectionReader(file, int64(i)*int64(chunkSize), int64(chunkSizeToRead)))
+				if err != nil {
+					errors <- fmt.Errorf("read chunk %d: %s", i, err)
+					return
+				}
+
+				c.logger.Debugf("Uploading chunk %d to %s", i, uploadURLs[i].URL)
+				etag, err := c.uploadArchiveChunk(uploadURLs[i], chunkData, int64(len(chunkData)))
+				if err != nil {
+					errors <- fmt.Errorf("upload chunk part %d: %s", i, err)
+					return
+				}
+				results <- etag
+			}
+		}()
+	}
 
 	for i := 0; i < chunkCount; i++ {
-		chunkData, err := io.ReadAll(io.NewSectionReader(file, int64(i)*int64(chunkSize), int64(chunkSize)))
-		if err != nil {
-			return nil, fmt.Errorf("read chunk: %s", err)
-		}
+		tasks <- i
+	}
+	close(tasks)
 
-		if i < chunkCount-1 && len(chunkData) != chunkSize {
-			c.logger.Warnf("chunk size mismatch, expected %d, got %d", chunkSize, len(chunkData))
-		}
-		if i == chunkCount-1 && len(chunkData) != lastChunkSize {
-			c.logger.Warnf("last chunk size mismatch, expected %d, got %d", lastChunkSize, len(chunkData))
-		}
+	wg.Wait()
+	close(results)
 
-		c.logger.Debugf("Uploading chunk %d to %s", i, uploadURLs[i].URL)
-		etag, err := c.uploadArchiveChunk(uploadURLs[i], chunkData, int64(len(chunkData)))
-		if err != nil {
-			return nil, fmt.Errorf("upload chunk part %d: %s", i, err)
-		}
+	close(errors)
+	if len(errors) > 0 {
+		return nil, <-errors
+	}
+
+	etags := make([]string, 0, chunkCount)
+	for etag := range results {
 		etags = append(etags, etag)
 	}
 
