@@ -3,6 +3,8 @@ package network
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/bitrise-io/go-utils/v2/log"
+	"github.com/hashicorp/go-retryablehttp"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -11,10 +13,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
-
-	"github.com/bitrise-io/go-utils/v2/log"
-	"github.com/hashicorp/go-retryablehttp"
 )
 
 const maxKeyLength = 512
@@ -213,7 +211,6 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 
 	worker := func() {
 		for job := range jobs {
-			time.Sleep(30 * time.Second) // Simulated processing delay
 
 			chunkData, err := io.ReadAll(io.NewSectionReader(file, job.ChunkStart, job.ChunkSize))
 			if err != nil {
