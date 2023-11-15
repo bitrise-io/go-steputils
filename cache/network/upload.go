@@ -46,6 +46,7 @@ func Upload(params UploadParams, logger log.Logger) error {
 	if err != nil {
 		_, err2 := client.acknowledgeUpload(false, resp.ID, partTags)
 		if err2 != nil {
+			fmt.Printf("Failed to abort upload: %s", err2)
 			logger.Warnf("Failed to abort upload: %s", err2)
 		}
 

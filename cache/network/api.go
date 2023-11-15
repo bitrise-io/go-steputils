@@ -114,6 +114,9 @@ func (c apiClient) prepareUpload(requestBody prepareUploadRequest) (prepareUploa
 // Data can be either byte[] or io.ReaderSeeker
 func (c apiClient) uploadArchiveChunk(uploadURL uploadURL, data interface{}, size int64) (string, error) {
 
+	fmt.Printf("Uploading archive chunk: %s \n\r", uploadURL.URL)
+	fmt.Printf("Chunk size: %d \n\r", size)
+
 	switch body := data.(type) {
 	case []byte, io.ReadSeeker:
 		// do nothing
@@ -161,11 +164,17 @@ func (c apiClient) uploadArchiveChunk(uploadURL uploadURL, data interface{}, siz
 	}
 
 	etag := resp.Header.Get("ETag")
+	fmt.Printf("Etag %s for %s of size %v \n\r", etag, uploadURL.URL, size)
 
 	return etag, nil
 }
 
 func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, lastChunkSize int, uploadURLs []uploadURL) ([]string, error) {
+
+	fmt.Printf("Uploading archive: %s \n\r", archivePath)
+	fmt.Printf("Chunk size, count, last chunk size: %d, %d, %d \n\r", chunkSize, chunkCount, lastChunkSize)
+	fmt.Printf("Upload urls: %+v \n\r", uploadURLs)
+
 	file, err := os.Open(archivePath)
 	if err != nil {
 		return nil, fmt.Errorf("open file: %s", err)
@@ -213,9 +222,10 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 				continue
 			}
 
-			c.logger.Debugf("Uploading chunk %d to %s", job.ChunkNumber, job.UploadURL.URL)
+			fmt.Printf("Uploading chunk %d to %s, size: %v, chunk start: %v \n\r", job.ChunkNumber, job.UploadURL.URL, job.ChunkSize, job.ChunkStart)
 			etag, err := c.uploadArchiveChunk(job.UploadURL, chunkData, int64(len(chunkData)))
 			if err != nil {
+				fmt.Printf("Error uploading chunk %d to %s \n\r", job.ChunkNumber, job.UploadURL.URL)
 				errors <- fmt.Errorf("upload chunk part %d: %s", job.ChunkNumber, err)
 				wg.Done()
 				continue
@@ -256,11 +266,15 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 	close(results)
 	close(errors)
 
+	fmt.Printf("Results: %+v \n\r", results)
+
 	etags := make([]string, chunkCount)
 	for result := range results {
 		etags[result.ChunkNumber] = result.ETag
 	}
 	c.logger.Debugf("Etags: %+v to  \n\r", etags)
+
+	fmt.Printf("Etags: %+v \n\r", etags)
 
 	for err := range errors {
 		if err != nil {
@@ -278,6 +292,7 @@ func (c apiClient) acknowledgeUpload(successful bool, uploadID string, partTags 
 		Etags:      partTags,
 	})
 	if err != nil {
+		fmt.Printf("Error marshalling acknowledge request: %s \n\r", err)
 		return acknowledgeResponse{}, err
 	}
 
@@ -311,6 +326,7 @@ func (c apiClient) acknowledgeUpload(successful bool, uploadID string, partTags 
 	c.logger.Debugf("Acknowledge response dump: %s", string(dump))
 
 	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Error acknowledging upload: %s \n\r", unwrapError(resp))
 		return acknowledgeResponse{}, unwrapError(resp)
 	}
 
