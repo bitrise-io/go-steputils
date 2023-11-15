@@ -237,7 +237,7 @@ func (c apiClient) uploadArchive(archivePath string, chunkSize, chunkCount, last
 		}
 	}
 
-	workerCount := 10 // Number of concurrent workers
+	workerCount := 25 // Number of concurrent workers
 	for w := 0; w < workerCount; w++ {
 		go worker()
 	}
