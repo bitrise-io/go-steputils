@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -67,7 +68,7 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	r.logger.Println()
 	r.logger.Infof("Downloading archive...")
 	downloadStartTime := time.Now()
-	result, err := r.download(config)
+	result, err := r.download(context.Background(), config)
 	if err != nil {
 		if errors.Is(err, network.ErrCacheNotFound) {
 			r.logger.Donef("No cache entry found for the provided key")
@@ -156,7 +157,7 @@ func (r *restorer) evaluateKeys(keys []string) ([]string, error) {
 	return evaluatedKeys, nil
 }
 
-func (r *restorer) download(config restoreCacheConfig) (downloadResult, error) {
+func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (downloadResult, error) {
 	dir, err := os.MkdirTemp("", "restore-cache")
 	if err != nil {
 		return downloadResult{}, err
@@ -170,7 +171,7 @@ func (r *restorer) download(config restoreCacheConfig) (downloadResult, error) {
 		CacheKeys:    config.Keys,
 		DownloadPath: downloadPath,
 	}
-	matchedKey, err := network.Download(params, r.logger)
+	matchedKey, err := network.Download(ctx, params, r.logger)
 	if err != nil {
 		return downloadResult{}, err
 	}

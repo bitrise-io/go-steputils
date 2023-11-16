@@ -221,24 +221,6 @@ func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 	return response, nil
 }
 
-func (c apiClient) downloadArchive(url string) (io.ReadCloser, error) {
-	resp, err := c.httpClient.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		defer func(body io.ReadCloser) {
-			err := body.Close()
-			if err != nil {
-				c.logger.Printf(err.Error())
-			}
-		}(resp.Body)
-		return nil, unwrapError(resp)
-	}
-
-	return resp.Body, nil
-}
-
 func unwrapError(resp *http.Response) error {
 	errorResp, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

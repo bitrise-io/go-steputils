@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -43,7 +44,7 @@ func TestSuccessfulDownload(t *testing.T) {
 		DownloadPath: downloadPath,
 	}
 	logger.EnableDebugLog(true)
-	matchedKey, err := network.Download(params, logger)
+	matchedKey, err := network.Download(context.Background(), params, logger)
 
 	// Then
 	if err != nil {
@@ -82,7 +83,7 @@ func TestNotFoundDownload(t *testing.T) {
 		DownloadPath: downloadPath,
 	}
 	logger.EnableDebugLog(true)
-	matchedKey, err := network.Download(params, logger)
+	matchedKey, err := network.Download(context.Background(), params, logger)
 
 	// Then
 	assert.Equal(t, "", matchedKey)
