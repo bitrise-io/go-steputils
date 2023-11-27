@@ -22,12 +22,14 @@ func Compress(archivePath string, includePaths []string, logger log.Logger, envR
 	haveZstd := checkZstdBinary(envRepo, logger)
 
 	if !haveZstd {
+		logger.Infof("Falling back to native implementation of zstd.")
 		if err := compressWithGoLib(archivePath, includePaths, logger, envRepo); err != nil {
 			return fmt.Errorf("compress files: %w", err)
 		}
 		return nil
 	}
 
+	logger.Infof("Using installed zstd binary")
 	if err := compressWithBinary(archivePath, includePaths, logger, envRepo); err != nil {
 		return fmt.Errorf("compress files: %w", err)
 	}
@@ -38,12 +40,14 @@ func Compress(archivePath string, includePaths []string, logger log.Logger, envR
 func Decompress(archivePath string, logger log.Logger, envRepo env.Repository, destinationDirectory string) error {
 	haveZstd := checkZstdBinary(envRepo, logger)
 	if !haveZstd {
+		logger.Infof("Falling back to native implementation of zstd.")
 		if err := decompressWithGolib(archivePath, logger, envRepo, destinationDirectory); err != nil {
 			return fmt.Errorf("decompress files: %w", err)
 		}
 		return nil
 	}
 
+	logger.Infof("Using installed zstd binary")
 	if err := decompressWithBinary(archivePath, logger, envRepo, destinationDirectory); err != nil {
 		return fmt.Errorf("decompress files: %w", err)
 	}
