@@ -57,7 +57,7 @@ func Test_Decompression(t *testing.T) {
 				testCase.archivePath,
 				logger,
 				envRepo,
-				"--directory", tempDir,
+				tempDir,
 			)
 
 			// Then

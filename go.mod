@@ -8,6 +8,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.2.0
 	github.com/docker/go-units v0.4.0
 	github.com/hashicorp/go-retryablehttp v0.7.1
+	github.com/klauspost/compress v1.17.3
 	github.com/melbahja/got v0.7.0
 	github.com/stretchr/testify v1.7.0
 )
