@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
@@ -48,12 +50,40 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 
 	logger.Debugf("Download archive")
 
-	downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
-	if downloadErr != nil {
-		return "", fmt.Errorf("failed to download archive: %w", downloadErr)
+	const maxRetries = 3
+	const retryDelay = 2 * time.Second
+	retriableErrors := []string{"Range request returned invalid Content-Length", "EOF"}
+
+	// Attempt to download, retrying on retriable errors
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+		if downloadErr == nil {
+			return restoreResponse.MatchedKey, nil
+		}
+
+		isRetriable := false
+		for _, retriableError := range retriableErrors {
+			if strings.Contains(downloadErr.Error(), retriableError) {
+				isRetriable = true
+				break
+			}
+		}
+
+		if !isRetriable {
+			return "", fmt.Errorf("non-retriable error occurred: %w", downloadErr)
+		}
+
+		logger.Debugf("Retriable error occurred, attempt %d/%d: %v", attempt+1, maxRetries, downloadErr)
+
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("context cancelled: %w", ctx.Err())
+		}
+		if attempt < maxRetries-1 {
+			time.Sleep(retryDelay)
+		}
 	}
 
-	return restoreResponse.MatchedKey, nil
+	return "", fmt.Errorf("failed to download archive after %d attempts", maxRetries)
 }
 
 func downloadFile(ctx context.Context, client *http.Client, url string, dest string) error {
