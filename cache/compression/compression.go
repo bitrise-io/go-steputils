@@ -14,7 +14,6 @@ import (
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/bitrise-io/go-utils/v2/log"
-	gozstd "github.com/klauspost/compress/zstd"
 )
 
 // Compress creates a compressed archive from the provided files and folders using absolute paths.
@@ -63,20 +62,25 @@ func checkZstdBinary(envRepo env.Repository, logger log.Logger) bool {
 	_, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
 		logger.Warnf("zstd is not present in $PATH, falling back to native implementation.")
-		return false
+		return false // TODO: remove this: turned off fallback to binary version
 	}
 
-	return true
+	return false // TODO: return true here: turned off fallback to binary version
 }
 
 func compressWithGoLib(archivePath string, includePaths []string, logger log.Logger, envRepo env.Repository) error {
 	// TODO check what options we have in the lib for like `"zstd --threads=0"`
 	var buf bytes.Buffer
-	zstdWriter, err := gozstd.NewWriter(&buf)
-	if err != nil {
-		return fmt.Errorf("create zstd writer: %w", err)
-	}
-	tw := tar.NewWriter(zstdWriter)
+
+	// TODO: uncomment this after testing no-compression tar
+	// zstdWriter, err := gozstd.NewWriter(&buf)
+	// if err != nil {
+	// 	return fmt.Errorf("create zstd writer: %w", err)
+	// }
+	//tw := tar.NewWriter(zstdWriter)
+
+	// TODO: remove this after testing no-compression tar
+	tw := tar.NewWriter(&buf)
 
 	for _, p := range includePaths {
 		path := filepath.Clean(p)
@@ -115,9 +119,11 @@ func compressWithGoLib(archivePath string, includePaths []string, logger log.Log
 			return fmt.Errorf("close tar writer: %w", err)
 		}
 		// produce zstd
-		if err := zstdWriter.Close(); err != nil {
-			return fmt.Errorf("close zstd writer: %w", err)
-		}
+
+		// TODO: uncomment this after testing no-compression tar
+		// if err := zstdWriter.Close(); err != nil {
+		// 	return fmt.Errorf("close zstd writer: %w", err)
+		// }
 	}
 
 	// write the archive file
@@ -173,12 +179,14 @@ func decompressWithGolib(archivePath string, logger log.Logger, envRepo env.Repo
 		return fmt.Errorf("read file %s: %w", archivePath, err)
 	}
 
-	zr, err := gozstd.NewReader(compressedFile)
-	if err != nil {
-		return fmt.Errorf("create zstd reader: %w", err)
-	}
+	// TODO: uncommment this after testing no-compression tar
+	// zr, err := gozstd.NewReader(compressedFile)
+	// if err != nil {
+	// 	return fmt.Errorf("create zstd reader: %w", err)
+	// }
+	// defer zr.Close()
 
-	tr := tar.NewReader(zr)
+	tr := tar.NewReader(compressedFile)
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
