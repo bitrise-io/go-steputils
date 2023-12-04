@@ -51,12 +51,13 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 	logger.Debugf("Download archive")
 
 	const maxRetries = 3
-	const retryDelay = 2 * time.Second
+	const retryDelay = 1 * time.Second
 	retriableErrors := []string{"Range request returned invalid Content-Length", "EOF"}
 
 	// Attempt to download, retrying on retriable errors
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+
 		if downloadErr == nil {
 			return restoreResponse.MatchedKey, nil
 		}
