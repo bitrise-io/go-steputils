@@ -1,13 +1,14 @@
 package network
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"io"
-	"os"
+	"net/http"
 
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
+	"github.com/melbahja/got"
 )
 
 // DownloadParams ...
@@ -23,7 +24,7 @@ var ErrCacheNotFound = errors.New("no cache archive found for the provided keys"
 
 // Download archive from the cache API based on the provided keys in params.
 // If there is no match for any of the keys, the error is ErrCacheNotFound.
-func Download(params DownloadParams, logger log.Logger) (matchedKey string, err error) {
+func Download(ctx context.Context, params DownloadParams, logger log.Logger) (matchedKey string, err error) {
 	if params.APIBaseURL == "" {
 		return "", fmt.Errorf("API base URL is empty")
 	}
@@ -36,7 +37,8 @@ func Download(params DownloadParams, logger log.Logger) (matchedKey string, err 
 		return "", fmt.Errorf("cache key list is empty")
 	}
 
-	client := newAPIClient(retryhttp.NewClient(logger), params.APIBaseURL, params.Token, logger)
+	retryableHTTPClient := retryhttp.NewClient(logger)
+	client := newAPIClient(retryableHTTPClient, params.APIBaseURL, params.Token, logger)
 
 	logger.Debugf("Get download URL")
 	restoreResponse, err := client.restore(params.CacheKeys)
@@ -45,31 +47,18 @@ func Download(params DownloadParams, logger log.Logger) (matchedKey string, err 
 	}
 
 	logger.Debugf("Download archive")
-	file, err := os.Create(params.DownloadPath)
-	if err != nil {
-		return "", fmt.Errorf("can't open download location: %w", err)
-	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			logger.Warnf(err.Error())
-		}
-	}(file)
 
-	respBody, err := client.downloadArchive(restoreResponse.URL)
-	if err != nil {
-		return "", fmt.Errorf("failed to download archive: %w", err)
-	}
-	defer func(respBody io.ReadCloser) {
-		err := respBody.Close()
-		if err != nil {
-			logger.Warnf(err.Error())
-		}
-	}(respBody)
-	_, err = io.Copy(file, respBody)
-	if err != nil {
-		return "", fmt.Errorf("failed to save archive to disk: %w", err)
+	downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+	if downloadErr != nil {
+		return "", fmt.Errorf("failed to download archive: %w", downloadErr)
 	}
 
 	return restoreResponse.MatchedKey, nil
+}
+
+func downloadFile(ctx context.Context, client *http.Client, url string, dest string) error {
+	downloader := got.New()
+	downloader.Client = client
+
+	return downloader.Do(got.NewDownload(ctx, url, dest))
 }
