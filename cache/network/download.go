@@ -52,7 +52,7 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 
 	const maxRetries = 3
 	const retryDelay = 1 * time.Second
-	retriableErrors := []string{"Range request returned invalid Content-Length", "EOF"}
+	retriableErrors := []string{"Range request returned invalid Content-Length", "EOF", "connection reset"}
 
 	// Attempt to download, retrying on retriable errors
 	for attempt := 0; attempt < maxRetries; attempt++ {
