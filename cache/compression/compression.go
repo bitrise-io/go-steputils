@@ -82,6 +82,16 @@ func compressWithGoLib(archivePath string, includePaths []string, logger log.Log
 		path := filepath.Clean(p)
 		// walk through every file in the folder
 		if err := filepath.Walk(path, func(file string, fi os.FileInfo, e error) error {
+			var link string
+			if fi.Mode() == os.ModeSymlink {
+				if link, err = os.Readlink(path); err != nil {
+					return fmt.Errorf("read symlink: %w", err)
+				}
+			}
+			if link != "" {
+				file = link
+			}
+
 			// generate tar header
 			header, err := tar.FileInfoHeader(fi, file)
 			if err != nil {
@@ -95,16 +105,23 @@ func compressWithGoLib(archivePath string, includePaths []string, logger log.Log
 			if err := tw.WriteHeader(header); err != nil {
 				return fmt.Errorf("write tar file header: %w", err)
 			}
-			// if not dir, write file content
-			if !fi.IsDir() {
-				data, err := os.Open(file)
-				if err != nil {
-					return fmt.Errorf("open file: %w", err)
-				}
-				if _, err := io.Copy(tw, data); err != nil {
-					return fmt.Errorf("copy to file: %w", err)
-				}
+
+			// nothing more to do for non-regular files or directories
+			if !fi.Mode().IsRegular() || fi.IsDir() {
+				return nil
 			}
+
+			data, err := os.Open(file)
+			if err != nil {
+				return fmt.Errorf("open file: %w", err)
+			}
+			if _, err := io.Copy(tw, data); err != nil {
+				return fmt.Errorf("copy to file: %w", err)
+			}
+			if err := data.Close(); err != nil {
+				return fmt.Errorf("close file: %w", err)
+			}
+
 			return nil
 		}); err != nil {
 			return fmt.Errorf("iterate on files: %w", err)
@@ -127,6 +144,9 @@ func compressWithGoLib(archivePath string, includePaths []string, logger log.Log
 	}
 	if _, err := io.Copy(fileToWrite, &buf); err != nil {
 		return fmt.Errorf("write arhive file: %w", err)
+	}
+	if err := fileToWrite.Close(); err != nil {
+		return fmt.Errorf("close archive file: %w", err)
 	}
 
 	return nil
