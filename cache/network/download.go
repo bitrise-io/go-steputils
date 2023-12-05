@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"strings"
-	"time"
-
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/melbahja/got"
+	"net/http"
+	"strings"
 )
 
 // DownloadParams ...
@@ -39,7 +38,7 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 		return "", fmt.Errorf("cache key list is empty")
 	}
 
-	retryableHTTPClient := retryhttp.NewClient(logger)
+	retryableHTTPClient := prepareRetryableHTTPClient(logger)
 	client := newAPIClient(retryableHTTPClient, params.APIBaseURL, params.Token, logger)
 
 	logger.Debugf("Get download URL")
@@ -47,49 +46,40 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 	if err != nil {
 		return "", fmt.Errorf("failed to get download URL: %w", err)
 	}
-
 	logger.Debugf("Download archive")
+	downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+	if downloadErr == nil {
+		return restoreResponse.MatchedKey, nil
+	}
+	return "", fmt.Errorf("failed to download archive")
+}
 
-	const maxRetries = 3
-	const retryDelay = 1 * time.Second
+func prepareRetryableHTTPClient(logger log.Logger) *retryablehttp.Client {
+	retryableHTTPClient := retryhttp.NewClient(logger)
+	retryableHTTPClient.CheckRetry = createCustomRetryFunction()
+	return retryableHTTPClient
+}
+
+func createCustomRetryFunction() func(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	retriableErrors := []string{"Range request returned invalid Content-Length", "EOF", "connection reset"}
 
-	// Attempt to download, retrying on retriable errors
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+	return func(ctx context.Context, resp *http.Response, downloadErr error) (bool, error) {
+		defaultCheckRetry := retryablehttp.DefaultRetryPolicy
+		retry, err := defaultCheckRetry(ctx, resp, downloadErr)
 
-		if downloadErr == nil {
-			return restoreResponse.MatchedKey, nil
-		}
-
-		isRetriable := false
-		for _, retriableError := range retriableErrors {
-			if strings.Contains(downloadErr.Error(), retriableError) {
-				isRetriable = true
-				break
+		if !retry && err == nil && downloadErr != nil {
+			for _, retriableError := range retriableErrors {
+				if strings.Contains(downloadErr.Error(), retriableError) {
+					return true, nil
+				}
 			}
 		}
-
-		if !isRetriable {
-			return "", fmt.Errorf("non-retriable error occurred: %w", downloadErr)
-		}
-
-		logger.Debugf("Retriable error occurred, attempt %d/%d: %v", attempt+1, maxRetries, downloadErr)
-
-		if ctx.Err() != nil {
-			return "", fmt.Errorf("context cancelled: %w", ctx.Err())
-		}
-		if attempt < maxRetries-1 {
-			time.Sleep(retryDelay)
-		}
+		return retry, err
 	}
-
-	return "", fmt.Errorf("failed to download archive after %d attempts", maxRetries)
 }
 
 func downloadFile(ctx context.Context, client *http.Client, url string, dest string) error {
 	downloader := got.New()
 	downloader.Client = client
-
 	return downloader.Do(got.NewDownload(ctx, url, dest))
 }
