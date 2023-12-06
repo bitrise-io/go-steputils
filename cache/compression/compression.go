@@ -82,16 +82,6 @@ func compressWithGoLib(archivePath string, includePaths []string, logger log.Log
 		path := filepath.Clean(p)
 		// walk through every file in the folder
 		if err := filepath.Walk(path, func(file string, fi os.FileInfo, e error) error {
-			var link string
-			if fi.Mode() == os.ModeSymlink {
-				if link, err = os.Readlink(path); err != nil {
-					return fmt.Errorf("read symlink: %w", err)
-				}
-			}
-			if link != "" {
-				file = link
-			}
-
 			// generate tar header
 			header, err := tar.FileInfoHeader(fi, file)
 			if err != nil {
@@ -100,6 +90,17 @@ func compressWithGoLib(archivePath string, includePaths []string, logger log.Log
 
 			path := filepath.Clean(file)
 			header.Name = path
+
+			var link string
+			if fi.Mode()&os.ModeSymlink != 0 {
+				if link, err = os.Readlink(file); err != nil {
+					return fmt.Errorf("read symlink: %w", err)
+				}
+			}
+			if link != "" {
+				header.Typeflag = tar.TypeSymlink
+				header.Linkname = link
+			}
 
 			// write header
 			if err := tw.WriteHeader(header); err != nil {
@@ -237,6 +238,12 @@ func decompressWithGolib(archivePath string, logger log.Logger, envRepo env.Repo
 			if err := fileToWrite.Close(); err != nil {
 				return fmt.Errorf("write file: %w", err)
 			}
+		case tar.TypeSymlink:
+			err = os.Symlink(header.Linkname, target)
+			if err != nil {
+				return fmt.Errorf("symlink file: %w", err)
+			}
+
 		}
 	}
 	return nil
