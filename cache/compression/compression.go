@@ -70,15 +70,16 @@ func checkZstdBinary(envRepo env.Repository, logger log.Logger) bool {
 }
 
 func compressWithGoLib(archivePath string, includePaths []string, logger log.Logger, envRepo env.Repository) error {
-	// TODO check what options we have in the lib for like `"zstd --threads=0"`
 	var buf bytes.Buffer
-	zstdWriter, err := gozstd.NewWriter(&buf)
-	if err != nil {
-		return fmt.Errorf("create zstd writer: %w", err)
-	}
-	tw := tar.NewWriter(zstdWriter)
 
 	for _, p := range includePaths {
+		// TODO check what options we have in the lib for like `"zstd --threads=0"`
+		zstdWriter, err := gozstd.NewWriter(&buf)
+		if err != nil {
+			return fmt.Errorf("create zstd writer: %w", err)
+		}
+		tw := tar.NewWriter(zstdWriter)
+
 		path := filepath.Clean(p)
 		// walk through every file in the folder
 		if err := filepath.Walk(path, func(file string, fi os.FileInfo, e error) error {
