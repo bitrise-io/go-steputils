@@ -58,8 +58,7 @@ func TestCreateCustomRetryFunction(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			retryFunc := createCustomRetryFunction()
-			retry, _ := retryFunc(context.Background(), tc.response, tc.error)
+			retry, _ := customRetryFunction(context.Background(), tc.response, tc.error)
 			assert.Equal(t, tc.expected, retry)
 		})
 	}

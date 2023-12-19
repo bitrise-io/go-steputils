@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/melbahja/got"
-	"net/http"
-	"strings"
 )
 
 // DownloadParams ...
@@ -20,8 +21,12 @@ type DownloadParams struct {
 	DownloadPath string
 }
 
-// ErrCacheNotFound ...
-var ErrCacheNotFound = errors.New("no cache archive found for the provided keys")
+var (
+	// ErrCacheNotFound ...
+	ErrCacheNotFound = errors.New("no cache archive found for the provided keys")
+
+	retriableErrors = []string{"Range request returned invalid Content-Length", "unexpected EOF", "connection reset by peer"}
+)
 
 // Download archive from the cache API based on the provided keys in params.
 // If there is no match for any of the keys, the error is ErrCacheNotFound.
@@ -38,7 +43,8 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 		return "", fmt.Errorf("cache key list is empty")
 	}
 
-	retryableHTTPClient := prepareRetryableHTTPClient(logger)
+	retryableHTTPClient := retryhttp.NewClient(logger)
+	retryableHTTPClient.CheckRetry = customRetryFunction
 	client := newAPIClient(retryableHTTPClient, params.APIBaseURL, params.Token, logger)
 
 	logger.Debugf("Get download URL")
@@ -46,36 +52,47 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 	if err != nil {
 		return "", fmt.Errorf("failed to get download URL: %w", err)
 	}
+
 	logger.Debugf("Download archive")
-	downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
-	if downloadErr == nil {
-		return restoreResponse.MatchedKey, nil
+	err = downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to download archive: %w", err)
 	}
-	return "", fmt.Errorf("failed to download archive")
+
+	return restoreResponse.MatchedKey, nil
 }
 
-func prepareRetryableHTTPClient(logger log.Logger) *retryablehttp.Client {
-	retryableHTTPClient := retryhttp.NewClient(logger)
-	retryableHTTPClient.CheckRetry = createCustomRetryFunction()
-	return retryableHTTPClient
-}
-
-func createCustomRetryFunction() func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	retriableErrors := []string{"Range request returned invalid Content-Length", "EOF", "connection reset"}
-
-	return func(ctx context.Context, resp *http.Response, downloadErr error) (bool, error) {
-		defaultCheckRetry := retryablehttp.DefaultRetryPolicy
-		retry, err := defaultCheckRetry(ctx, resp, downloadErr)
-
-		if !retry && err == nil && downloadErr != nil {
-			for _, retriableError := range retriableErrors {
-				if strings.Contains(downloadErr.Error(), retriableError) {
-					return true, nil
-				}
-			}
-		}
+// customRetryFunction - implements CheckRetry
+//
+// CheckRetry specifies a policy for handling retries. It is called
+// following each request with the response and error values returned by
+// the http.Client. If CheckRetry returns false, the Client stops retrying
+// and returns the response to the caller. If CheckRetry returns an error,
+// that error value is returned in lieu of the error from the request. The
+// Client will close any response body when retrying, but if the retry is
+// aborted it is up to the CheckRetry callback to properly close any
+// response body before returning.
+func customRetryFunction(ctx context.Context, resp *http.Response, downloadErr error) (bool, error) {
+	// First call the DefaultRetryPolicy
+	retry, err := retryablehttp.DefaultRetryPolicy(ctx, resp, downloadErr)
+	// If default policy says we should retry,
+	// or if it returned with an error (it only returns err for context cancel - if we should NOT retry)
+	// then return with what it returned with. It already said "do retry" or that we definitely shouldn't retry.
+	if retry || err != nil {
 		return retry, err
 	}
+
+	// In any other case, if the original downloadErr isn't nil
+	// let's check it against our list of "retriable errors".
+	if downloadErr != nil {
+		for _, retriableError := range retriableErrors {
+			if strings.Contains(downloadErr.Error(), retriableError) {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }
 
 func downloadFile(ctx context.Context, client *http.Client, url string, dest string) error {
