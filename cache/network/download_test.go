@@ -25,6 +25,12 @@ func TestCreateCustomRetryFunction(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "Retry for any error",
+			response: &http.Response{},
+			error:    errors.New("non-pattern-matching-error"),
+			expected: true,
+		},
+		{
 			name:     "Retry for retriable error",
 			response: &http.Response{},
 			error:    errors.New("Range request returned invalid Content-Length"),
@@ -43,6 +49,12 @@ func TestCreateCustomRetryFunction(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "Retry, even though the status is 404 and error pattern isnt matching",
+			response: &http.Response{StatusCode: 404},
+			error:    errors.New("non-pattern-matching-error"),
+			expected: true,
+		},
+		{
 			name:     "Retry for HTTP 429 status code",
 			response: &http.Response{StatusCode: 429},
 			error:    nil,
@@ -58,8 +70,7 @@ func TestCreateCustomRetryFunction(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			retryFunc := createCustomRetryFunction()
-			retry, _ := retryFunc(context.Background(), tc.response, tc.error)
+			retry, _ := customRetryFunction(context.Background(), tc.response, tc.error)
 			assert.Equal(t, tc.expected, retry)
 		})
 	}
