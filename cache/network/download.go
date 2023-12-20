@@ -8,6 +8,7 @@ import (
 
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/melbahja/got"
 )
 
@@ -38,6 +39,7 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 	}
 
 	retryableHTTPClient := retryhttp.NewClient(logger)
+	retryableHTTPClient.CheckRetry = customRetryFunction
 	client := newAPIClient(retryableHTTPClient, params.APIBaseURL, params.Token, logger)
 
 	logger.Debugf("Get download URL")
@@ -54,6 +56,10 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 	}
 
 	return restoreResponse.MatchedKey, nil
+}
+
+func customRetryFunction(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 }
 
 func downloadFile(ctx context.Context, client *http.Client, url string, dest string) error {
