@@ -39,7 +39,7 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (st
 	}
 
 	retryableHTTPClient := retryhttp.NewClient(logger)
-	retryableHTTPClient.CheckRetry = customRetryFunction
+	retryableHTTPClient.CheckRetry = createCustomRetryFunction(logger)
 	client := newAPIClient(retryableHTTPClient, params.APIBaseURL, params.Token, logger)
 
 	logger.Debugf("Get download URL")
@@ -57,8 +57,12 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (st
 	return restoreResponse.MatchedKey, nil
 }
 
-func customRetryFunction(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+func createCustomRetryFunction(logger log.Logger) func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+		retry, dErr := retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+		logger.Debugf("CheckRetry: retry=%v ; dErr=%+v ; err=%+v", retry, dErr, err)
+		return retry, dErr
+	}
 }
 
 func downloadFile(ctx context.Context, client *http.Client, url string, dest string) error {

@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/bitrise-io/go-utils/v2/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestCreateCustomRetryFunction(t *testing.T) {
@@ -70,8 +72,14 @@ func TestCreateCustomRetryFunction(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			retry, _ := customRetryFunction(context.Background(), tc.response, tc.error)
+			mockLogger := new(mocks.Logger)
+			mockLogger.On("Debugf", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			customRetryFunc := createCustomRetryFunction(mockLogger)
+			retry, _ := customRetryFunc(context.Background(), tc.response, tc.error)
 			assert.Equal(t, tc.expected, retry)
+
+			mockLogger.AssertCalled(t, "Debugf", "CheckRetry: retry=%v ; dErr=%+v ; err=%+v", retry, nil, tc.error)
 		})
 	}
 }
