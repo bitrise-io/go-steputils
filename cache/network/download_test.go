@@ -21,7 +21,7 @@ func TestCreateCustomRetryFunction(t *testing.T) {
 		{
 			name:     "Retry for retriable error",
 			response: &http.Response{},
-			error:    errors.New("EOF"),
+			error:    errors.New("unexpected EOF"),
 			expected: true,
 		},
 		{
