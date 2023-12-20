@@ -6,7 +6,12 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/bitrise-io/go-utils/v2/mocks"
+	"github.com/bitrise-io/go-utils/v2/retryhttp"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateCustomRetryFunction(t *testing.T) {
@@ -74,4 +79,29 @@ func TestCreateCustomRetryFunction(t *testing.T) {
 			assert.Equal(t, tc.expected, retry)
 		})
 	}
+}
+
+func Test_downloadFile(t *testing.T) {
+	// Given
+	mockLogger := new(mocks.Logger)
+	mockLogger.On("Debugf", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	downloadURL := "https://github.com/bitrise-io/bitrise/releases/download/2.6.1/bitrise-Linux-x86_64"
+	retryableHTTPClient := retryhttp.NewClient(mockLogger)
+
+	isCheckRetryCalled := false
+	retryFunc := func(ctx context.Context, resp *http.Response, downloadErr error) (bool, error) {
+		retry, err := retryablehttp.DefaultRetryPolicy(ctx, resp, downloadErr)
+		isCheckRetryCalled = true
+		return retry, err
+	}
+	retryableHTTPClient.CheckRetry = retryFunc
+
+	// When
+	err := downloadFile(context.Background(), retryableHTTPClient.StandardClient(), downloadURL, "/tmp/t.file")
+
+	// Then
+	require.NoError(t, err)
+	require.True(t, isCheckRetryCalled)
+	mockLogger.AssertExpectations(t)
 }
