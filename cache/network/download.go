@@ -49,19 +49,19 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (st
 	}
 
 	logger.Debugf("Download archive")
-	downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
-	if downloadErr != nil {
-		return "", fmt.Errorf("failed to download archive: %w", downloadErr)
+	err = downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to download archive: %w", err)
 	}
 
 	return restoreResponse.MatchedKey, nil
 }
 
-func createCustomRetryFunction(logger log.Logger) func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-		retry, dErr := retryablehttp.DefaultRetryPolicy(ctx, resp, err)
-		logger.Debugf("CheckRetry: retry=%v ; dErr=%+v ; err=%+v", retry, dErr, err)
-		return retry, dErr
+func createCustomRetryFunction(logger log.Logger) func(context.Context, *http.Response, error) (bool, error) {
+	return func(ctx context.Context, resp *http.Response, downloadErr error) (bool, error) {
+		retry, err := retryablehttp.DefaultRetryPolicy(ctx, resp, downloadErr)
+		logger.Debugf("CheckRetry: retry=%v ; err=%+v ; downloadErr=%+v", retry, err, downloadErr)
+		return retry, err
 	}
 }
 

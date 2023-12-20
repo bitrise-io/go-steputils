@@ -79,7 +79,7 @@ func TestCreateCustomRetryFunction(t *testing.T) {
 			retry, _ := customRetryFunc(context.Background(), tc.response, tc.error)
 			assert.Equal(t, tc.expected, retry)
 
-			mockLogger.AssertCalled(t, "Debugf", "CheckRetry: retry=%v ; dErr=%+v ; err=%+v", retry, nil, tc.error)
+			mockLogger.AssertCalled(t, "Debugf", "CheckRetry: retry=%v ; err=%+v ; downloadErr=%+v", retry, nil, tc.error)
 		})
 	}
 }
