@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/v2/mocks"
@@ -96,9 +97,11 @@ func Test_downloadFile(t *testing.T) {
 		return retry, err
 	}
 	retryableHTTPClient.CheckRetry = retryFunc
+	tmpPath := t.TempDir()
+	tmpFile := filepath.Join(tmpPath, "testfile.bin")
 
 	// When
-	err := downloadFile(context.Background(), retryableHTTPClient.StandardClient(), downloadURL, "/tmp/t.file")
+	err := downloadFile(context.Background(), retryableHTTPClient.StandardClient(), downloadURL, tmpFile)
 
 	// Then
 	require.NoError(t, err)
