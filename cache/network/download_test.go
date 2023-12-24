@@ -86,7 +86,7 @@ func TestCreateCustomRetryFunction(t *testing.T) {
 	}
 }
 
-func Test_downloadFile(t *testing.T) {
+func Test_downloadFile_multipart_retrycheck(t *testing.T) {
 	// Given
 	mockLogger := new(mocks.Logger)
 	mockLogger.On("Debugf", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -143,7 +143,6 @@ func Test_downloadFile(t *testing.T) {
 		}
 	}))
 	defer svr.Close()
-	// downloadURL := "https://github.com/bitrise-io/bitrise/releases/download/2.6.1/bitrise-Linux-x86_64"
 	downloadURL := svr.URL
 
 	// When
