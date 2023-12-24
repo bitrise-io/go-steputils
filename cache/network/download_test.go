@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/v2/mocks"
@@ -92,10 +93,13 @@ func Test_downloadFile_multipart_retrycheck(t *testing.T) {
 	mockLogger.On("Debugf", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	retryableHTTPClient := retryhttp.NewClient(mockLogger)
+	var mu sync.RWMutex
 	isCheckRetryCalled := false
 	retryFunc := func(ctx context.Context, resp *http.Response, downloadErr error) (bool, error) {
 		retry, err := retryablehttp.DefaultRetryPolicy(ctx, resp, downloadErr)
+		mu.Lock()
 		isCheckRetryCalled = true
+		mu.Unlock()
 		return retry, err
 	}
 	retryableHTTPClient.CheckRetry = retryFunc
