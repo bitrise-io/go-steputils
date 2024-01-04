@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/v2/mocks"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
+	"github.com/docker/go-units"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -93,20 +94,18 @@ func Test_downloadFile_multipart_retrycheck(t *testing.T) {
 	mockLogger.On("Debugf", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	retryableHTTPClient := retryhttp.NewClient(mockLogger)
-	var mu sync.RWMutex
-	isCheckRetryCalled := false
+
+	var isCheckRetryCalled atomic.Bool
 	retryFunc := func(ctx context.Context, resp *http.Response, downloadErr error) (bool, error) {
 		retry, err := retryablehttp.DefaultRetryPolicy(ctx, resp, downloadErr)
-		mu.Lock()
-		isCheckRetryCalled = true
-		mu.Unlock()
+		isCheckRetryCalled.Store(true)
 		return retry, err
 	}
 	retryableHTTPClient.CheckRetry = retryFunc
 
 	tmpPath := t.TempDir()
 	tmpFile := filepath.Join(tmpPath, "testfile.bin")
-	testDummyFileContent := strings.Repeat("a", 1024*1024*10) // 10MB
+	testDummyFileContent := strings.Repeat("a", 10*units.MB) // 10MB
 
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("Server called. Method=%s; Header=%#v", r.Method, r.Header)
@@ -153,7 +152,7 @@ func Test_downloadFile_multipart_retrycheck(t *testing.T) {
 	err := downloadFile(context.Background(), retryableHTTPClient.StandardClient(), downloadURL, tmpFile)
 
 	// Then
-	require.True(t, isCheckRetryCalled)
+	require.True(t, isCheckRetryCalled.Load())
 	require.NoError(t, err)
 	mockLogger.AssertExpectations(t)
 }
