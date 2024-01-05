@@ -21,6 +21,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func customRetryFunction(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+}
+
 func TestCreateCustomRetryFunction(t *testing.T) {
 	cases := []struct {
 		name     string
