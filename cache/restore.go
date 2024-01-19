@@ -99,7 +99,7 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	archiver := compression.NewArchiver(
 		r.logger,
 		r.envRepo,
-		compression.NewZstdChecker(r.logger, r.envRepo))
+		compression.NewDependencyChecker(r.logger, r.envRepo))
 
 	if err := archiver.Decompress(result.filePath, ""); err != nil {
 		return fmt.Errorf("failed to decompress cache archive: %w", err)

@@ -17,12 +17,12 @@ import (
 
 func Test_compression(t *testing.T) {
 	havingZstdMock := &compression.ArchiveDependencyCheckerMock{
-		CheckZstdFunc: func() bool {
+		CheckDependenciesFunc: func() bool {
 			return true
 		},
 	}
 	notHavingZstdMock := &compression.ArchiveDependencyCheckerMock{
-		CheckZstdFunc: func() bool {
+		CheckDependenciesFunc: func() bool {
 			return false
 		},
 	}
@@ -36,7 +36,7 @@ func Test_compression(t *testing.T) {
 	}}
 
 	for _, zstdCheckerkMock := range zstdCheckerMocks {
-		testCaseName := fmt.Sprintf("Compression with zstd - having zstd installed: %s", strconv.FormatBool(zstdCheckerkMock.CheckZstd()))
+		testCaseName := fmt.Sprintf("Compression with zstd - having zstd installed: %s", strconv.FormatBool(zstdCheckerkMock.CheckDependencies()))
 		t.Run(testCaseName, func(t *testing.T) {
 			// When
 			archiver := compression.NewArchiver(

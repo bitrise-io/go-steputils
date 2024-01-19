@@ -19,28 +19,31 @@ import (
 
 // ArchiveDependencyChecker ...
 //
-//go:generate moq -stub -out archive_dependency_checker_test.go . ArchiveDependencyChecker
+//go:generate moq -stub -out archive_dependency_checker.go . ArchiveDependencyChecker
 type ArchiveDependencyChecker interface {
-	CheckZstd() bool
+	CheckDependencies() bool
 }
 
-// ZstdChecker ...
-type ZstdChecker struct {
+// DependencyChecker ...
+type DependencyChecker struct {
 	logger  log.Logger
 	envRepo env.Repository
 }
 
-// NewZstdChecker ...
-func NewZstdChecker(logger log.Logger, envRepo env.Repository) *ZstdChecker {
-	return &ZstdChecker{
+// NewDependencyChecker ...
+func NewDependencyChecker(logger log.Logger, envRepo env.Repository) *DependencyChecker {
+	return &DependencyChecker{
 		logger:  logger,
 		envRepo: envRepo,
 	}
 }
 
-// CheckZstd checks if zstd is installed on the machine
-func (z *ZstdChecker) CheckZstd() bool {
-	// TODO: check the same for `tar` as well, as if there is zstd, but no tar -> the only way to proceed is to fall back to lib based implementation
+// CheckDependencies ...
+func (z *DependencyChecker) CheckDependencies() bool {
+	return z.checkZstd() && z.checkTar()
+}
+
+func (z *DependencyChecker) checkZstd() bool {
 	cmdFactory := command.NewFactory(z.envRepo)
 	cmd := cmdFactory.Create("which", []string{"zstd"}, nil)
 	z.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
@@ -48,6 +51,20 @@ func (z *ZstdChecker) CheckZstd() bool {
 	_, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
 		z.logger.Warnf("zstd is not present in $PATH, falling back to native implementation.")
+		return false
+	}
+
+	return true
+}
+
+func (z *DependencyChecker) checkTar() bool {
+	cmdFactory := command.NewFactory(z.envRepo)
+	cmd := cmdFactory.Create("which", []string{"tar"}, nil)
+	z.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
+
+	_, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	if err != nil {
+		z.logger.Warnf("tar is not present in $PATH, falling back to native implementation.")
 		return false
 	}
 
@@ -72,7 +89,7 @@ func NewArchiver(logger log.Logger, envRepo env.Repository, archiveDependencyChe
 
 // Compress creates a compressed archive from the provided files and folders using absolute paths.
 func (a *Archiver) Compress(archivePath string, includePaths []string) error {
-	haveZstd := a.archiveDependencyChecker.CheckZstd()
+	haveZstd := a.archiveDependencyChecker.CheckDependencies()
 
 	if !haveZstd {
 		a.logger.Infof("Falling back to native implementation of zstd.")
@@ -91,7 +108,7 @@ func (a *Archiver) Compress(archivePath string, includePaths []string) error {
 
 // Decompress takes an archive path and extracts files. This assumes an archive created with absolute file paths.
 func (a *Archiver) Decompress(archivePath string, destinationDirectory string) error {
-	haveZstd := a.archiveDependencyChecker.CheckZstd()
+	haveZstd := a.archiveDependencyChecker.CheckDependencies()
 	if !haveZstd {
 		a.logger.Infof("Falling back to native implementation of zstd.")
 		if err := a.decompressWithGolib(archivePath, destinationDirectory); err != nil {

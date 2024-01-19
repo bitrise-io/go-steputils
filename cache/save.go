@@ -250,7 +250,7 @@ func (s *saver) compress(paths []string) (string, error) {
 	archiver := compression.NewArchiver(
 		s.logger,
 		s.envRepo,
-		compression.NewZstdChecker(s.logger, s.envRepo))
+		compression.NewDependencyChecker(s.logger, s.envRepo))
 
 	err = archiver.Compress(archivePath, paths)
 	if err != nil {

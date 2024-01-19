@@ -18,12 +18,12 @@ import (
 
 func Test_Decompression(t *testing.T) {
 	havingZstdMock := &compression.ArchiveDependencyCheckerMock{
-		CheckZstdFunc: func() bool {
+		CheckDependenciesFunc: func() bool {
 			return true
 		},
 	}
 	notHavingZstdMock := &compression.ArchiveDependencyCheckerMock{
-		CheckZstdFunc: func() bool {
+		CheckDependenciesFunc: func() bool {
 			return false
 		},
 	}
@@ -59,7 +59,7 @@ func Test_Decompression(t *testing.T) {
 
 	for _, testCase := range tests {
 		for _, zstdChecerkMock := range zstdCheckerMocks {
-			testCase.name = testCase.name + " (zstd: " + strings.ToUpper(strconv.FormatBool(zstdChecerkMock.CheckZstd())) + ")"
+			testCase.name = testCase.name + " (zstd: " + strings.ToUpper(strconv.FormatBool(zstdChecerkMock.CheckDependenciesFunc())) + ")"
 			t.Run(testCase.name, func(t *testing.T) {
 				// Given
 				logger := log.NewLogger()
