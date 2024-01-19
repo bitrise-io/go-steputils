@@ -269,7 +269,7 @@ func decompressWithBinary(archivePath string, logger log.Logger, envRepo env.Rep
 	}
 
 	if destinationDirectory != "" {
-		decompressTarArgs = append(decompressTarArgs, fmt.Sprintf("--directory %s", destinationDirectory))
+		decompressTarArgs = append(decompressTarArgs, "--directory", destinationDirectory)
 	}
 
 	cmd := commandFactory.Create("tar", decompressTarArgs, nil)
