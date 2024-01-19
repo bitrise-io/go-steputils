@@ -5,6 +5,7 @@ package integration
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -16,7 +17,18 @@ import (
 )
 
 func Test_Decompression(t *testing.T) {
-	checkTools()
+	havingZstdMock := &compression.ArchiveDependencyCheckerMock{
+		CheckZstdFunc: func() bool {
+			return true
+		},
+	}
+	notHavingZstdMock := &compression.ArchiveDependencyCheckerMock{
+		CheckZstdFunc: func() bool {
+			return false
+		},
+	}
+
+	zstdCheckerMocks := []*compression.ArchiveDependencyCheckerMock{havingZstdMock, notHavingZstdMock}
 
 	tests := []struct {
 		name        string
@@ -46,61 +58,68 @@ func Test_Decompression(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			// Given
-			logger := log.NewLogger()
-			envRepo := env.NewRepository()
-			tempDir := t.TempDir()
+		for _, zstdChecerkMock := range zstdCheckerMocks {
+			testCase.name = testCase.name + " (zstd: " + strings.ToUpper(strconv.FormatBool(zstdChecerkMock.CheckZstd())) + ")"
+			t.Run(testCase.name, func(t *testing.T) {
+				// Given
+				logger := log.NewLogger()
+				envRepo := env.NewRepository()
+				tempDir := t.TempDir()
 
-			// When
-			decompressionErr := compression.Decompress(
-				testCase.archivePath,
-				logger,
-				envRepo,
-				tempDir,
-			)
+				archiver := compression.NewArchiver(
+					logger,
+					envRepo,
+					zstdChecerkMock)
 
-			// Then
-			if testCase.wantErr {
-				assert.Error(t, decompressionErr)
-				return
-			} else {
-				assert.NoError(t, decompressionErr)
-			}
+				// When
+				decompressionErr := archiver.Decompress(
+					testCase.archivePath,
+					tempDir,
+				)
 
-			expectedArchiveContents, err := listArchiveContents(testCase.archivePath)
-			if err != nil {
-				t.Errorf("Failed to list archive contents: %v", err)
-			}
+				// Then
+				if testCase.wantErr {
+					assert.Error(t, decompressionErr)
+					return
+				} else {
+					assert.NoError(t, decompressionErr)
+				}
 
-			var actualDecompressedContents []string
-			if err = filepath.Walk(
-				tempDir,
-				func(path string, info os.FileInfo, err error) error {
-					// This walks the temp directory, and converts the paths to relative paths
-					// to match the output of the tar command used in `listArchiveContents`.
-					if err != nil {
-						return err
-					}
-					if path == tempDir {
+				expectedArchiveContents, err := listArchiveContents(testCase.archivePath)
+				if err != nil {
+					t.Errorf("Failed to list archive contents: %v", err)
+				}
+
+				var actualDecompressedContents []string
+				if err = filepath.Walk(
+					tempDir,
+					func(path string, info os.FileInfo, err error) error {
+						// This walks the temp directory, and converts the paths to relative paths
+						// to match the output of the tar command used in `listArchiveContents`.
+						if err != nil {
+							return err
+						}
+						if path == tempDir {
+							return nil
+						}
+						if info.IsDir() {
+							path = path + string(os.PathSeparator)
+						}
+						path = strings.TrimPrefix(path, tempDir)
+						path = strings.TrimPrefix(path, string(os.PathSeparator))
+						path = strings.TrimSuffix(path, string(os.PathSeparator))
+						if len(path) > 0 {
+							actualDecompressedContents = append(actualDecompressedContents, path)
+						}
 						return nil
-					}
-					if info.IsDir() {
-						path = path + string(os.PathSeparator)
-					}
-					path = strings.TrimPrefix(path, tempDir)
-					path = strings.TrimPrefix(path, string(os.PathSeparator))
-					if len(path) > 0 {
-						actualDecompressedContents = append(actualDecompressedContents, path)
-					}
-					return nil
-				},
-			); err != nil {
-				t.Errorf("Failed to walk temp dir: %v", err)
-			}
+					},
+				); err != nil {
+					t.Errorf("Failed to walk temp dir: %v", err)
+				}
 
-			assert.NoError(t, err)
-			assert.ElementsMatch(t, actualDecompressedContents, expectedArchiveContents)
-		})
+				assert.NoError(t, err)
+				assert.ElementsMatch(t, actualDecompressedContents, expectedArchiveContents)
+			})
+		}
 	}
 }
