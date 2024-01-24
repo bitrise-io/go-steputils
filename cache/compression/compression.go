@@ -14,7 +14,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/bitrise-io/go-utils/v2/log"
-	gozstd "github.com/klauspost/compress/zstd"
+	"github.com/klauspost/compress/zstd"
 )
 
 // ArchiveDependencyChecker ...
@@ -49,12 +49,7 @@ func (dc *DependencyChecker) checkDepdendency(binaryName string) bool {
 	dc.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
 
 	_, err := cmd.RunAndReturnTrimmedCombinedOutput()
-	if err != nil {
-		dc.logger.Warnf("%s is not present in $PATH, falling back to native implementation: %w", binaryName, err)
-		return false
-	}
-
-	return true
+	return err == nil
 }
 
 // Archiver ...
@@ -114,7 +109,7 @@ func (a *Archiver) compressWithGoLib(archivePath string, includePaths []string) 
 	var buf bytes.Buffer
 
 	for _, p := range includePaths {
-		zstdWriter, err := gozstd.NewWriter(&buf)
+		zstdWriter, err := zstd.NewWriter(&buf)
 		if err != nil {
 			return fmt.Errorf("create zstd writer: %w", err)
 		}
@@ -235,7 +230,7 @@ func (a *Archiver) decompressWithGolib(archivePath string, destinationDirectory 
 		return fmt.Errorf("read file %s: %w", archivePath, err)
 	}
 
-	zr, err := gozstd.NewReader(compressedFile)
+	zr, err := zstd.NewReader(compressedFile)
 	if err != nil {
 		return fmt.Errorf("create zstd reader: %w", err)
 	}
