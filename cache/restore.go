@@ -96,7 +96,12 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	r.logger.Println()
 	r.logger.Infof("Restoring archive...")
 	extractionStartTime := time.Now()
-	if err := compression.Decompress(result.filePath, r.logger, r.envRepo); err != nil {
+	archiver := compression.NewArchiver(
+		r.logger,
+		r.envRepo,
+		compression.NewDependencyChecker(r.logger, r.envRepo))
+
+	if err := archiver.Decompress(result.filePath, ""); err != nil {
 		return fmt.Errorf("failed to decompress cache archive: %w", err)
 	}
 	extractionTime := time.Since(extractionStartTime).Round(time.Second)

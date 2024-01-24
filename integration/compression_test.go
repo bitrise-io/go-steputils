@@ -4,7 +4,9 @@
 package integration
 
 import (
+	"fmt"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +16,17 @@ import (
 )
 
 func Test_compression(t *testing.T) {
-	checkTools()
+	havingZstdMock := &compression.ArchiveDependencyCheckerMock{
+		CheckDependenciesFunc: func() bool {
+			return true
+		},
+	}
+	notHavingZstdMock := &compression.ArchiveDependencyCheckerMock{
+		CheckDependenciesFunc: func() bool {
+			return false
+		},
+	}
+	zstdCheckerMocks := []*compression.ArchiveDependencyCheckerMock{havingZstdMock, notHavingZstdMock}
 
 	// Given
 	archivePath := filepath.Join(t.TempDir(), "compression_test.tzst")
@@ -23,19 +35,29 @@ func Test_compression(t *testing.T) {
 		"BITRISE_SOURCE_DIR": ".",
 	}}
 
-	// When
-	err := compression.Compress(archivePath, []string{"testdata/subfolder"}, logger, envRepo)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	archiveContents, err := listArchiveContents(archivePath)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
+	for _, zstdCheckerkMock := range zstdCheckerMocks {
+		testCaseName := fmt.Sprintf("Compression with zstd - having zstd installed: %s", strconv.FormatBool(zstdCheckerkMock.CheckDependencies()))
+		t.Run(testCaseName, func(t *testing.T) {
+			// When
+			archiver := compression.NewArchiver(
+				logger,
+				envRepo,
+				zstdCheckerkMock)
 
-	expected := []string{
-		"testdata/subfolder/",
-		"testdata/subfolder/nested_file.txt",
+			err := archiver.Compress(archivePath, []string{"testdata/subfolder"})
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+			archiveContents, err := listArchiveContents(archivePath)
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+
+			expected := []string{
+				"testdata/subfolder",
+				"testdata/subfolder/nested_file.txt",
+			}
+			assert.ElementsMatch(t, expected, archiveContents)
+		})
 	}
-	assert.ElementsMatch(t, expected, archiveContents)
 }

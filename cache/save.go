@@ -247,7 +247,12 @@ func (s *saver) compress(paths []string) (string, error) {
 	}
 	archivePath := filepath.Join(tempDir, fileName)
 
-	err = compression.Compress(archivePath, paths, s.logger, s.envRepo)
+	archiver := compression.NewArchiver(
+		s.logger,
+		s.envRepo,
+		compression.NewDependencyChecker(s.logger, s.envRepo))
+
+	err = archiver.Compress(archivePath, paths)
 	if err != nil {
 		return "", err
 	}

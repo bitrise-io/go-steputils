@@ -6,6 +6,7 @@ package integration
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -31,7 +32,12 @@ func listArchiveContents(path string) ([]string, error) {
 		return nil, err
 	}
 
-	return strings.Split(output, "\n"), nil
+	contentList := strings.Split(output, "\n")
+	for i, content := range contentList {
+		contentList[i] = strings.TrimSuffix(content, string(os.PathSeparator))
+	}
+
+	return contentList, nil
 }
 
 func checkTools() {
