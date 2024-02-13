@@ -9,24 +9,26 @@ import (
 )
 
 var invalid = map[string]string{
-	"name":          "Invalid config",
-	"build_number":  "notnumber",
-	"is_update":     "notbool",
-	"items":         "one,two,three",
-	"password":      "pass1234",
-	"empty":         "",
-	"missing":       "",
-	"file":          "/tmp/not-exist",
-	"dir":           "/etc/hosts",
-	"export_method": "four",
-	"myfloat64":     "asd.asd",
+	"name":               "Invalid config",
+	"build_number":       "notnumber",
+	"large_build_number": "notnumber",
+	"is_update":          "notbool",
+	"items":              "one,two,three",
+	"password":           "pass1234",
+	"empty":              "",
+	"missing":            "",
+	"file":               "/tmp/not-exist",
+	"dir":                "/etc/hosts",
+	"export_method":      "four",
+	"myfloat64":          "asd.asd",
 }
 
 var valid = map[string]string{
-	"name":         "Example",
-	"build_number": "11",
-	"is_update":    "yes",
-	"items":        "item1|item2|item3",
+	"name":               "Example",
+	"build_number":       "11",
+	"large_build_number": "2402097469",
+	"is_update":          "yes",
+	"items":              "item1|item2|item3",
 	"multiline_items": `item1
 item2
 item3`,
@@ -45,23 +47,24 @@ item3`,
 }
 
 type Config struct {
-	Name            string   `env:"name"`
-	BuildNumber     int      `env:"build_number"`
-	IsUpdate        bool     `env:"is_update"`
-	Testfloat64     float64  `env:"myfloat64"`
-	MySecondFloat64 float64  `env:"mySecondFloat64"`
-	Items           []string `env:"items"`
-	MultilineItems  []string `env:"multiline_items,multiline"`
-	Password        Secret   `env:"password"`
-	Empty           string   `env:"empty"`
-	Mandatory       string   `env:"mandatory,required"`
-	TempFile        string   `env:"file,file"`
-	TempDir         string   `env:"dir,dir"`
-	ExportMethod    string   `env:"export_method,opt[dev,qa,prod]"`
-	EmptyPtrStr     *string  `env:"emptyptrstr"`
-	PtrStr          *string  `env:"ptrstr"`
-	EmptyPtrInt     *int     `env:"emptyptrint"`
-	PtrInt          *int     `env:"ptrint"`
+	Name             string   `env:"name"`
+	BuildNumber      int      `env:"build_number"`
+	LargeBuildNumber int64    `env:"large_build_number"`
+	IsUpdate         bool     `env:"is_update"`
+	Testfloat64      float64  `env:"myfloat64"`
+	MySecondFloat64  float64  `env:"mySecondFloat64"`
+	Items            []string `env:"items"`
+	MultilineItems   []string `env:"multiline_items,multiline"`
+	Password         Secret   `env:"password"`
+	Empty            string   `env:"empty"`
+	Mandatory        string   `env:"mandatory,required"`
+	TempFile         string   `env:"file,file"`
+	TempDir          string   `env:"dir,dir"`
+	ExportMethod     string   `env:"export_method,opt[dev,qa,prod]"`
+	EmptyPtrStr      *string  `env:"emptyptrstr"`
+	PtrStr           *string  `env:"ptrstr"`
+	EmptyPtrInt      *int     `env:"emptyptrint"`
+	PtrInt           *int     `env:"ptrint"`
 }
 
 func TestParse(t *testing.T) {
@@ -81,6 +84,9 @@ func TestParse(t *testing.T) {
 	}
 	if c.BuildNumber != 11 {
 		t.Errorf("expected %d, got %v", 11, c.BuildNumber)
+	}
+	if c.LargeBuildNumber != 2402097469 {
+		t.Errorf("expected %d, got %v", 2402097469, c.LargeBuildNumber)
 	}
 	if !c.IsUpdate {
 		t.Errorf("expected %t, got %v", true, c.IsUpdate)
