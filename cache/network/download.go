@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
 	"github.com/melbahja/got"
@@ -48,9 +50,16 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 
 	logger.Debugf("Download archive")
 
-	downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
-	if downloadErr != nil {
-		return "", fmt.Errorf("failed to download archive: %w", downloadErr)
+	if err := retry.Times(5).Wait(5 * time.Second).Try(func(attempt uint) error {
+		downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+		if downloadErr != nil {
+			logger.Debugf("Failed to restore cache: %+v (retry attempt: %d)", err, attempt)
+			return fmt.Errorf("failed to download archive: %w", downloadErr)
+		}
+
+		return nil
+	}); err != nil {
+		return "", err
 	}
 
 	return restoreResponse.MatchedKey, nil
