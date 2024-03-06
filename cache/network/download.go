@@ -50,30 +50,29 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 
 	logger.Debugf("Download archive")
 
-	if err := retry.Times(5).Wait(5 * time.Second).Try(func(attempt uint) error {
-		downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
-		if downloadErr != nil {
-			logger.Debugf("Failed to restore cache: %+v (retry attempt: %d)", err, attempt)
-			return fmt.Errorf("failed to download archive: %w", downloadErr)
-		}
-
-		return nil
-	}); err != nil {
-		return "", err
+	downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath, logger)
+	if downloadErr != nil {
+		return "", fmt.Errorf("failed to download archive: %w", downloadErr)
 	}
 
 	return restoreResponse.MatchedKey, nil
 }
 
-func downloadFile(ctx context.Context, client *http.Client, url string, dest string) error {
-	downloader := got.New()
-	downloader.Client = client
+func downloadFile(ctx context.Context, client *http.Client, url string, dest string, logger log.Logger) error {
+	return retry.Times(5).Wait(5 * time.Second).Try(func(attempt uint) error {
+		downloader := got.New()
+		downloader.Client = client
 
-	gDownload := got.NewDownload(ctx, url, dest)
-	// Client has to be set on "Download" as well,
-	// as depending on how downloader is called
-	// either the Client from the downloader or from the Download will be used.
-	gDownload.Client = client
+		gDownload := got.NewDownload(ctx, url, dest)
+		// Client has to be set on "Download" as well,
+		// as depending on how downloader is called
+		// either the Client from the downloader or from the Download will be used.
+		gDownload.Client = client
 
-	return downloader.Do(gDownload)
+		err := downloader.Do(gDownload)
+		if err != nil {
+			logger.Debugf("Archive download failed: %v (attempt %d)", err, attempt+1)
+		}
+		return err
+	})
 }
