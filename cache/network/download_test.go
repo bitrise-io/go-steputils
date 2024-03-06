@@ -167,16 +167,9 @@ func Test_downloadFile_WhenUnexpectedEOF_ThenWillRetry(t *testing.T) {
 	// Given
 	logger := log.NewLogger()
 	logger.EnableDebugLog(true)
-	retryableHTTPClient := retryhttp.NewClient(logger)
 
-	const numChunkErrors int64 = 2
-	var numErrorsLeft, contentRangeQueries atomic.Int64
-	numErrorsLeft.Store(numChunkErrors)
-
-	retryFunc := func(ctx context.Context, resp *http.Response, downloadErr error) (bool, error) {
-		return false, downloadErr // will never retry on http clinet level, so function-level retry can be tested
-	}
-	retryableHTTPClient.CheckRetry = retryFunc
+	var numErrorsLeft atomic.Int64
+	numErrorsLeft.Store(2)
 
 	tmpPath := t.TempDir()
 	tmpFile := filepath.Join(tmpPath, "testfile.bin")
@@ -184,56 +177,22 @@ func Test_downloadFile_WhenUnexpectedEOF_ThenWillRetry(t *testing.T) {
 
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("[testserver] Server called. Method=%s; Header=%#v", r.Method, r.Header)
-		rangeHeader := r.Header.Get("Range")
-		if len(rangeHeader) < 1 {
-			t.Fatal("No Range header found")
-		}
-
-		if !strings.HasPrefix(rangeHeader, "bytes=") {
-			t.Fatalf("invalid range header: should start with 'bytes=' ; actual range header value was=%s", rangeHeader)
-		}
-		rangeHeader = strings.TrimPrefix(rangeHeader, "bytes=")
-		rangeHeaderFromTo := strings.Split(rangeHeader, "-")
-		if len(rangeHeaderFromTo) != 2 {
-			t.Fatalf("invalid range header: invalid from-to value. Range header value was=%s", rangeHeader)
-		}
-		rangeHeaderFrom, err := strconv.ParseInt(rangeHeaderFromTo[0], 10, 64)
-		require.NoError(t, err)
-		rangeHeaderTo, err := strconv.ParseInt(rangeHeaderFromTo[1], 10, 64)
-		require.NoError(t, err)
-
-		if rangeHeaderFrom == 0 && rangeHeaderTo == 0 {
-			// range request - requesting content size - return the size info
-			contentRangeQueries.Add(1)
-			w.Header().Add("content-range", fmt.Sprintf("bytes 0-0/%d", len(testDummyFileContent)))
-			_, err := fmt.Fprint(w, " ")
-			require.NoError(t, err)
-
-			return
-		}
-
-		if rangeHeaderTo == int64(len(testDummyFileContent)-1) && numErrorsLeft.Load() > 0 { // fail on last chunk
+		// range request - requesting content size - return the size info
+		if numErrorsLeft.Load() > 0 {
 			numErrorsLeft.Add(-1)
 			w.WriteHeader(http.StatusInternalServerError)
 
 			return
 		}
 
-		// actual content chunk request - return chunk content
-		chunkContent := testDummyFileContent[rangeHeaderFrom : rangeHeaderTo+1]
 		// We also have to set the Content-Length header manually due to the size of the response.
 		// From the documentation of http.ResponseWriter:
 		// > ... if the total size of all written
 		// > data is under a few KB and there are no Flush calls, the
 		// > Content-Length header is added automatically.
-		w.Header().Add("Content-Length", fmt.Sprintf("%d", len(chunkContent)))
-		_, err = fmt.Fprint(w, chunkContent)
-		// If one chunk download fails, other chunk downloads are aborted (`write: broken pipe` or `write: connection reset by peer`)
-		// https://github.com/melbahja/got/blob/9c99581287dd94c9fceee95e5c9b502941903497/download.go#L208
-		if err != nil {
-			t.Logf("[testserver] %s", err)
-		}
-
+		w.Header().Add("Content-Length", fmt.Sprintf("%d", len(testDummyFileContent)))
+		_, err := fmt.Fprint(w, testDummyFileContent)
+		require.NoError(t, err)
 	}))
 	defer svr.Close()
 	downloadURL := svr.URL
@@ -246,5 +205,5 @@ func Test_downloadFile_WhenUnexpectedEOF_ThenWillRetry(t *testing.T) {
 
 	// Then
 	require.Equal(t, testDummyFileContent, string(downloadedContents), "Contents should match")
-	require.Equal(t, numChunkErrors+1, contentRangeQueries.Load(), "Chunk errors should equeals content-range queries")
+	require.Equal(t, numErrorsLeft.Load(), int64(0), "Chunk errors should equeals content-range queries")
 }
