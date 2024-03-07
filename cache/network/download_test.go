@@ -204,5 +204,5 @@ func Test_downloadFile_WhenUnexpectedEOF_ThenWillRetry(t *testing.T) {
 
 	// Then
 	require.Equal(t, testDummyFileContent, string(downloadedContents), "Contents should match")
-	require.Equal(t, numErrorsLeft.Load(), int64(0), "Numbers of retries is errors + 1s")
+	require.Equal(t, numErrorsLeft.Load(), int64(0), "Numbers of retries is number errors + the final successful attempt")
 }
