@@ -177,7 +177,6 @@ func Test_downloadFile_WhenUnexpectedEOF_ThenWillRetry(t *testing.T) {
 
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("[testserver] Server called. Method=%s; Header=%#v", r.Method, r.Header)
-		// range request - requesting content size - return the size info
 		if numErrorsLeft.Load() > 0 {
 			numErrorsLeft.Add(-1)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -205,5 +204,5 @@ func Test_downloadFile_WhenUnexpectedEOF_ThenWillRetry(t *testing.T) {
 
 	// Then
 	require.Equal(t, testDummyFileContent, string(downloadedContents), "Contents should match")
-	require.Equal(t, numErrorsLeft.Load(), int64(0), "Chunk errors should equeals content-range queries")
+	require.Equal(t, numErrorsLeft.Load(), int64(0), "Numbers of retries is errors + 1s")
 }
