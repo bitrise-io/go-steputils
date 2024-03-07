@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 
+	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/mocks"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
 	"github.com/docker/go-units"
@@ -153,10 +155,54 @@ func Test_downloadFile_multipart_retrycheck(t *testing.T) {
 	downloadURL := svr.URL
 
 	// When
-	err := downloadFile(context.Background(), retryableHTTPClient.StandardClient(), downloadURL, tmpFile)
+	err := downloadFile(context.Background(), retryableHTTPClient.StandardClient(), downloadURL, tmpFile, mockLogger)
 
 	// Then
 	require.True(t, isCheckRetryCalled.Load())
 	require.NoError(t, err)
 	mockLogger.AssertExpectations(t)
+}
+
+func Test_downloadFile_WhenUnexpectedEOF_ThenWillRetry(t *testing.T) {
+	// Given
+	logger := log.NewLogger()
+	logger.EnableDebugLog(true)
+
+	var numErrorsLeft atomic.Int64
+	numErrorsLeft.Store(2)
+
+	tmpPath := t.TempDir()
+	tmpFile := filepath.Join(tmpPath, "testfile.bin")
+	testDummyFileContent := strings.Repeat("a", 10*units.MB) // 10MB
+
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("[testserver] Server called. Method=%s; Header=%#v", r.Method, r.Header)
+		if numErrorsLeft.Load() > 0 {
+			numErrorsLeft.Add(-1)
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+
+		// We also have to set the Content-Length header manually due to the size of the response.
+		// From the documentation of http.ResponseWriter:
+		// > ... if the total size of all written
+		// > data is under a few KB and there are no Flush calls, the
+		// > Content-Length header is added automatically.
+		w.Header().Add("Content-Length", fmt.Sprintf("%d", len(testDummyFileContent)))
+		_, err := fmt.Fprint(w, testDummyFileContent)
+		require.NoError(t, err)
+	}))
+	defer svr.Close()
+	downloadURL := svr.URL
+
+	// When
+	err := downloadFile(context.Background(), http.DefaultClient, downloadURL, tmpFile, logger)
+	require.NoError(t, err)
+	downloadedContents, err := os.ReadFile(tmpFile) // Read back downloaded file
+	require.NoError(t, err)
+
+	// Then
+	require.Equal(t, testDummyFileContent, string(downloadedContents), "Contents should match")
+	require.Equal(t, numErrorsLeft.Load(), int64(0), "Numbers of retries is number errors + the final successful attempt")
 }
