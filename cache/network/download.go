@@ -26,7 +26,7 @@ var ErrCacheNotFound = errors.New("no cache archive found for the provided keys"
 
 // Download archive from the cache API based on the provided keys in params.
 // If there is no match for any of the keys, the error is ErrCacheNotFound.
-func Download(ctx context.Context, params DownloadParams, logger log.Logger) (matchedKey string, err error) {
+func Download(ctx context.Context, params DownloadParams, logger log.Logger) (string, error) {
 	if params.APIBaseURL == "" {
 		return "", fmt.Errorf("API base URL is empty")
 	}
@@ -39,40 +39,47 @@ func Download(ctx context.Context, params DownloadParams, logger log.Logger) (ma
 		return "", fmt.Errorf("cache key list is empty")
 	}
 
-	retryableHTTPClient := retryhttp.NewClient(logger)
-	client := newAPIClient(retryableHTTPClient, params.APIBaseURL, params.Token, logger)
+	matchedKey := ""
+	err := retry.Times(5).Wait(5 * time.Second).Try(func(attempt uint) error {
+		if attempt != 0 {
+			logger.Debugf("Archive download attempt %d", attempt+1)
+		}
 
-	logger.Debugf("Get download URL")
-	restoreResponse, err := client.restore(params.CacheKeys)
-	if err != nil {
-		return "", fmt.Errorf("failed to get download URL: %w", err)
-	}
+		retryableHTTPClient := retryhttp.NewClient(logger)
+		client := newAPIClient(retryableHTTPClient, params.APIBaseURL, params.Token, logger)
 
-	logger.Debugf("Download archive")
+		logger.Debugf("Fetching download URL...")
+		restoreResponse, err := client.restore(params.CacheKeys)
+		if err != nil {
+			logger.Debugf("Failed to get download URL: %w", err)
+			return fmt.Errorf("failed to get download URL: %w", err)
+		}
 
-	downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath, logger)
-	if downloadErr != nil {
-		return "", fmt.Errorf("failed to download archive: %w", downloadErr)
-	}
+		logger.Debugf("Downloading archive...")
+		downloadErr := downloadFile(ctx, retryableHTTPClient.StandardClient(), restoreResponse.URL, params.DownloadPath, logger)
+		if downloadErr != nil {
+			logger.Debugf("Failed to download archive: %w", downloadErr)
+			return fmt.Errorf("failed to download archive: %w", downloadErr)
+		}
 
-	return restoreResponse.MatchedKey, nil
+		matchedKey = restoreResponse.MatchedKey
+		return nil
+	})
+
+	return matchedKey, err
 }
 
 func downloadFile(ctx context.Context, client *http.Client, url string, dest string, logger log.Logger) error {
-	return retry.Times(5).Wait(5 * time.Second).Try(func(attempt uint) error {
-		downloader := got.New()
-		downloader.Client = client
+	downloader := got.New()
+	downloader.Client = client
 
-		gDownload := got.NewDownload(ctx, url, dest)
-		// Client has to be set on "Download" as well,
-		// as depending on how downloader is called
-		// either the Client from the downloader or from the Download will be used.
-		gDownload.Client = client
+	gDownload := got.NewDownload(ctx, url, dest)
+	// Client has to be set on "Download" as well,
+	// as depending on how downloader is called
+	// either the Client from the downloader or from the Download will be used.
+	gDownload.Client = client
 
-		err := downloader.Do(gDownload)
-		if err != nil {
-			logger.Debugf("Archive download failed: %v (attempt %d)", err, attempt+1)
-		}
-		return err
-	})
+	err := downloader.Do(gDownload)
+
+	return err
 }
