@@ -47,7 +47,7 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 	}
 
 	matchedKey := ""
-	err := retry.Times(uint(params.NumFullRetries)).Wait(5 * time.Second).Try(func(attempt uint) error {
+	err := retry.Times(uint(params.NumFullRetries)).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
 		if attempt != 0 {
 			logger.Debugf("Retrying archive download... (attempt %d)", attempt+1)
 		}
@@ -57,19 +57,23 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 		logger.Debugf("Fetching download URL...")
 		restoreResponse, err := client.restore(params.CacheKeys)
 		if err != nil {
+			if errors.Is(err, ErrCacheNotFound) {
+				return err, true // Do not retry if cache key not found
+			}
+
 			logger.Debugf("Failed to get download URL: %s", err)
-			return fmt.Errorf("failed to get download URL: %w", err)
+			return fmt.Errorf("failed to get download URL: %w", err), false
 		}
 
 		logger.Debugf("Downloading archive...")
 		downloadErr := downloadFile(ctx, httpClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
 		if downloadErr != nil {
 			logger.Debugf("Failed to download archive: %s", downloadErr)
-			return fmt.Errorf("failed to download archive: %w", downloadErr)
+			return fmt.Errorf("failed to download archive: %w", downloadErr), false
 		}
 
 		matchedKey = restoreResponse.MatchedKey
-		return nil
+		return nil, false
 	})
 
 	return matchedKey, err

@@ -181,6 +181,7 @@ func Test_downloadWithClient_WhenNoChunksError_ThenWillDoFullRetry(t *testing.T)
 	tmpPath := t.TempDir()
 	tmpFile := filepath.Join(tmpPath, "testfile.bin")
 	testDummyFileContent := strings.Repeat("a", 10*units.MB) // 10MB
+	cacheKey := "test-cache-key"
 
 	fileServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("[fileserver] Server called. Method=%s; Header=%#v", r.Method, r.Header)
@@ -204,29 +205,10 @@ func Test_downloadWithClient_WhenNoChunksError_ThenWillDoFullRetry(t *testing.T)
 
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("[apiserver] Server called. Path=%s; Method=%s; Query=%s; Header=%#v", r.URL.Path, r.Method, r.URL.Query(), r.Header)
-		if r.URL.Path != "/restore" && r.Method != "GET" {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		if r.Header.Get("Authorization") != "Bearer netok" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		keysQueryParam := r.URL.Query().Get("cache_keys")
-		if keysQueryParam == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		keys := strings.Split(keysQueryParam, ",")
-		if len(keys) == 0 {
-			w.WriteHeader(http.StatusBadRequest)
-		}
 
 		resp := restoreResponse{
 			URL:        fileServer.URL,
-			MatchedKey: keys[0],
+			MatchedKey: cacheKey,
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -239,7 +221,7 @@ func Test_downloadWithClient_WhenNoChunksError_ThenWillDoFullRetry(t *testing.T)
 	downloadParams := DownloadParams{
 		APIBaseURL:     apiServer.URL,
 		Token:          "netok",
-		CacheKeys:      []string{"key1"},
+		CacheKeys:      []string{cacheKey},
 		DownloadPath:   tmpFile,
 		NumFullRetries: 3,
 	}
@@ -248,10 +230,48 @@ func Test_downloadWithClient_WhenNoChunksError_ThenWillDoFullRetry(t *testing.T)
 	gotMatchedKeys, err := downloadWithClient(context.Background(), retryableHTTPClient, downloadParams, logger)
 	// Then
 	require.NoError(t, err)
-	require.Equal(t, "key1", gotMatchedKeys)
+	require.Equal(t, "test-cache-key", gotMatchedKeys)
 
 	downloadedContents, err := os.ReadFile(tmpFile) // Read back downloaded file
 	require.NoError(t, err)
 	require.Equal(t, testDummyFileContent, string(downloadedContents), "Contents should match")
 	require.Equal(t, numErrorsLeft.Load(), int64(0), "Numbers of retries is number errors + the final successful attempt")
+}
+
+func Test_downloadWithClient_WhenCacheKeyNotFound_ThenWillNotRetry(t *testing.T) {
+	// Given
+	logger := log.NewLogger()
+	logger.EnableDebugLog(true)
+
+	retryableHTTPClient := retryhttp.NewClient(logger)
+	retryFunc := func(ctx context.Context, resp *http.Response, downloadErr error) (bool, error) {
+		retry, err := retryablehttp.DefaultRetryPolicy(ctx, resp, downloadErr)
+		require.False(t, retry, "Should not retry")
+		return retry, err
+	}
+	retryableHTTPClient.CheckRetry = retryFunc
+
+	var apiServerCalled atomic.Uint64
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("[apiserver] Server called. Path=%s; Method=%s; Query=%s; Header=%#v", r.URL.Path, r.Method, r.URL.Query(), r.Header)
+		apiServerCalled.Add(1)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer apiServer.Close()
+
+	downloadParams := DownloadParams{
+		APIBaseURL:     apiServer.URL,
+		Token:          "netok",
+		CacheKeys:      []string{"test-cache--key"},
+		DownloadPath:   "",
+		NumFullRetries: 3,
+	}
+
+	// When
+	gotMatchedKeys, err := downloadWithClient(context.Background(), retryableHTTPClient, downloadParams, logger)
+	// Then
+	require.ErrorContains(t, err, "no cache archive found for the provided keys")
+	require.Equal(t, "", gotMatchedKeys)
+
+	require.Equal(t, uint64(1), apiServerCalled.Load(), "no retries were done")
 }
