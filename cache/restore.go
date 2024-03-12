@@ -22,9 +22,10 @@ import (
 // RestoreCacheInput is the information that comes from the cache steps that call this shared implementation
 type RestoreCacheInput struct {
 	// StepId identifies the exact cache step. Used for logging events.
-	StepId  string
-	Verbose bool
-	Keys    []string
+	StepId         string
+	Verbose        bool
+	Keys           []string
+	NumFullRetries int
 }
 
 // Restorer ...
@@ -37,6 +38,7 @@ type restoreCacheConfig struct {
 	Keys           []string
 	APIBaseURL     stepconf.Secret
 	APIAccessToken stepconf.Secret
+	NumFullRetries int
 }
 
 type restorer struct {
@@ -137,6 +139,7 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 		Keys:           keys,
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
+		NumFullRetries: input.NumFullRetries,
 	}, nil
 }
 
@@ -171,10 +174,11 @@ func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (dow
 	downloadPath := filepath.Join(dir, name)
 
 	params := network.DownloadParams{
-		APIBaseURL:   string(config.APIBaseURL),
-		Token:        string(config.APIAccessToken),
-		CacheKeys:    config.Keys,
-		DownloadPath: downloadPath,
+		APIBaseURL:     string(config.APIBaseURL),
+		Token:          string(config.APIAccessToken),
+		CacheKeys:      config.Keys,
+		DownloadPath:   downloadPath,
+		NumFullRetries: config.NumFullRetries,
 	}
 	matchedKey, err := network.Download(ctx, params, r.logger)
 	if err != nil {
