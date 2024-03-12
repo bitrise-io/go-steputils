@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -155,7 +156,7 @@ func Test_downloadFile_multipart_retrycheck(t *testing.T) {
 	downloadURL := svr.URL
 
 	// When
-	err := downloadFile(context.Background(), retryableHTTPClient.StandardClient(), downloadURL, tmpFile, mockLogger)
+	err := downloadFile(context.Background(), retryableHTTPClient.StandardClient(), downloadURL, tmpFile)
 
 	// Then
 	require.True(t, isCheckRetryCalled.Load())
@@ -163,10 +164,16 @@ func Test_downloadFile_multipart_retrycheck(t *testing.T) {
 	mockLogger.AssertExpectations(t)
 }
 
-func Test_downloadFile_WhenUnexpectedEOF_ThenWillRetry(t *testing.T) {
+func Test_downloadWithClient_WhenNoChunksError_ThenWillDoFullRetry(t *testing.T) {
 	// Given
 	logger := log.NewLogger()
 	logger.EnableDebugLog(true)
+
+	retryableHTTPClient := retryhttp.NewClient(logger)
+	retryFunc := func(ctx context.Context, resp *http.Response, downloadErr error) (bool, error) {
+		return false, downloadErr // Disable retries
+	}
+	retryableHTTPClient.CheckRetry = retryFunc
 
 	var numErrorsLeft atomic.Int64
 	numErrorsLeft.Store(2)
@@ -175,8 +182,8 @@ func Test_downloadFile_WhenUnexpectedEOF_ThenWillRetry(t *testing.T) {
 	tmpFile := filepath.Join(tmpPath, "testfile.bin")
 	testDummyFileContent := strings.Repeat("a", 10*units.MB) // 10MB
 
-	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("[testserver] Server called. Method=%s; Header=%#v", r.Method, r.Header)
+	fileServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("[fileserver] Server called. Method=%s; Header=%#v", r.Method, r.Header)
 		if numErrorsLeft.Load() > 0 {
 			numErrorsLeft.Add(-1)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -193,16 +200,58 @@ func Test_downloadFile_WhenUnexpectedEOF_ThenWillRetry(t *testing.T) {
 		_, err := fmt.Fprint(w, testDummyFileContent)
 		require.NoError(t, err)
 	}))
-	defer svr.Close()
-	downloadURL := svr.URL
+	defer fileServer.Close()
+
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("[apiserver] Server called. Path=%s; Method=%s; Query=%s; Header=%#v", r.URL.Path, r.Method, r.URL.Query(), r.Header)
+		if r.URL.Path != "/restore" && r.Method != "GET" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if r.Header.Get("Authorization") != "Bearer netok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		keysQueryParam := r.URL.Query().Get("cache_keys")
+		if keysQueryParam == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		keys := strings.Split(keysQueryParam, ",")
+		if len(keys) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+
+		resp := restoreResponse{
+			URL:        fileServer.URL,
+			MatchedKey: keys[0],
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Header().Add("Content-Type", "application/json")
+		err := json.NewEncoder(w).Encode(resp)
+		require.NoError(t, err)
+	}))
+	defer apiServer.Close()
+
+	downloadParams := DownloadParams{
+		APIBaseURL:     apiServer.URL,
+		Token:          "netok",
+		CacheKeys:      []string{"key1"},
+		DownloadPath:   tmpFile,
+		NumFullRetries: 3,
+	}
 
 	// When
-	err := downloadFile(context.Background(), http.DefaultClient, downloadURL, tmpFile, logger)
+	gotMatchedKeys, err := downloadWithClient(context.Background(), retryableHTTPClient, downloadParams, logger)
+	// Then
 	require.NoError(t, err)
+	require.Equal(t, "key1", gotMatchedKeys)
+
 	downloadedContents, err := os.ReadFile(tmpFile) // Read back downloaded file
 	require.NoError(t, err)
-
-	// Then
 	require.Equal(t, testDummyFileContent, string(downloadedContents), "Contents should match")
 	require.Equal(t, numErrorsLeft.Load(), int64(0), "Numbers of retries is number errors + the final successful attempt")
 }
