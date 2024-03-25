@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/bitrise-io/go-utils/retry"
@@ -21,6 +22,8 @@ type DownloadParams struct {
 	CacheKeys      []string
 	DownloadPath   string
 	NumFullRetries int
+	BuildCacheURL  string
+	AppSlug        string
 }
 
 // ErrCacheNotFound ...
@@ -66,8 +69,20 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 		}
 
 		logger.Debugf("Downloading archive...")
-		downloadErr := downloadFile(ctx, httpClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+		url, err := buildCacheKeyURL(buildCacheKeyURLParams{
+			serviceURL:  params.BuildCacheURL,
+			appSlug:     params.AppSlug,
+			originalURL: restoreResponse.URL,
+		})
+		if err != nil {
+			return fmt.Errorf("generate build cache url: %w", err), false
+		}
+		downloadErr := downloadFile(ctx, httpClient.StandardClient(), url, params.DownloadPath, params.Token)
 		if downloadErr != nil {
+			notFoundText := "Response status code is not ok: 404"
+			if strings.Contains(downloadErr.Error(), notFoundText) {
+				return ErrCacheNotFound, true
+			}
 			logger.Debugf("Failed to download archive: %s", downloadErr)
 			return fmt.Errorf("failed to download archive: %w", downloadErr), false
 		}
@@ -79,7 +94,7 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 	return matchedKey, err
 }
 
-func downloadFile(ctx context.Context, client *http.Client, url string, dest string) error {
+func downloadFile(ctx context.Context, client *http.Client, url, dest, token string) error {
 	downloader := got.New()
 	downloader.Client = client
 
@@ -88,6 +103,10 @@ func downloadFile(ctx context.Context, client *http.Client, url string, dest str
 	// as depending on how downloader is called
 	// either the Client from the downloader or from the Download will be used.
 	gDownload.Client = client
+	gDownload.Header = append(gDownload.Header, got.GotHeader{
+		Key:   "Authorization",
+		Value: fmt.Sprintf("Bearer %s", token),
+	})
 
 	err := downloader.Do(gDownload)
 

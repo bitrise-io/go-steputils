@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,6 +45,8 @@ type saveCacheConfig struct {
 	Paths          []string
 	APIBaseURL     stepconf.Secret
 	APIAccessToken stepconf.Secret
+	BuildCacheURL  string
+	AppSlug        string
 }
 
 type saver struct {
@@ -167,13 +170,40 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 		return saveCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
 
+	buildCacheURL := s.envRepo.Get("BITRISE_BUILD_CACHE_URL")
+	if buildCacheURL == "" {
+		return saveCacheConfig{}, fmt.Errorf("the env var 'BITRISE_BUILD_CACHE_URL' is not defined")
+	}
+	strictBuildCacheURL, err := strictURL(buildCacheURL)
+	if err != nil {
+		return saveCacheConfig{}, fmt.Errorf(
+			"the env var 'BITRISE_BUILD_CACHE_URL' must be in scheme://host[:port] format, %q is invalid: %w",
+			buildCacheURL, err,
+		)
+	}
+
+	appSlug := s.envRepo.Get("BITRISE_APP_SLUG")
+	if apiAccessToken == "" {
+		return saveCacheConfig{}, fmt.Errorf("the env var 'BITRISE_APP_SLUG' is not defined")
+	}
+
 	return saveCacheConfig{
 		Verbose:        input.Verbose,
 		Key:            evaluatedKey,
 		Paths:          finalPaths,
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
+		BuildCacheURL:  strictBuildCacheURL,
+		AppSlug:        appSlug,
 	}, nil
+}
+
+func strictURL(s string) (string, error) {
+	parsed, err := url.ParseRequestURI(s)
+	if err != nil {
+		return "", fmt.Errorf("parse url: %w", err)
+	}
+	return fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host), nil
 }
 
 func (s *saver) evaluatePaths(paths []string) ([]string, error) {
@@ -262,11 +292,13 @@ func (s *saver) compress(paths []string) (string, error) {
 
 func (s *saver) upload(archivePath string, archiveSize int64, config saveCacheConfig) error {
 	params := network.UploadParams{
-		APIBaseURL:  string(config.APIBaseURL),
-		Token:       string(config.APIAccessToken),
-		ArchivePath: archivePath,
-		ArchiveSize: archiveSize,
-		CacheKey:    config.Key,
+		APIBaseURL:    string(config.APIBaseURL),
+		Token:         string(config.APIAccessToken),
+		ArchivePath:   archivePath,
+		ArchiveSize:   archiveSize,
+		CacheKey:      config.Key,
+		BuildCacheURL: config.BuildCacheURL,
+		AppSlug:       config.AppSlug,
 	}
 	return network.Upload(params, s.logger)
 }

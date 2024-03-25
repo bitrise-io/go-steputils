@@ -39,6 +39,8 @@ type restoreCacheConfig struct {
 	APIBaseURL     stepconf.Secret
 	APIAccessToken stepconf.Secret
 	NumFullRetries int
+	BuildCacheURL  string
+	AppSlug        string
 }
 
 type restorer struct {
@@ -129,6 +131,23 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 		return restoreCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
 
+	buildCacheURL := r.envRepo.Get("BITRISE_BUILD_CACHE_URL")
+	if buildCacheURL == "" {
+		return restoreCacheConfig{}, fmt.Errorf("the env var 'BITRISE_BUILD_CACHE_URL' is not defined")
+	}
+	strictBuildCacheURL, err := strictURL(buildCacheURL)
+	if err != nil {
+		return restoreCacheConfig{}, fmt.Errorf(
+			"the env var 'BITRISE_BUILD_CACHE_URL' must be in scheme://host[:port] format, %q is invalid: %w",
+			buildCacheURL, err,
+		)
+	}
+
+	appSlug := r.envRepo.Get("BITRISE_APP_SLUG")
+	if apiAccessToken == "" {
+		return restoreCacheConfig{}, fmt.Errorf("the env var 'BITRISE_APP_SLUG' is not defined")
+	}
+
 	keys, err := r.evaluateKeys(input.Keys)
 	if err != nil {
 		return restoreCacheConfig{}, fmt.Errorf("failed to evaluate keys: %w", err)
@@ -140,6 +159,8 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
 		NumFullRetries: input.NumFullRetries,
+		BuildCacheURL:  strictBuildCacheURL,
+		AppSlug:        appSlug,
 	}, nil
 }
 
@@ -179,6 +200,8 @@ func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (dow
 		CacheKeys:      config.Keys,
 		DownloadPath:   downloadPath,
 		NumFullRetries: config.NumFullRetries,
+		BuildCacheURL:  config.BuildCacheURL,
+		AppSlug:        config.AppSlug,
 	}
 	matchedKey, err := network.Download(ctx, params, r.logger)
 	if err != nil {
