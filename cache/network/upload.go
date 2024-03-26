@@ -69,9 +69,10 @@ func Upload(params UploadParams, logger log.Logger) error {
 		return fmt.Errorf("generate build cache url: %w", err)
 	}
 	buildCacheHeaders := map[string]string{
-		"Authorization":                  fmt.Sprintf("Bearer %s", params.Token),
-		"x-flare-blob-validation-sha256": params.Sha256Sum,
-		"x-flare-blob-validation-level":  "error",
+		"Authorization":                    fmt.Sprintf("Bearer %s", params.Token),
+		"x-flare-blob-validation-sha256":   params.Sha256Sum,
+		"x-flare-blob-validation-level":    "error",
+		"x-flare-no-skip-duplicate-writes": "true",
 	}
 	err = client.uploadArchive(params.ArchivePath, http.MethodPut, url, buildCacheHeaders)
 	if err != nil {
