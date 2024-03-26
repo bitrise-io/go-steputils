@@ -60,9 +60,9 @@ func Upload(params UploadParams, logger log.Logger) error {
 		return fmt.Errorf("upload flag file: %w", err)
 	}
 	url, err := buildCacheKeyURL(buildCacheKeyURLParams{
-		serviceURL:  params.BuildCacheURL,
-		appSlug:     params.AppSlug,
-		originalURL: resp.UploadURL,
+		serviceURL: params.BuildCacheURL,
+		appSlug:    params.AppSlug,
+		id:         validatedKey,
 	})
 	if err != nil {
 		return fmt.Errorf("generate build cache url: %w", err)
@@ -89,14 +89,14 @@ func Upload(params UploadParams, logger log.Logger) error {
 }
 
 type buildCacheKeyURLParams struct {
-	serviceURL  string
-	appSlug     string
-	originalURL string
+	serviceURL string
+	appSlug    string
+	id         string
 }
 
 func buildCacheKeyURL(p buildCacheKeyURLParams) (string, error) {
 	h := sha256.New()
-	if _, err := h.Write([]byte(p.originalURL)); err != nil {
+	if _, err := h.Write([]byte(p.id)); err != nil {
 		return "", fmt.Errorf("write sha256: %w", err)
 	}
 	buildCacheKey := fmt.Sprintf("%x", h.Sum(nil))

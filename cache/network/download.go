@@ -70,9 +70,9 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 
 		logger.Debugf("Downloading archive...")
 		url, err := buildCacheKeyURL(buildCacheKeyURLParams{
-			serviceURL:  params.BuildCacheURL,
-			appSlug:     params.AppSlug,
-			originalURL: restoreResponse.URL,
+			serviceURL: params.BuildCacheURL,
+			appSlug:    params.AppSlug,
+			id:         restoreResponse.MatchedKey,
 		})
 		if err != nil {
 			return fmt.Errorf("generate build cache url: %w", err), false
