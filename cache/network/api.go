@@ -66,7 +66,7 @@ func (c apiClient) prepareUpload(requestBody prepareUploadRequest) (prepareUploa
 		return prepareUploadResponse{}, err
 	}
 
-	req, err := retryablehttp.NewRequest(http.MethodPut, url, body)
+	req, err := retryablehttp.NewRequest(http.MethodPost, url, body)
 	if err != nil {
 		return prepareUploadResponse{}, err
 	}
