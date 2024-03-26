@@ -21,6 +21,7 @@ type UploadParams struct {
 	CacheKey      string
 	BuildCacheURL string
 	AppSlug       string
+	Sha256Sum     string
 }
 
 // Upload a cache archive and associate it with the provided cache key
@@ -68,7 +69,9 @@ func Upload(params UploadParams, logger log.Logger) error {
 		return fmt.Errorf("generate build cache url: %w", err)
 	}
 	buildCacheHeaders := map[string]string{
-		"Authorization": fmt.Sprintf("Bearer %s", params.Token),
+		"Authorization":                  fmt.Sprintf("Bearer %s", params.Token),
+		"x-flare-blob-validation-sha256": params.Sha256Sum,
+		"x-flare-blob-validation-level":  "error",
 	}
 	err = client.uploadArchive(params.ArchivePath, http.MethodPut, url, buildCacheHeaders)
 	if err != nil {
