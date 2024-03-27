@@ -3,6 +3,7 @@ package kv
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"github.com/bitrise-io/go-steputils/v2/proto/kv_storage"
 	"google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -30,15 +32,14 @@ type NewClientParams struct {
 }
 
 func NewClient(ctx context.Context, p NewClientParams) (*Client, error) {
-	opts := make([]grpc.DialOption, 0)
-	if p.UseInsecure {
-		creds := insecure.NewCredentials()
-		insecureOpt := grpc.WithTransportCredentials(creds)
-		opts = append(opts, insecureOpt)
-	}
 	ctx, cancel := context.WithTimeout(ctx, p.DialTimeout)
 	defer cancel()
-	conn, err := grpc.DialContext(ctx, p.Host, opts...)
+	creds := credentials.NewTLS(&tls.Config{})
+	if p.UseInsecure {
+		creds = insecure.NewCredentials()
+	}
+	transportOpt := grpc.WithTransportCredentials(creds)
+	conn, err := grpc.DialContext(ctx, p.Host, transportOpt)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s: %w", p.Host, err)
 	}
