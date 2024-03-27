@@ -39,7 +39,8 @@ type restoreCacheConfig struct {
 	APIBaseURL     stepconf.Secret
 	APIAccessToken stepconf.Secret
 	NumFullRetries int
-	BuildCacheURL  string
+	BuildCacheHost string
+	InsecureGRPC   bool
 	AppSlug        string
 }
 
@@ -135,10 +136,10 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 	if buildCacheURL == "" {
 		return restoreCacheConfig{}, fmt.Errorf("the env var 'BITRISE_BUILD_CACHE_URL' is not defined")
 	}
-	strictBuildCacheURL, err := strictURL(buildCacheURL)
+	buildCacheHost, insecureGRPC, err := parseUrlGRPC(buildCacheURL)
 	if err != nil {
 		return restoreCacheConfig{}, fmt.Errorf(
-			"the env var 'BITRISE_BUILD_CACHE_URL' must be in scheme://host[:port] format, %q is invalid: %w",
+			"the env var 'BITRISE_BUILD_CACHE_URL' must be in grpc[s]://host:port format, %q is invalid: %w",
 			buildCacheURL, err,
 		)
 	}
@@ -159,7 +160,8 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
 		NumFullRetries: input.NumFullRetries,
-		BuildCacheURL:  strictBuildCacheURL,
+		BuildCacheHost: buildCacheHost,
+		InsecureGRPC:   insecureGRPC,
 		AppSlug:        appSlug,
 	}, nil
 }
@@ -200,7 +202,8 @@ func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (dow
 		CacheKeys:      config.Keys,
 		DownloadPath:   downloadPath,
 		NumFullRetries: config.NumFullRetries,
-		BuildCacheURL:  config.BuildCacheURL,
+		BuildCacheHost: config.BuildCacheHost,
+		InsecureGRPC:   config.InsecureGRPC,
 		AppSlug:        config.AppSlug,
 	}
 	matchedKey, err := network.Download(ctx, params, r.logger)

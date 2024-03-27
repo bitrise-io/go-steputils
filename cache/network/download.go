@@ -4,15 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"strings"
+	"io"
+	"os"
 	"time"
 
+	"github.com/bitrise-io/go-steputils/v2/cache/kv"
 	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/melbahja/got"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // DownloadParams ...
@@ -22,7 +24,8 @@ type DownloadParams struct {
 	CacheKeys      []string
 	DownloadPath   string
 	NumFullRetries int
-	BuildCacheURL  string
+	BuildCacheHost string
+	InsecureGRPC   bool
 	AppSlug        string
 }
 
@@ -69,22 +72,40 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 		}
 
 		logger.Debugf("Downloading archive...")
-		url, err := buildCacheKeyURL(buildCacheKeyURLParams{
-			serviceURL: params.BuildCacheURL,
-			appSlug:    params.AppSlug,
-			id:         restoreResponse.MatchedKey,
+		buildCacheKey, err := buildCacheKey(restoreResponse.MatchedKey)
+		if err != nil {
+			return fmt.Errorf("generate build cache key: %w", err), false
+		}
+
+		file, err := os.Create(params.DownloadPath)
+		if err != nil {
+			return fmt.Errorf("create %q: %w", params.DownloadPath, err), false
+		}
+		defer file.Close()
+
+		kvClient, err := kv.NewClient(ctx, kv.NewClientParams{
+			UseInsecure: params.InsecureGRPC,
+			Host:        params.BuildCacheHost,
+			DialTimeout: 5 * time.Second,
+			ClientName:  "kv",
+			Token:       params.Token,
 		})
 		if err != nil {
-			return fmt.Errorf("generate build cache url: %w", err), false
+			return fmt.Errorf("new kv client: %w", err), false
 		}
-		downloadErr := downloadFile(ctx, httpClient.StandardClient(), url, params.DownloadPath, params.Token)
-		if downloadErr != nil {
-			notFoundText := "Response status code is not ok: 404"
-			if strings.Contains(downloadErr.Error(), notFoundText) {
+		kvReader, err := kvClient.Get(ctx, buildCacheKey)
+		if err != nil {
+			return fmt.Errorf("create kv get client: %w", err), false
+		}
+		defer kvReader.Close()
+
+		if _, err := io.Copy(file, kvReader); err != nil {
+			st, ok := status.FromError(err)
+			if ok && st.Code() == codes.NotFound {
 				return ErrCacheNotFound, true
 			}
-			logger.Debugf("Failed to download archive: %s", downloadErr)
-			return fmt.Errorf("failed to download archive: %w", downloadErr), false
+			logger.Debugf("Failed to download archive: %s", err)
+			return fmt.Errorf("failed to download archive: %w", err), false
 		}
 
 		matchedKey = restoreResponse.MatchedKey
@@ -92,23 +113,4 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 	})
 
 	return matchedKey, err
-}
-
-func downloadFile(ctx context.Context, client *http.Client, url, dest, token string) error {
-	downloader := got.New()
-	downloader.Client = client
-
-	gDownload := got.NewDownload(ctx, url, dest)
-	// Client has to be set on "Download" as well,
-	// as depending on how downloader is called
-	// either the Client from the downloader or from the Download will be used.
-	gDownload.Client = client
-	gDownload.Header = append(gDownload.Header, got.GotHeader{
-		Key:   "Authorization",
-		Value: fmt.Sprintf("Bearer %s", token),
-	})
-
-	err := downloader.Do(gDownload)
-
-	return err
 }

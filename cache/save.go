@@ -45,7 +45,8 @@ type saveCacheConfig struct {
 	Paths          []string
 	APIBaseURL     stepconf.Secret
 	APIAccessToken stepconf.Secret
-	BuildCacheURL  string
+	BuildCacheHost string
+	InsecureGRPC   bool
 	AppSlug        string
 }
 
@@ -174,10 +175,10 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 	if buildCacheURL == "" {
 		return saveCacheConfig{}, fmt.Errorf("the env var 'BITRISE_BUILD_CACHE_URL' is not defined")
 	}
-	strictBuildCacheURL, err := strictURL(buildCacheURL)
+	buildCacheHost, insecureGRPC, err := parseUrlGRPC(buildCacheURL)
 	if err != nil {
 		return saveCacheConfig{}, fmt.Errorf(
-			"the env var 'BITRISE_BUILD_CACHE_URL' must be in scheme://host[:port] format, %q is invalid: %w",
+			"the env var 'BITRISE_BUILD_CACHE_URL' must be in grpc[s]://host:port format, %q is invalid: %w",
 			buildCacheURL, err,
 		)
 	}
@@ -193,17 +194,24 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 		Paths:          finalPaths,
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
-		BuildCacheURL:  strictBuildCacheURL,
+		BuildCacheHost: buildCacheHost,
+		InsecureGRPC:   insecureGRPC,
 		AppSlug:        appSlug,
 	}, nil
 }
 
-func strictURL(s string) (string, error) {
+func parseUrlGRPC(s string) (string, bool, error) {
 	parsed, err := url.ParseRequestURI(s)
 	if err != nil {
-		return "", fmt.Errorf("parse url: %w", err)
+		return "", false, fmt.Errorf("parse url: %w", err)
 	}
-	return fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host), nil
+	if parsed.Scheme != "grpc" && parsed.Scheme != "grpcs" {
+		return "", false, fmt.Errorf("scheme must be grpc or grpcs")
+	}
+	if parsed.Port() == "" {
+		return "", false, fmt.Errorf("must provide a port")
+	}
+	return parsed.Host, parsed.Scheme == "grpc", nil
 }
 
 func (s *saver) evaluatePaths(paths []string) ([]string, error) {
@@ -292,14 +300,15 @@ func (s *saver) compress(paths []string) (string, error) {
 
 func (s *saver) upload(archivePath string, archiveSize int64, sha256Sum string, config saveCacheConfig) error {
 	params := network.UploadParams{
-		APIBaseURL:    string(config.APIBaseURL),
-		Token:         string(config.APIAccessToken),
-		ArchivePath:   archivePath,
-		ArchiveSize:   archiveSize,
-		CacheKey:      config.Key,
-		BuildCacheURL: config.BuildCacheURL,
-		AppSlug:       config.AppSlug,
-		Sha256Sum:     sha256Sum,
+		APIBaseURL:     string(config.APIBaseURL),
+		Token:          string(config.APIAccessToken),
+		ArchivePath:    archivePath,
+		ArchiveSize:    archiveSize,
+		CacheKey:       config.Key,
+		BuildCacheHost: config.BuildCacheHost,
+		InsecureGRPC:   config.InsecureGRPC,
+		AppSlug:        config.AppSlug,
+		Sha256Sum:      sha256Sum,
 	}
 	return network.Upload(params, s.logger)
 }
