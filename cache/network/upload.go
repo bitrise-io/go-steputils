@@ -42,14 +42,20 @@ func Upload(params UploadParams, logger log.Logger) error {
 
 	logger.Debugf("")
 	logger.Debugf("Upload archive")
-	err = client.uploadArchive(params.ArchivePath, resp.UploadMethod, resp.UploadURL, resp.UploadHeaders)
+	partTags, err := client.uploadArchive(params.ArchivePath, resp.UploadChunkSizeBytes, resp.UploadChunkCount, resp.UploadLastChunkSizeBytes, resp.UploadURLs)
 	if err != nil {
+		_, err2 := client.acknowledgeUpload(false, resp.ID, partTags)
+		if err2 != nil {
+			fmt.Printf("Failed to abort upload: %s", err2)
+			logger.Warnf("Failed to abort upload: %s", err2)
+		}
+
 		return fmt.Errorf("failed to upload archive: %w", err)
 	}
 
 	logger.Debugf("")
 	logger.Debugf("Acknowledge upload")
-	response, err := client.acknowledgeUpload(resp.ID)
+	response, err := client.acknowledgeUpload(true, resp.ID, partTags)
 	if err != nil {
 		return fmt.Errorf("failed to finalize upload: %w", err)
 	}

@@ -7,15 +7,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bitrise-io/go-steputils/v2/cache/compression"
-	"github.com/bitrise-io/go-steputils/v2/cache/keytemplate"
-	"github.com/bitrise-io/go-steputils/v2/cache/network"
-	"github.com/bitrise-io/go-steputils/v2/stepconf"
 	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/docker/go-units"
+
+	"github.com/bitrise-io/go-steputils/v2/cache/compression"
+	"github.com/bitrise-io/go-steputils/v2/cache/keytemplate"
+	"github.com/bitrise-io/go-steputils/v2/cache/network"
+	"github.com/bitrise-io/go-steputils/v2/stepconf"
 )
 
 // SaveCacheInput is the information that comes from the cache steps that call this shared implementation
