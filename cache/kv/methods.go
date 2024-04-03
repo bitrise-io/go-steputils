@@ -19,8 +19,6 @@ type PutParams struct {
 func (c *Client) Put(ctx context.Context, p PutParams) (io.WriteCloser, error) {
 	md := metadata.Pairs(
 		"authorization", fmt.Sprintf("bearer %s", c.token),
-		"x-flare-blob-validation-sha256", p.Sha256Sum,
-		"x-flare-blob-validation-level", "error",
 		"x-flare-no-skip-duplicate-writes", "true",
 	)
 	ctx = metadata.NewOutgoingContext(ctx, md)
