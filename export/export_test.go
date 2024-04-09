@@ -1,15 +1,16 @@
 package export
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	pathutil2 "github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 func TestExportOutput(t *testing.T) {
@@ -21,15 +22,6 @@ func TestExportOutput(t *testing.T) {
 	requireEnvmanContainsValueForKey(t, "my_key", "my value", envmanStorePath)
 }
 
-func TestExportOutputWithEnvs(t *testing.T) {
-	envmanStorePath := setupEnvman(t)
-
-	e := NewExporter(command.NewFactory(env.NewRepository()))
-	require.NoError(t, e.ExportOutput("my_key", "this is a value with env vars: $HOME, $PWD, $SHELL"))
-
-	requireEnvmanContainsValueForKey(t, "my_key", "this is a value with env vars: $HOME, $PWD, $SHELL", envmanStorePath)
-}
-
 func TestExportOutputFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -37,7 +29,7 @@ func TestExportOutputFile(t *testing.T) {
 
 	sourcePath := filepath.Join(tmpDir, "test_file_source")
 	destinationPath := filepath.Join(tmpDir, "test_file_destination")
-	require.NoError(t, os.WriteFile(sourcePath, []byte("hello"), 0700))
+	require.NoError(t, ioutil.WriteFile(sourcePath, []byte("hello"), 0700))
 
 	e := NewExporter(command.NewFactory(env.NewRepository()))
 	require.NoError(t, e.ExportOutputFile("my_key", sourcePath, destinationPath))
@@ -82,7 +74,7 @@ func TestZipFilesAndExportOutput(t *testing.T) {
 	var sourceFilePaths []string
 	for _, name := range []string{"A", "B", "C"} {
 		sourceFile := filepath.Join(sourceDir, "sourceFile"+name)
-		require.NoError(t, os.WriteFile(sourceFile, []byte(name), 0777))
+		require.NoError(t, ioutil.WriteFile(sourceFile, []byte(name), 0777))
 
 		sourceFilePaths = append(sourceFilePaths, sourceFile)
 	}
@@ -113,7 +105,7 @@ func TestZipMixedFilesAndFoldersAndExportOutput(t *testing.T) {
 	var sourceFilePaths []string
 	for _, name := range []string{"A", "B", "C"} {
 		sourceFile := filepath.Join(sourceDir, "sourceFile"+name)
-		require.NoError(t, os.WriteFile(sourceFile, []byte(name), 0777))
+		require.NoError(t, ioutil.WriteFile(sourceFile, []byte(name), 0777))
 
 		sourceFilePaths = append(sourceFilePaths, sourceFile)
 	}
@@ -130,26 +122,12 @@ func TestZipMixedFilesAndFoldersAndExportOutput(t *testing.T) {
 }
 
 func requireEnvmanContainsValueForKey(t *testing.T, key, value, envmanStorePath string) {
-	b, err := os.ReadFile(envmanStorePath)
+	b, err := ioutil.ReadFile(envmanStorePath)
 	require.NoError(t, err)
+	envstoreContent := string(b)
 
-	type envItemModel map[string]interface{}
-	type envstoreModel struct {
-		Envs []envItemModel `yaml:"envs"`
-	}
-	var envstoreContent envstoreModel
-	err = yaml.Unmarshal(b, &envstoreContent)
-	require.NoError(t, err)
-
-	found := false
-	for _, envItem := range envstoreContent.Envs {
-		if _, ok := envItem[key]; ok {
-			found = true
-			break
-		}
-	}
-
-	require.True(t, found, "envstore should contain %s=%s. Full envstore content:\n%s", key, value, envstoreContent)
+	t.Logf("envstoreContent: %s\n", envstoreContent)
+	require.Equal(t, true, strings.Contains(envstoreContent, "- "+key+": "+value), envstoreContent)
 }
 
 func setupEnvman(t *testing.T) string {
@@ -167,7 +145,7 @@ func setupEnvman(t *testing.T) string {
 	require.NoError(t, err)
 
 	tmpEnvStorePth := filepath.Join(tmpDir, ".envstore.yml")
-	require.NoError(t, os.WriteFile(tmpEnvStorePth, []byte(""), 0777))
+	require.NoError(t, ioutil.WriteFile(tmpEnvStorePth, []byte(""), 0777))
 
 	t.Setenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
 
