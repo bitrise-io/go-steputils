@@ -22,10 +22,14 @@ import (
 // RestoreCacheInput is the information that comes from the cache steps that call this shared implementation
 type RestoreCacheInput struct {
 	// StepId identifies the exact cache step. Used for logging events.
-	StepId         string
-	Verbose        bool
-	Keys           []string
-	NumFullRetries int
+	StepId             string
+	Verbose            bool
+	Keys               []string
+	NumFullRetries     int
+	AWSBucket          string
+	AWSRegion          string
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
 }
 
 // Restorer ...
@@ -39,6 +43,14 @@ type restoreCacheConfig struct {
 	APIBaseURL     stepconf.Secret
 	APIAccessToken stepconf.Secret
 	NumFullRetries int
+	S3Cache        s3CacheConfig
+}
+
+type s3CacheConfig struct {
+	AWSAcessKeyID      stepconf.Secret
+	AWSSecretAccessKey stepconf.Secret
+	AWSBucket          string
+	AWSRegion          string
 }
 
 type restorer struct {
@@ -129,6 +141,16 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 		return restoreCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
 
+	var s3Config s3CacheConfig
+	if input.AWSBucket != "" {
+		s3Config = s3CacheConfig{
+			AWSBucket:          input.AWSBucket,
+			AWSRegion:          input.AWSRegion,
+			AWSAcessKeyID:      stepconf.Secret(input.AWSAccessKeyID),
+			AWSSecretAccessKey: stepconf.Secret(input.AWSSecretAccessKey),
+		}
+	}
+
 	keys, err := r.evaluateKeys(input.Keys)
 	if err != nil {
 		return restoreCacheConfig{}, fmt.Errorf("failed to evaluate keys: %w", err)
@@ -140,6 +162,7 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
 		NumFullRetries: input.NumFullRetries,
+		S3Cache:        s3Config,
 	}, nil
 }
 
@@ -180,7 +203,23 @@ func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (dow
 		DownloadPath:   downloadPath,
 		NumFullRetries: config.NumFullRetries,
 	}
-	matchedKey, err := network.Download(ctx, params, r.logger)
+
+	var matchedKey string
+	switch {
+	case config.S3Cache.AWSBucket != "":
+		s3Parmas := network.S3DownloadParams{
+			CacheKeys:       config.Keys,
+			DownloadPath:    downloadPath,
+			NumFullRetries:  config.NumFullRetries,
+			Bucket:          config.S3Cache.AWSBucket,
+			Region:          config.S3Cache.AWSRegion,
+			AccessKeyID:     config.S3Cache.AWSAcessKeyID.String(),
+			SecretAccessKey: config.S3Cache.AWSSecretAccessKey.String(),
+		}
+		matchedKey, err = network.DownloadFromS3(ctx, s3Parmas, r.logger)
+	default:
+		matchedKey, err = network.Download(ctx, params, r.logger)
+	}
 	if err != nil {
 		return downloadResult{}, err
 	}
