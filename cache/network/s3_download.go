@@ -19,6 +19,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/log"
 )
 
+// S3DownloadParams ...
 type S3DownloadParams struct {
 	CacheKeys       []string
 	DownloadPath    string
@@ -29,6 +30,8 @@ type S3DownloadParams struct {
 	SecretAccessKey string
 }
 
+// DownloadFromS3 archive from the provided S3 bucket based on the provided keys in params.
+// If there is no match for any of the keys, the error is ErrCacheNotFound.
 func DownloadFromS3(ctx context.Context, params S3DownloadParams, logger log.Logger) (string, error) {
 	if params.Bucket == "" {
 		return "", fmt.Errorf("bucket must not be empty")
@@ -67,14 +70,14 @@ func downloadWithS3Client(ctx context.Context, client *s3.Client, params S3Downl
 						continue
 					default:
 						logger.Debugf("validate key %s: %s", key, err)
-						return err, true
+						return err, false
 					}
 				}
 			}
 			firstValidKey = key
 			break
 		}
-		return nil, false
+		return ErrCacheNotFound, true
 	})
 	if err != nil {
 		return "", fmt.Errorf("key validation retries failed: %w", err)
@@ -86,24 +89,24 @@ func downloadWithS3Client(ctx context.Context, client *s3.Client, params S3Downl
 			Key:    aws.String(firstValidKey),
 		})
 		if err != nil {
-			return fmt.Errorf("get object: %w", err), true
+			return fmt.Errorf("get object: %w", err), false
 		}
-		defer result.Body.Close()
+		defer result.Body.Close() //nolint:errcheck
 		file, err := os.Create(params.DownloadPath)
 		if err != nil {
-			return fmt.Errorf("creating file: %w", err), false
+			return fmt.Errorf("creating file: %w", err), true
 		}
-		defer file.Close()
+		defer file.Close() //nolint:errcheck
 		body, err := io.ReadAll(result.Body)
 		if err != nil {
-			return fmt.Errorf("read object content: %w", err), true
+			return fmt.Errorf("read object content: %w", err), false
 		}
 		_, err = file.Write(body)
 		if err != nil {
-			return fmt.Errorf("write file: %w", err), false
+			return fmt.Errorf("write file: %w", err), true
 		}
 
-		return nil, false
+		return nil, true
 	})
 	if err != nil {
 		return "", fmt.Errorf("all retries failed: %w", err)
