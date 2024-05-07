@@ -123,7 +123,7 @@ func loadAWSCredentials(
 	logger log.Logger,
 ) (*aws.Config, error) {
 	if region == "" {
-		return nil, fmt.Errorf("regoion must not be empty")
+		return nil, fmt.Errorf("region must not be empty")
 	}
 
 	opts := []func(*config.LoadOptions) error{
