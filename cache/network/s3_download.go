@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"strings"
 
 	"errors"
 	"fmt"
@@ -57,9 +58,11 @@ func downloadWithS3Client(ctx context.Context, client *s3.Client, params S3Downl
 	var firstValidKey string
 	err := retry.Times(uint(params.NumFullRetries)).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
 		for _, key := range params.CacheKeys {
+			fileKey := strings.Join([]string{key, "zip"}, ".")
+
 			_, err := client.HeadObject(ctx, &s3.HeadObjectInput{
 				Bucket: &params.Bucket,
-				Key:    aws.String(key),
+				Key:    aws.String(fileKey),
 			})
 			if err != nil {
 				var apiError smithy.APIError
@@ -73,9 +76,11 @@ func downloadWithS3Client(ctx context.Context, client *s3.Client, params S3Downl
 						return err, false
 					}
 				}
+				logger.Debugf("generic aws error: %s", err)
 			}
+			matchedKey = key
 			firstValidKey = key
-			break
+			return nil, true
 		}
 		return ErrCacheNotFound, true
 	})
@@ -131,7 +136,7 @@ func loadAWSCredentials(
 	}
 
 	if accessKeyID != "" && secretKey != "" {
-		logger.Debugf("aws credentials not defined, loading credentials from environemnt...")
+		logger.Debugf("aws credentials provided, using them...")
 		opts = append(opts,
 			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyID, secretKey, "")))
 	}

@@ -213,8 +213,8 @@ func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (dow
 			NumFullRetries:  config.NumFullRetries,
 			Bucket:          config.S3Cache.AWSBucket,
 			Region:          config.S3Cache.AWSRegion,
-			AccessKeyID:     config.S3Cache.AWSAcessKeyID.String(),
-			SecretAccessKey: config.S3Cache.AWSSecretAccessKey.String(),
+			AccessKeyID:     string(config.S3Cache.AWSAcessKeyID),
+			SecretAccessKey: string(config.S3Cache.AWSSecretAccessKey),
 		}
 		matchedKey, err = network.DownloadFromS3(ctx, s3Parmas, r.logger)
 	default:
