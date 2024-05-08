@@ -31,6 +31,15 @@ type S3DownloadParams struct {
 	SecretAccessKey string
 }
 
+type s3DownloadService struct {
+	client         *s3.Client
+	bucket         string
+	downloadPath   string
+	numFullRetries int
+}
+
+var errS3KeyNotFound = errors.New("key not found in s3 bucket")
+
 // DownloadFromS3 archive from the provided S3 bucket based on the provided keys in params.
 // If there is no match for any of the keys, the error is ErrCacheNotFound.
 func DownloadFromS3(ctx context.Context, params S3DownloadParams, logger log.Logger) (string, error) {
@@ -50,36 +59,35 @@ func DownloadFromS3(ctx context.Context, params S3DownloadParams, logger log.Log
 	}
 
 	client := s3.NewFromConfig(*cfg)
-	return downloadWithS3Client(ctx, client, params, logger)
+	service := &s3DownloadService{
+		client:         client,
+		bucket:         params.Bucket,
+		downloadPath:   params.DownloadPath,
+		numFullRetries: params.NumFullRetries,
+	}
+
+	return downloadWithS3Client(ctx, service, params.CacheKeys, logger)
 }
 
-func downloadWithS3Client(ctx context.Context, client *s3.Client, params S3DownloadParams, logger log.Logger) (string, error) {
+func downloadWithS3Client(ctx context.Context, service *s3DownloadService, cacheKeys []string, logger log.Logger) (string, error) {
 	var matchedKey string
 	var firstValidKey string
-	err := retry.Times(uint(params.NumFullRetries)).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
-		for _, key := range params.CacheKeys {
+	err := retry.Times(uint(service.numFullRetries)).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
+		for _, key := range cacheKeys {
 			fileKey := strings.Join([]string{key, "tzst"}, ".")
-
-			_, err := client.HeadObject(ctx, &s3.HeadObjectInput{
-				Bucket: &params.Bucket,
-				Key:    aws.String(fileKey),
-			})
+			keyFound, err := service.firstAvailableKey(ctx, fileKey)
 			if err != nil {
-				var apiError smithy.APIError
-				if errors.As(err, &apiError) {
-					switch apiError.(type) {
-					case *types.NotFound:
-						logger.Debugf("key %s not found in bucket: %s", key, err)
-						continue
-					default:
-						logger.Debugf("validate key %s: %s", key, err)
-						return err, false
-					}
+				if errors.Is(errS3KeyNotFound, err) {
+					logger.Debugf("key %s not found in bucket: %s", key, err)
+					continue
 				}
-				logger.Debugf("generic aws error: %s", err)
+
+				logger.Debugf("validate key %s: %s", key, err)
+				return err, false
 			}
-			matchedKey = key
-			firstValidKey = key
+
+			matchedKey = keyFound
+			firstValidKey = keyFound
 			return nil, true
 		}
 		return ErrCacheNotFound, true
@@ -88,27 +96,9 @@ func downloadWithS3Client(ctx context.Context, client *s3.Client, params S3Downl
 		return "", fmt.Errorf("key validation retries failed: %w", err)
 	}
 
-	err = retry.Times(uint(params.NumFullRetries)).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
-		result, err := client.GetObject(ctx, &s3.GetObjectInput{
-			Bucket: aws.String(params.Bucket),
-			Key:    aws.String(firstValidKey),
-		})
-		if err != nil {
-			return fmt.Errorf("get object: %w", err), false
-		}
-		defer result.Body.Close() //nolint:errcheck
-		file, err := os.Create(params.DownloadPath)
-		if err != nil {
-			return fmt.Errorf("creating file: %w", err), true
-		}
-		defer file.Close() //nolint:errcheck
-		body, err := io.ReadAll(result.Body)
-		if err != nil {
-			return fmt.Errorf("read object content: %w", err), false
-		}
-		_, err = file.Write(body)
-		if err != nil {
-			return fmt.Errorf("write file: %w", err), true
+	err = retry.Times(uint(service.numFullRetries)).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
+		if err := service.getObject(ctx, firstValidKey); err != nil {
+			return fmt.Errorf("download object: %w", err), false
 		}
 
 		return nil, true
@@ -147,4 +137,52 @@ func loadAWSCredentials(
 	}
 
 	return &cfg, nil
+}
+
+func (service *s3DownloadService) firstAvailableKey(ctx context.Context, key string) (string, error) {
+	_, err := service.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(service.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var apiError smithy.APIError
+		if errors.As(err, &apiError) {
+			switch apiError.(type) {
+			case *types.NotFound:
+				return "", errS3KeyNotFound
+			default:
+				return "", fmt.Errorf("aws api error: %w", err)
+			}
+		}
+		return "", fmt.Errorf("generic aws error: %w", err)
+	}
+
+	return key, nil
+}
+
+func (service *s3DownloadService) getObject(ctx context.Context, key string) error {
+	result, err := service.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(service.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("get object: %w", err)
+
+	}
+	defer result.Body.Close() //nolint:errcheck
+	file, err := os.Create(service.downloadPath)
+	if err != nil {
+		return fmt.Errorf("creating file: %w", err)
+	}
+	defer file.Close() //nolint:errcheck
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		return fmt.Errorf("read object content: %w", err)
+	}
+	_, err = file.Write(body)
+	if err != nil {
+		return fmt.Errorf("write file: %w", err)
+	}
+
+	return nil
 }
