@@ -58,7 +58,7 @@ func downloadWithS3Client(ctx context.Context, client *s3.Client, params S3Downl
 	var firstValidKey string
 	err := retry.Times(uint(params.NumFullRetries)).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
 		for _, key := range params.CacheKeys {
-			fileKey := strings.Join([]string{key, "zip"}, ".")
+			fileKey := strings.Join([]string{key, "tzst"}, ".")
 
 			_, err := client.HeadObject(ctx, &s3.HeadObjectInput{
 				Bucket: &params.Bucket,
