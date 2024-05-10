@@ -2,8 +2,11 @@ package network
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -83,21 +86,23 @@ func UploadToS3(ctx context.Context, params S3UploadParams, logger log.Logger) e
 // If the object for cache key exists in bucket -> upload -> overwrites existing object & expiration
 // If the object is not yes present in bucket -> upload
 func (service *s3UploadService) uploadWithS3Client(ctx context.Context, cacheKey string, logger log.Logger) error {
-	checksum, err := service.headObjectWithRetry(ctx, cacheKey)
+	awsCacheKey := fmt.Sprintf("%s.%s", cacheKey, "tzst")
+	checksum, err := service.findChecksumWithRetry(ctx, awsCacheKey)
 	if err != nil {
 		return fmt.Errorf("validate object: %w", err)
 	}
 
 	if checksum == service.archiveChecksum {
-		// extend expiration time
-		err := service.copyObjectWithRetry(ctx, cacheKey, logger)
+		logger.Debugf("Found archive with the same checksum. Extending expiration time...")
+		err := service.copyObjectWithRetry(ctx, awsCacheKey, logger)
 		if err != nil {
 			return fmt.Errorf("copy object: %w", err)
 		}
+		return nil
 	}
 
-	// upload oject
-	err = service.putObjectWithRetry(ctx, cacheKey)
+	logger.Debugf("Uploading archive...")
+	err = service.putObjectWithRetry(ctx, awsCacheKey)
 	if err != nil {
 		return fmt.Errorf("upload artifact: %w", err)
 	}
@@ -105,10 +110,13 @@ func (service *s3UploadService) uploadWithS3Client(ctx context.Context, cacheKey
 	return nil
 }
 
-func (service *s3UploadService) headObjectWithRetry(ctx context.Context, cacheKey string) (string, error) {
+// findChecksumWithRetry tries to find the archive in bucket.
+// If the object is present, it returns its SHA-256 checksum.
+// If the object isn't present, it returns an empty string.
+func (service *s3UploadService) findChecksumWithRetry(ctx context.Context, cacheKey string) (string, error) {
 	var checksum string
 	err := retry.Times(numUploadRetries).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
-		resp, err := service.client.HeadObject(ctx, &s3.HeadObjectInput{
+		_, err := service.client.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket: aws.String(service.bucket),
 			Key:    aws.String(cacheKey),
 		})
@@ -118,15 +126,31 @@ func (service *s3UploadService) headObjectWithRetry(ctx context.Context, cacheKe
 				switch apiError.(type) {
 				case *types.NotFound:
 					// continue with upload
-					break
+					return nil, true
 				default:
 					return fmt.Errorf("validating object: %w", err), false
 				}
 			}
 		}
 
-		if resp != nil && resp.ChecksumSHA256 != nil {
-			checksum = *resp.ChecksumSHA256
+		attributes, err := service.client.GetObjectAttributes(ctx, &s3.GetObjectAttributesInput{
+			Bucket: aws.String(service.bucket),
+			Key:    aws.String(cacheKey),
+			ObjectAttributes: []types.ObjectAttributes{
+				"Checksum",
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("get archive object attributes: %w", err), false
+		}
+
+		if attributes != nil && attributes.Checksum != nil && attributes.Checksum.ChecksumSHA256 != nil {
+			decodedChecksum, err := base64.StdEncoding.DecodeString(*attributes.Checksum.ChecksumSHA256)
+			if err != nil {
+				return fmt.Errorf("base64 decode checksum: %w", err), true
+			}
+
+			checksum = hex.EncodeToString(decodedChecksum)
 		}
 
 		return nil, true
@@ -135,6 +159,8 @@ func (service *s3UploadService) headObjectWithRetry(ctx context.Context, cacheKe
 	return checksum, err
 }
 
+// By copying an S3 object into itself with the same Storage Class, the expiration date gets extended.
+// copyObjectWithRetry uses this trick to extend archive expiration.
 func (service *s3UploadService) copyObjectWithRetry(ctx context.Context, cacheKey string, logger log.Logger) error {
 	return retry.Times(numUploadRetries).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
 		resp, err := service.client.CopyObject(ctx, &s3.CopyObjectInput{
@@ -155,11 +181,19 @@ func (service *s3UploadService) copyObjectWithRetry(ctx context.Context, cacheKe
 
 func (service *s3UploadService) putObjectWithRetry(ctx context.Context, cacheKey string) error {
 	return retry.Times(numUploadRetries).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
-		_, err := service.client.PutObject(ctx, &s3.PutObjectInput{
+		file, err := os.Open(service.archivePath)
+		if err != nil {
+			return fmt.Errorf("open archive path: %w", err), true
+		}
+		defer file.Close() //nolint:errcheck
+
+		_, err = service.client.PutObject(ctx, &s3.PutObjectInput{
+			Body:              file,
 			Bucket:            aws.String(service.bucket),
 			Key:               aws.String(cacheKey),
-			ChecksumSHA256:    aws.String(service.archiveChecksum),
 			ContentType:       aws.String("application/zstd"),
+			ContentLength:     aws.Int64(service.archiveSize),
+			ContentEncoding:   aws.String("zstd"),
 			ChecksumAlgorithm: types.ChecksumAlgorithmSha256,
 		})
 		if err != nil {
