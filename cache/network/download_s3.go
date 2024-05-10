@@ -43,6 +43,11 @@ var errS3KeyNotFound = errors.New("key not found in s3 bucket")
 // DownloadFromS3 archive from the provided S3 bucket based on the provided keys in params.
 // If there is no match for any of the keys, the error is ErrCacheNotFound.
 func DownloadFromS3(ctx context.Context, params S3DownloadParams, logger log.Logger) (string, error) {
+	truncatedKeys, err := validateKeys(params.CacheKeys)
+	if err != nil {
+		return "", fmt.Errorf("validate keys: %w", err)
+	}
+
 	if params.Bucket == "" {
 		return "", fmt.Errorf("bucket must not be empty")
 	}
@@ -66,10 +71,10 @@ func DownloadFromS3(ctx context.Context, params S3DownloadParams, logger log.Log
 		numFullRetries: params.NumFullRetries,
 	}
 
-	return downloadWithS3Client(ctx, service, params.CacheKeys, logger)
+	return service.downloadWithS3Client(ctx, truncatedKeys, logger)
 }
 
-func downloadWithS3Client(ctx context.Context, service *s3DownloadService, cacheKeys []string, logger log.Logger) (string, error) {
+func (service *s3DownloadService) downloadWithS3Client(ctx context.Context, cacheKeys []string, logger log.Logger) (string, error) {
 	var matchedKey string
 	var firstValidKey string
 	err := retry.Times(uint(service.numFullRetries)).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
@@ -108,35 +113,6 @@ func downloadWithS3Client(ctx context.Context, service *s3DownloadService, cache
 	}
 
 	return matchedKey, nil
-}
-
-func loadAWSCredentials(
-	ctx context.Context,
-	region string,
-	accessKeyID string,
-	secretKey string,
-	logger log.Logger,
-) (*aws.Config, error) {
-	if region == "" {
-		return nil, fmt.Errorf("region must not be empty")
-	}
-
-	opts := []func(*config.LoadOptions) error{
-		config.WithRegion(region),
-	}
-
-	if accessKeyID != "" && secretKey != "" {
-		logger.Debugf("aws credentials provided, using them...")
-		opts = append(opts,
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyID, secretKey, "")))
-	}
-
-	cfg, err := config.LoadDefaultConfig(ctx, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config, %v", err)
-	}
-
-	return &cfg, nil
 }
 
 func (service *s3DownloadService) firstAvailableKey(ctx context.Context, key string) (string, error) {
@@ -185,4 +161,33 @@ func (service *s3DownloadService) getObject(ctx context.Context, key string) err
 	}
 
 	return nil
+}
+
+func loadAWSCredentials(
+	ctx context.Context,
+	region string,
+	accessKeyID string,
+	secretKey string,
+	logger log.Logger,
+) (*aws.Config, error) {
+	if region == "" {
+		return nil, fmt.Errorf("region must not be empty")
+	}
+
+	opts := []func(*config.LoadOptions) error{
+		config.WithRegion(region),
+	}
+
+	if accessKeyID != "" && secretKey != "" {
+		logger.Debugf("aws credentials provided, using them...")
+		opts = append(opts,
+			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyID, secretKey, "")))
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config, %v", err)
+	}
+
+	return &cfg, nil
 }

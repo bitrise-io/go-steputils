@@ -46,13 +46,6 @@ type restoreCacheConfig struct {
 	S3Cache        s3CacheConfig
 }
 
-type s3CacheConfig struct {
-	AWSAcessKeyID      stepconf.Secret
-	AWSSecretAccessKey stepconf.Secret
-	AWSBucket          string
-	AWSRegion          string
-}
-
 type restorer struct {
 	envRepo    env.Repository
 	logger     log.Logger
@@ -207,16 +200,7 @@ func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (dow
 	var matchedKey string
 	switch {
 	case config.S3Cache.AWSBucket != "":
-		s3Parmas := network.S3DownloadParams{
-			CacheKeys:       config.Keys,
-			DownloadPath:    downloadPath,
-			NumFullRetries:  config.NumFullRetries,
-			Bucket:          config.S3Cache.AWSBucket,
-			Region:          config.S3Cache.AWSRegion,
-			AccessKeyID:     string(config.S3Cache.AWSAcessKeyID),
-			SecretAccessKey: string(config.S3Cache.AWSSecretAccessKey),
-		}
-		matchedKey, err = network.DownloadFromS3(ctx, s3Parmas, r.logger)
+		matchedKey, err = r.downloadFromS3(ctx, downloadPath, config)
 	default:
 		matchedKey, err = network.Download(ctx, params, r.logger)
 	}
@@ -265,4 +249,17 @@ func (r *restorer) exposeCacheHit(result downloadResult, evaluatedKeys []string)
 		return err
 	}
 	return r.envRepo.Set(envKey, checksum)
+}
+
+func (r *restorer) downloadFromS3(ctx context.Context, downloadPath string, config restoreCacheConfig) (string, error) {
+	s3Parmas := network.S3DownloadParams{
+		CacheKeys:       config.Keys,
+		DownloadPath:    downloadPath,
+		NumFullRetries:  config.NumFullRetries,
+		Bucket:          config.S3Cache.AWSBucket,
+		Region:          config.S3Cache.AWSRegion,
+		AccessKeyID:     string(config.S3Cache.AWSAcessKeyID),
+		SecretAccessKey: string(config.S3Cache.AWSSecretAccessKey),
+	}
+	return network.DownloadFromS3(ctx, s3Parmas, r.logger)
 }

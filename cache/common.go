@@ -5,7 +5,16 @@ import (
 	"encoding/hex"
 	"io"
 	"os"
+
+	"github.com/bitrise-io/go-steputils/v2/stepconf"
 )
+
+type s3CacheConfig struct {
+	AWSAcessKeyID      stepconf.Secret
+	AWSSecretAccessKey stepconf.Secret
+	AWSBucket          string
+	AWSRegion          string
+}
 
 const cacheHitEnvVar = "BITRISE_CACHE_HIT"
 
