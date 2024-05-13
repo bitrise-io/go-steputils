@@ -75,7 +75,6 @@ func DownloadFromS3(ctx context.Context, params S3DownloadParams, logger log.Log
 }
 
 func (service *s3DownloadService) downloadWithS3Client(ctx context.Context, cacheKeys []string, logger log.Logger) (string, error) {
-	var matchedKey string
 	var firstValidKey string
 	err := retry.Times(uint(service.numFullRetries)).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
 		for _, key := range cacheKeys {
@@ -91,7 +90,6 @@ func (service *s3DownloadService) downloadWithS3Client(ctx context.Context, cach
 				return err, false
 			}
 
-			matchedKey = keyFound
 			firstValidKey = keyFound
 			return nil, true
 		}
@@ -112,7 +110,7 @@ func (service *s3DownloadService) downloadWithS3Client(ctx context.Context, cach
 		return "", fmt.Errorf("all retries failed: %w", err)
 	}
 
-	return matchedKey, nil
+	return firstValidKey, nil
 }
 
 func (service *s3DownloadService) firstAvailableKey(ctx context.Context, key string) (string, error) {

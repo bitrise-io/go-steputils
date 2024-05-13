@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
@@ -182,12 +183,18 @@ func (service *s3UploadService) copyObjectWithRetry(ctx context.Context, cacheKe
 func (service *s3UploadService) putObjectWithRetry(ctx context.Context, cacheKey string) error {
 	return retry.Times(numUploadRetries).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
 		file, err := os.Open(service.archivePath)
+
 		if err != nil {
 			return fmt.Errorf("open archive path: %w", err), true
 		}
-		defer file.Close() //nolint:errcheck
+		defer file.Close() //nolint:errch
+		var partMB int64 = 10
 
-		_, err = service.client.PutObject(ctx, &s3.PutObjectInput{
+		uploader := manager.NewUploader(service.client, func(u *manager.Uploader) {
+			u.PartSize = partMB * 1024 * 1024
+		})
+
+		_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 			Body:              file,
 			Bucket:            aws.String(service.bucket),
 			Key:               aws.String(cacheKey),
