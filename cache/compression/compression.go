@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/bitrise-io/go-utils/v2/command"
@@ -212,13 +211,9 @@ func (a *Archiver) compressWithBinary(archivePath string, includePaths []string)
 
 	a.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
 
-	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	_, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return fmt.Errorf("command failed with exit status %d (%s):\n%w", exitErr.ExitCode(), cmd.PrintableCommandArgs(), errors.New(out))
-		}
-		return fmt.Errorf("executing command failed (%s): %w", cmd.PrintableCommandArgs(), err)
+		return err
 	}
 
 	return nil
@@ -310,13 +305,9 @@ func (a *Archiver) decompressWithBinary(archivePath string, destinationDirectory
 	cmd := commandFactory.Create("tar", decompressTarArgs, nil)
 	a.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
 
-	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	_, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return fmt.Errorf("command failed with exit status %d (%s):\n%w", exitErr.ExitCode(), cmd.PrintableCommandArgs(), errors.New(out))
-		}
-		return fmt.Errorf("executing command failed (%s): %w", cmd.PrintableCommandArgs(), err)
+		return err
 	}
 
 	return nil
