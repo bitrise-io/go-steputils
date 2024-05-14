@@ -2,8 +2,8 @@ package network
 
 import (
 	"context"
-	"io"
 	"os"
+	"runtime"
 	"strings"
 
 	"errors"
@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
@@ -135,27 +136,23 @@ func (service *s3DownloadService) firstAvailableKey(ctx context.Context, key str
 }
 
 func (service *s3DownloadService) getObject(ctx context.Context, key string) error {
-	result, err := service.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(service.bucket),
-		Key:    aws.String(key),
+	downloader := manager.NewDownloader(service.client, func(d *manager.Downloader) {
+		d.PartSize = 64 * 1024 * 1024
+		d.Concurrency = runtime.NumCPU()
 	})
-	if err != nil {
-		return fmt.Errorf("get object: %w", err)
 
-	}
-	defer result.Body.Close() //nolint:errcheck
 	file, err := os.Create(service.downloadPath)
 	if err != nil {
 		return fmt.Errorf("creating file: %w", err)
 	}
 	defer file.Close() //nolint:errcheck
-	body, err := io.ReadAll(result.Body)
+
+	_, err = downloader.Download(ctx, file, &s3.GetObjectInput{
+		Bucket: aws.String(service.bucket),
+		Key:    aws.String(key),
+	})
 	if err != nil {
-		return fmt.Errorf("read object content: %w", err)
-	}
-	_, err = file.Write(body)
-	if err != nil {
-		return fmt.Errorf("write file: %w", err)
+		return fmt.Errorf("get object: %w", err)
 	}
 
 	return nil
