@@ -23,10 +23,11 @@ import (
 const (
 	numUploadRetries = 3
 
-	megabytes = 1024 * 1024
-
 	// 50MB
 	multipartChunkSize = 50_000_000
+
+	// 100MB
+	copySizeLimit = 100_000_000
 
 	// The archive checksum is uploaded with the object as metadata.
 	// As we can be pretty sure of the integrity of the uploaded archive,
@@ -164,7 +165,7 @@ func (service *s3UploadService) findChecksumWithRetry(ctx context.Context, cache
 // By copying an S3 object into itself with the same Storage Class, the expiration date gets extended.
 // copyObjectWithRetry uses this trick to extend archive expiration.
 func (service *s3UploadService) copyObjectWithRetry(ctx context.Context, cacheKey string, logger log.Logger) error {
-	if service.archiveSize < 100*megabytes {
+	if service.archiveSize < copySizeLimit {
 		logger.Debugf("Performing simple copy")
 		return retry.Times(numUploadRetries).Wait(5 * time.Second).TryWithAbort(func(attempt uint) (error, bool) {
 			resp, err := service.client.CopyObject(ctx, &s3.CopyObjectInput{
