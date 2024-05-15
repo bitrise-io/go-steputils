@@ -200,8 +200,7 @@ func (service *s3UploadService) putObjectWithRetry(ctx context.Context, cacheKey
 		defer file.Close() //nolint:errcheck
 
 		uploader := manager.NewUploader(service.client, func(u *manager.Uploader) {
-			// use default part size
-			u.PartSize = 0
+			u.PartSize = multipartChunkSize
 			u.Concurrency = runtime.NumCPU()
 		})
 

@@ -136,16 +136,17 @@ func (service *s3DownloadService) firstAvailableKey(ctx context.Context, key str
 }
 
 func (service *s3DownloadService) getObject(ctx context.Context, key string) error {
-	downloader := manager.NewDownloader(service.client, func(d *manager.Downloader) {
-		d.PartSize = 64 * 1024 * 1024
-		d.Concurrency = runtime.NumCPU()
-	})
-
 	file, err := os.Create(service.downloadPath)
 	if err != nil {
 		return fmt.Errorf("creating file: %w", err)
 	}
-	defer file.Close() //nolint:errcheck
+	defer file.Close()
+
+	downloader := manager.NewDownloader(service.client, func(d *manager.Downloader) {
+		// 50MB
+		d.PartSize = 50 * 1024 * 1024
+		d.Concurrency = runtime.NumCPU()
+	})
 
 	_, err = downloader.Download(ctx, file, &s3.GetObjectInput{
 		Bucket: aws.String(service.bucket),
