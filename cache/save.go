@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,7 +31,11 @@ type SaveCacheInput struct {
 	// This can be set to true if the cache key contains a checksum that changes when any of the cached files change.
 	// Example of such key: my-cache-key-{{ checksum "package-lock.json" }}
 	// Example where this is not true: my-cache-key-{{ .OS }}-{{ .Arch }}
-	IsKeyUnique bool
+	IsKeyUnique        bool
+	AWSBucket          string
+	AWSRegion          string
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
 }
 
 // Saver ...
@@ -44,6 +49,7 @@ type saveCacheConfig struct {
 	Paths          []string
 	APIBaseURL     stepconf.Secret
 	APIAccessToken stepconf.Secret
+	S3Cache        s3CacheConfig
 }
 
 type saver struct {
@@ -129,7 +135,14 @@ func (s *saver) Save(input SaveCacheInput) error {
 	s.logger.Println()
 	s.logger.Infof("Uploading archive...")
 	uploadStartTime := time.Now()
-	err = s.upload(archivePath, fileInfo.Size(), config)
+
+	switch {
+	case config.S3Cache.AWSBucket != "":
+		err = s.uploadToS3(archivePath, fileInfo.Size(), archiveChecksum, config)
+	default:
+		err = s.upload(archivePath, fileInfo.Size(), config)
+	}
+
 	if err != nil {
 		return fmt.Errorf("cache upload failed: %w", err)
 	}
@@ -167,12 +180,23 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 		return saveCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
 
+	var s3Config s3CacheConfig
+	if input.AWSBucket != "" {
+		s3Config = s3CacheConfig{
+			AWSBucket:          input.AWSBucket,
+			AWSRegion:          input.AWSRegion,
+			AWSAcessKeyID:      stepconf.Secret(input.AWSAccessKeyID),
+			AWSSecretAccessKey: stepconf.Secret(input.AWSSecretAccessKey),
+		}
+	}
+
 	return saveCacheConfig{
 		Verbose:        input.Verbose,
 		Key:            evaluatedKey,
 		Paths:          finalPaths,
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
+		S3Cache:        s3Config,
 	}, nil
 }
 
@@ -269,4 +293,18 @@ func (s *saver) upload(archivePath string, archiveSize int64, config saveCacheCo
 		CacheKey:    config.Key,
 	}
 	return network.Upload(params, s.logger)
+}
+
+func (s *saver) uploadToS3(archivePath string, archiveSize int64, archiveChecksum string, config saveCacheConfig) error {
+	params := network.S3UploadParams{
+		ArchivePath:     archivePath,
+		ArchiveSize:     archiveSize,
+		ArchiveChecksum: archiveChecksum,
+		CacheKey:        config.Key,
+		Bucket:          config.S3Cache.AWSBucket,
+		Region:          config.S3Cache.AWSRegion,
+		AccessKeyID:     string(config.S3Cache.AWSAcessKeyID),
+		SecretAccessKey: string(config.S3Cache.AWSSecretAccessKey),
+	}
+	return network.UploadToS3(context.Background(), params, s.logger)
 }

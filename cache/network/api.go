@@ -182,11 +182,12 @@ func (c apiClient) acknowledgeUpload(uploadID string) (acknowledgeResponse, erro
 }
 
 func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
-	keysInQuery, err := validateKeys(cacheKeys)
+	truncatedKeys, err := validateKeys(cacheKeys)
 	if err != nil {
 		return restoreResponse{}, err
 	}
-	apiURL := fmt.Sprintf("%s/restore?cache_keys=%s", c.baseURL, keysInQuery)
+
+	apiURL := fmt.Sprintf("%s/restore?cache_keys=%s", c.baseURL, escapeKey(truncatedKeys))
 
 	req, err := retryablehttp.NewRequest(http.MethodGet, apiURL, nil)
 	if err != nil {
@@ -229,14 +230,14 @@ func unwrapError(resp *http.Response) error {
 	return fmt.Errorf("HTTP %d: %s", resp.StatusCode, errorResp)
 }
 
-func validateKeys(keys []string) (string, error) {
+func validateKeys(keys []string) ([]string, error) {
 	if len(keys) > maxKeyCount {
-		return "", fmt.Errorf("maximum number of keys is %d, %d provided", maxKeyCount, len(keys))
+		return nil, fmt.Errorf("maximum number of keys is %d, %d provided", maxKeyCount, len(keys))
 	}
 	truncatedKeys := make([]string, 0, len(keys))
 	for _, key := range keys {
 		if strings.Contains(key, ",") {
-			return "", fmt.Errorf("commas are not allowed in keys (invalid key: %s)", key)
+			return nil, fmt.Errorf("commas are not allowed in keys (invalid key: %s)", key)
 		}
 		if len(key) > maxKeyLength {
 			truncatedKeys = append(truncatedKeys, key[:maxKeyLength])
@@ -245,5 +246,9 @@ func validateKeys(keys []string) (string, error) {
 		}
 	}
 
-	return url.QueryEscape(strings.Join(truncatedKeys, ",")), nil
+	return truncatedKeys, nil
+}
+
+func escapeKey(keys []string) string {
+	return url.QueryEscape(strings.Join(keys, ","))
 }
