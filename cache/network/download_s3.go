@@ -140,7 +140,7 @@ func (service *s3DownloadService) getObject(ctx context.Context, key string) err
 	if err != nil {
 		return fmt.Errorf("creating file: %w", err)
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck
 
 	downloader := manager.NewDownloader(service.client, func(d *manager.Downloader) {
 		// 50MB
