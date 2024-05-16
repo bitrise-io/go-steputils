@@ -211,8 +211,9 @@ func (a *Archiver) compressWithBinary(archivePath string, includePaths []string)
 
 	a.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
 
-	_, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
+		a.logger.Printf("Output: %s", out)
 		return err
 	}
 
@@ -305,8 +306,9 @@ func (a *Archiver) decompressWithBinary(archivePath string, destinationDirectory
 	cmd := commandFactory.Create("tar", decompressTarArgs, nil)
 	a.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
 
-	_, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
+		a.logger.Printf("Output: %s", out)
 		return err
 	}
 
