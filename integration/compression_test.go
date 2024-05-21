@@ -6,7 +6,6 @@ package integration
 import (
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,36 +15,60 @@ import (
 )
 
 func Test_compression(t *testing.T) {
-	havingZstdMock := &compression.ArchiveDependencyCheckerMock{
-		CheckDependenciesFunc: func() bool {
-			return true
+	t.Parallel()
+
+	testCases := []struct {
+		name             string
+		zstdFound        bool
+		compressionLevel int
+	}{
+		{
+			name:             "zstd installed=true",
+			zstdFound:        true,
+			compressionLevel: 3,
+		},
+		{
+			name:             "zstd installed=false",
+			zstdFound:        false,
+			compressionLevel: 3,
+		},
+		{
+			name:             "compression_level=19",
+			zstdFound:        true,
+			compressionLevel: 19,
+		},
+		{
+			name:             "compression_level=19",
+			zstdFound:        true,
+			compressionLevel: 1,
 		},
 	}
-	notHavingZstdMock := &compression.ArchiveDependencyCheckerMock{
-		CheckDependenciesFunc: func() bool {
-			return false
-		},
-	}
-	zstdCheckerMocks := []*compression.ArchiveDependencyCheckerMock{havingZstdMock, notHavingZstdMock}
 
-	// Given
-	archivePath := filepath.Join(t.TempDir(), "compression_test.tzst")
-	logger := log.NewLogger()
-	logger.EnableDebugLog(true)
-	envRepo := fakeEnvRepo{envVars: map[string]string{
-		"BITRISE_SOURCE_DIR": ".",
-	}}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	for _, zstdCheckerkMock := range zstdCheckerMocks {
-		testCaseName := fmt.Sprintf("Compression with zstd - having zstd installed: %s", strconv.FormatBool(zstdCheckerkMock.CheckDependencies()))
-		t.Run(testCaseName, func(t *testing.T) {
+			// Given
+			checkerMock := &compression.ArchiveDependencyCheckerMock{
+				CheckDependenciesFunc: func() bool {
+					return tc.zstdFound
+				},
+			}
+
+			archivePath := filepath.Join(t.TempDir(),
+				fmt.Sprintf("compression_test_%t.tzst", checkerMock.CheckDependencies()))
+			logger := log.NewLogger()
+			envRepo := fakeEnvRepo{envVars: map[string]string{
+				"BITRISE_SOURCE_DIR": ".",
+			}}
+
 			// When
 			archiver := compression.NewArchiver(
 				logger,
 				envRepo,
-				zstdCheckerkMock)
+				checkerMock)
 
-			err := archiver.Compress(archivePath, []string{"testdata/subfolder"}, 1)
+			err := archiver.Compress(archivePath, []string{"testdata/subfolder"}, tc.compressionLevel)
 			if err != nil {
 				t.Errorf(err.Error())
 			}
