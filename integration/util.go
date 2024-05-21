@@ -6,6 +6,7 @@ package integration
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -26,10 +27,10 @@ func checksumOf(bytes []byte) string {
 func listArchiveContents(path string) ([]string, error) {
 	output, err := command.NewFactory(env.NewRepository()).
 		Create("tar", []string{"-tf", path}, nil).
-		RunAndReturnTrimmedOutput()
+		RunAndReturnTrimmedCombinedOutput()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list archive contents, out: %s, error: %w", out, err)
 	}
 
 	contentList := strings.Split(output, "\n")
