@@ -30,7 +30,7 @@ func listArchiveContents(path string) ([]string, error) {
 		RunAndReturnTrimmedCombinedOutput()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list archive contents, out: %s, error: %w", out, err)
+		return nil, fmt.Errorf("failed to list archive contents, out: %s, error: %w", output, err)
 	}
 
 	contentList := strings.Split(output, "\n")
