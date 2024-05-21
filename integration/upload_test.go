@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -34,8 +35,9 @@ func TestUpload(t *testing.T) {
 
 	logger.EnableDebugLog(true)
 
+	uploader := network.DefaultUploader{}
 	// When
-	err := network.Upload(params, logger)
+	err := uploader.Upload(context.Background(), params, logger)
 
 	// Then
 	assert.NoError(t, err)
