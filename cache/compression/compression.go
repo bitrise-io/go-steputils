@@ -214,9 +214,8 @@ func (a *Archiver) compressWithBinary(archivePath string, includePaths []string,
 	a.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
 
 	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
-	a.logger.Debugf("Output: %s", out)
 	if err != nil {
-		//a.logger.Printf("Output: %s", out)
+		a.logger.Printf("Output: %s", out)
 		return err
 	}
 
