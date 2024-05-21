@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,6 +53,7 @@ type saver struct {
 	pathProvider pathutil.PathProvider
 	pathModifier pathutil.PathModifier
 	pathChecker  pathutil.PathChecker
+	uploader     network.Uploader
 }
 
 // NewSaver ...
@@ -61,13 +63,19 @@ func NewSaver(
 	pathProvider pathutil.PathProvider,
 	pathModifier pathutil.PathModifier,
 	pathChecker pathutil.PathChecker,
+	uploader network.Uploader,
 ) *saver {
+	var uploaderImpl network.Uploader
+	if uploader == nil {
+		uploaderImpl = network.DefaultUploader{}
+	}
 	return &saver{
 		envRepo:      envRepo,
 		logger:       logger,
 		pathProvider: pathProvider,
 		pathModifier: pathModifier,
 		pathChecker:  pathChecker,
+		uploader:     uploaderImpl,
 	}
 }
 
@@ -268,5 +276,5 @@ func (s *saver) upload(archivePath string, archiveSize int64, config saveCacheCo
 		ArchiveSize: archiveSize,
 		CacheKey:    config.Key,
 	}
-	return network.Upload(params, s.logger)
+	return s.uploader.Upload(context.Background(), params, s.logger)
 }

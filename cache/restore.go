@@ -45,6 +45,7 @@ type restorer struct {
 	envRepo    env.Repository
 	logger     log.Logger
 	cmdFactory command.Factory
+	downloader network.Downloader
 }
 
 type downloadResult struct {
@@ -53,8 +54,18 @@ type downloadResult struct {
 }
 
 // NewRestorer ...
-func NewRestorer(envRepo env.Repository, logger log.Logger, cmdFactory command.Factory) *restorer {
-	return &restorer{envRepo: envRepo, logger: logger, cmdFactory: cmdFactory}
+func NewRestorer(
+	envRepo env.Repository,
+	logger log.Logger,
+	cmdFactory command.Factory,
+	downloader network.Downloader,
+) *restorer {
+	var downloaderImpl network.Downloader
+	if downloader == nil {
+		downloaderImpl = network.DefaultDownloader{}
+	}
+
+	return &restorer{envRepo: envRepo, logger: logger, cmdFactory: cmdFactory, downloader: downloaderImpl}
 }
 
 // Restore ...
@@ -180,7 +191,7 @@ func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (dow
 		DownloadPath:   downloadPath,
 		NumFullRetries: config.NumFullRetries,
 	}
-	matchedKey, err := network.Download(ctx, params, r.logger)
+	matchedKey, err := r.downloader.Download(ctx, params, r.logger)
 	if err != nil {
 		return downloadResult{}, err
 	}
