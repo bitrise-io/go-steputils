@@ -108,7 +108,7 @@ func (a *Archiver) compressWithGoLib(archivePath string, includePaths []string) 
 	var buf bytes.Buffer
 
 	for _, p := range includePaths {
-		zstdWriter, err := zstd.NewWriter(&buf)
+		zstdWriter, err := zstd.NewWriter(&buf, zstd.WithEncoderLevel(zstd.SpeedFastest))
 		if err != nil {
 			return fmt.Errorf("create zstd writer: %w", err)
 		}
@@ -200,7 +200,7 @@ func (a *Archiver) compressWithBinary(archivePath string, includePaths []string)
 		-f: Output file
 	*/
 	tarArgs := []string{
-		"--use-compress-program", "zstd --threads=0", // Use CPU count threads
+		"--use-compress-program", "zstd --fast --threads=0", // Use CPU count threads
 		"-P",
 		"-c",
 		"-f", archivePath,
