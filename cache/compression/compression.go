@@ -2,7 +2,6 @@ package compression
 
 import (
 	"archive/tar"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -105,17 +104,20 @@ func (a *Archiver) Decompress(archivePath string, destinationDirectory string) e
 }
 
 func (a *Archiver) compressWithGoLib(archivePath string, includePaths []string, compressionlevel int) error {
-	var buf bytes.Buffer
+	fileToWrite, err := os.OpenFile(archivePath, os.O_CREATE|os.O_WRONLY, 0777)
+	if err != nil {
+		return fmt.Errorf("create archive file: %w", err)
+	}
+
+	opts := []zstd.EOption{zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(compressionlevel))}
+
+	zstdWriter, err := zstd.NewWriter(fileToWrite, opts...)
+	if err != nil {
+		return fmt.Errorf("create zstd writer: %w", err)
+	}
+	tw := tar.NewWriter(zstdWriter)
 
 	for _, p := range includePaths {
-		opts := zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(compressionlevel))
-
-		zstdWriter, err := zstd.NewWriter(&buf, opts)
-		if err != nil {
-			return fmt.Errorf("create zstd writer: %w", err)
-		}
-		tw := tar.NewWriter(zstdWriter)
-
 		path := filepath.Clean(p)
 		// walk through every file in the folder
 		if err := filepath.Walk(path, func(file string, fi os.FileInfo, e error) error {
@@ -164,28 +166,19 @@ func (a *Archiver) compressWithGoLib(archivePath string, includePaths []string, 
 		}); err != nil {
 			return fmt.Errorf("iterate on files: %w", err)
 		}
-
-		// produce tar
-		if err := tw.Close(); err != nil {
-			return fmt.Errorf("close tar writer: %w", err)
-		}
-		// produce zstd
-		if err := zstdWriter.Close(); err != nil {
-			return fmt.Errorf("close zstd writer: %w", err)
-		}
 	}
 
-	// write the archive file
-	fileToWrite, err := os.OpenFile(archivePath, os.O_CREATE|os.O_RDWR, 0777)
-	if err != nil {
-		return fmt.Errorf("create archive file: %w", err)
+	if err := zstdWriter.Close(); err != nil {
+		return fmt.Errorf("close zstd writer: %w", err)
 	}
-	if _, err := io.Copy(fileToWrite, &buf); err != nil {
-		return fmt.Errorf("write arhive file: %w", err)
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("close tar writer: %w", err)
 	}
 	if err := fileToWrite.Close(); err != nil {
 		return fmt.Errorf("close archive file: %w", err)
 	}
+
+	a.logger.Debugf("Compressed archive created at %s", archivePath)
 
 	return nil
 }
@@ -221,8 +214,9 @@ func (a *Archiver) compressWithBinary(archivePath string, includePaths []string,
 	a.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
 
 	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	a.logger.Debugf("Output: %s", out)
 	if err != nil {
-		a.logger.Printf("Output: %s", out)
+		//a.logger.Printf("Output: %s", out)
 		return err
 	}
 

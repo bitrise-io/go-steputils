@@ -31,6 +31,7 @@ func Test_compression(t *testing.T) {
 	// Given
 	archivePath := filepath.Join(t.TempDir(), "compression_test.tzst")
 	logger := log.NewLogger()
+	logger.EnableDebugLog(true)
 	envRepo := fakeEnvRepo{envVars: map[string]string{
 		"BITRISE_SOURCE_DIR": ".",
 	}}
