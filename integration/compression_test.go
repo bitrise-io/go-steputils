@@ -44,7 +44,7 @@ func Test_compression(t *testing.T) {
 				envRepo,
 				zstdCheckerkMock)
 
-			err := archiver.Compress(archivePath, []string{"testdata/subfolder"})
+			err := archiver.Compress(archivePath, []string{"testdata/subfolder"}, 1)
 			if err != nil {
 				t.Errorf(err.Error())
 			}
