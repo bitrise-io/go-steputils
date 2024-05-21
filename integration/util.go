@@ -26,7 +26,7 @@ func checksumOf(bytes []byte) string {
 
 func listArchiveContents(path string) ([]string, error) {
 	output, err := command.NewFactory(env.NewRepository()).
-		Create("tar", []string{"-tf", path}, nil).
+		Create("tar", []string{"-tfv", path}, nil).
 		RunAndReturnTrimmedCombinedOutput()
 
 	if err != nil {
