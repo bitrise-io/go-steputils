@@ -15,11 +15,12 @@ type DefaultUploader struct{}
 
 // UploadParams ...
 type UploadParams struct {
-	APIBaseURL  string
-	Token       string
-	ArchivePath string
-	ArchiveSize int64
-	CacheKey    string
+	APIBaseURL      string
+	Token           string
+	ArchivePath     string
+	ArchiveChecksum string
+	ArchiveSize     int64
+	CacheKey        string
 }
 
 // Upload a cache archive and associate it with the provided cache key

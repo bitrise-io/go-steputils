@@ -137,7 +137,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 	s.logger.Println()
 	s.logger.Infof("Uploading archive...")
 	uploadStartTime := time.Now()
-	err = s.upload(archivePath, fileInfo.Size(), config)
+	err = s.upload(archivePath, fileInfo.Size(), archiveChecksum, config)
 	if err != nil {
 		return fmt.Errorf("cache upload failed: %w", err)
 	}
@@ -268,13 +268,14 @@ func (s *saver) compress(paths []string) (string, error) {
 	return archivePath, nil
 }
 
-func (s *saver) upload(archivePath string, archiveSize int64, config saveCacheConfig) error {
+func (s *saver) upload(archivePath string, archiveSize int64, archiveChecksum string, config saveCacheConfig) error {
 	params := network.UploadParams{
-		APIBaseURL:  string(config.APIBaseURL),
-		Token:       string(config.APIAccessToken),
-		ArchivePath: archivePath,
-		ArchiveSize: archiveSize,
-		CacheKey:    config.Key,
+		APIBaseURL:      string(config.APIBaseURL),
+		Token:           string(config.APIAccessToken),
+		ArchivePath:     archivePath,
+		ArchiveChecksum: archiveChecksum,
+		ArchiveSize:     archiveSize,
+		CacheKey:        config.Key,
 	}
 	return s.uploader.Upload(context.Background(), params, s.logger)
 }
