@@ -65,7 +65,7 @@ func NewSaver(
 	pathChecker pathutil.PathChecker,
 	uploader network.Uploader,
 ) *saver {
-	var uploaderImpl network.Uploader
+	var uploaderImpl network.Uploader = uploader
 	if uploader == nil {
 		uploaderImpl = network.DefaultUploader{}
 	}

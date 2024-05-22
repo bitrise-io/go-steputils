@@ -60,7 +60,7 @@ func NewRestorer(
 	cmdFactory command.Factory,
 	downloader network.Downloader,
 ) *restorer {
-	var downloaderImpl network.Downloader
+	var downloaderImpl network.Downloader = downloader
 	if downloader == nil {
 		downloaderImpl = network.DefaultDownloader{}
 	}
