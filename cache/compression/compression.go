@@ -2,7 +2,6 @@ package compression
 
 import (
 	"archive/tar"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -68,19 +67,19 @@ func NewArchiver(logger log.Logger, envRepo env.Repository, archiveDependencyChe
 }
 
 // Compress creates a compressed archive from the provided files and folders using absolute paths.
-func (a *Archiver) Compress(archivePath string, includePaths []string) error {
+func (a *Archiver) Compress(archivePath string, includePaths []string, compressionLevel int) error {
 	haveZstdAndTar := a.archiveDependencyChecker.CheckDependencies()
 
 	if !haveZstdAndTar {
 		a.logger.Infof("Falling back to native implementation of zstd.")
-		if err := a.compressWithGoLib(archivePath, includePaths); err != nil {
+		if err := a.compressWithGoLib(archivePath, includePaths, compressionLevel); err != nil {
 			return fmt.Errorf("compress files: %w", err)
 		}
 		return nil
 	}
 
 	a.logger.Infof("Using installed zstd binary")
-	if err := a.compressWithBinary(archivePath, includePaths); err != nil {
+	if err := a.compressWithBinary(archivePath, includePaths, compressionLevel); err != nil {
 		return fmt.Errorf("compress files: %w", err)
 	}
 	return nil
@@ -104,16 +103,21 @@ func (a *Archiver) Decompress(archivePath string, destinationDirectory string) e
 	return nil
 }
 
-func (a *Archiver) compressWithGoLib(archivePath string, includePaths []string) error {
-	var buf bytes.Buffer
+func (a *Archiver) compressWithGoLib(archivePath string, includePaths []string, compressionlevel int) error {
+	fileToWrite, err := os.OpenFile(archivePath, os.O_CREATE|os.O_WRONLY, 0777)
+	if err != nil {
+		return fmt.Errorf("create archive file: %w", err)
+	}
+
+	opts := []zstd.EOption{zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(compressionlevel))}
+
+	zstdWriter, err := zstd.NewWriter(fileToWrite, opts...)
+	if err != nil {
+		return fmt.Errorf("create zstd writer: %w", err)
+	}
+	tw := tar.NewWriter(zstdWriter)
 
 	for _, p := range includePaths {
-		zstdWriter, err := zstd.NewWriter(&buf)
-		if err != nil {
-			return fmt.Errorf("create zstd writer: %w", err)
-		}
-		tw := tar.NewWriter(zstdWriter)
-
 		path := filepath.Clean(p)
 		// walk through every file in the folder
 		if err := filepath.Walk(path, func(file string, fi os.FileInfo, e error) error {
@@ -162,45 +166,43 @@ func (a *Archiver) compressWithGoLib(archivePath string, includePaths []string) 
 		}); err != nil {
 			return fmt.Errorf("iterate on files: %w", err)
 		}
-
-		// produce tar
-		if err := tw.Close(); err != nil {
-			return fmt.Errorf("close tar writer: %w", err)
-		}
-		// produce zstd
-		if err := zstdWriter.Close(); err != nil {
-			return fmt.Errorf("close zstd writer: %w", err)
-		}
 	}
 
-	// write the archive file
-	fileToWrite, err := os.OpenFile(archivePath, os.O_CREATE|os.O_RDWR, 0777)
-	if err != nil {
-		return fmt.Errorf("create archive file: %w", err)
+	if err := zstdWriter.Close(); err != nil {
+		return fmt.Errorf("close zstd writer: %w", err)
 	}
-	if _, err := io.Copy(fileToWrite, &buf); err != nil {
-		return fmt.Errorf("write arhive file: %w", err)
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("close tar writer: %w", err)
 	}
 	if err := fileToWrite.Close(); err != nil {
 		return fmt.Errorf("close archive file: %w", err)
 	}
 
+	a.logger.Debugf("Compressed archive created at %s", archivePath)
+
 	return nil
 }
 
-func (a *Archiver) compressWithBinary(archivePath string, includePaths []string) error {
+func (a *Archiver) compressWithBinary(archivePath string, includePaths []string, compressionLevel int) error {
 	cmdFactory := command.NewFactory(a.envRepo)
 
 	/*
 		tar arguments:
 		--use-compress-program: Pipe the output to zstd instead of using the built-in gzip compression
+			--threads:0 Use CPU count threads
+			-[level]: compression level (1-19, default 3). Also use --fast if compression level is 1.
 		-P: Alias for --absolute-paths in BSD tar and --absolute-names in GNU tar (step runs on both Linux and macOS)
 			Storing absolute paths in the archive allows paths outside the current directory (such as ~/.gradle)
 		-c: Create archive
 		-f: Output file
 	*/
+	zstdArgs := fmt.Sprintf("zstd --threads=0 -%d", compressionLevel)
+	if compressionLevel == 1 {
+		zstdArgs += " --fast"
+	}
+
 	tarArgs := []string{
-		"--use-compress-program", "zstd --threads=0", // Use CPU count threads
+		"--use-compress-program", zstdArgs,
 		"-P",
 		"-c",
 		"-f", archivePath,
