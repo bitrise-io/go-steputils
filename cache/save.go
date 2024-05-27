@@ -60,7 +60,7 @@ type saver struct {
 	uploader     network.Uploader
 }
 
-// NewSaver ...
+// NewSaver creates a new cache saver instance. `uploader` can be nil, unless you want to provide a custom `Uploader` implementation.
 func NewSaver(
 	envRepo env.Repository,
 	logger log.Logger,
