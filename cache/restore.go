@@ -53,7 +53,7 @@ type downloadResult struct {
 	matchedKey string
 }
 
-// NewRestorer ...
+// NewRestorer creates a new cache restorer instance. `downloader` can be nil, unless you want to provide a custom `Downloader` implementation.
 func NewRestorer(
 	envRepo env.Repository,
 	logger log.Logger,
