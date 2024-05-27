@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -56,22 +57,29 @@ type saver struct {
 	pathProvider pathutil.PathProvider
 	pathModifier pathutil.PathModifier
 	pathChecker  pathutil.PathChecker
+	uploader     network.Uploader
 }
 
-// NewSaver ...
+// NewSaver creates a new cache saver instance. `uploader` can be nil, unless you want to provide a custom `Uploader` implementation.
 func NewSaver(
 	envRepo env.Repository,
 	logger log.Logger,
 	pathProvider pathutil.PathProvider,
 	pathModifier pathutil.PathModifier,
 	pathChecker pathutil.PathChecker,
+	uploader network.Uploader,
 ) *saver {
+	var uploaderImpl network.Uploader = uploader
+	if uploader == nil {
+		uploaderImpl = network.DefaultUploader{}
+	}
 	return &saver{
 		envRepo:      envRepo,
 		logger:       logger,
 		pathProvider: pathProvider,
 		pathModifier: pathModifier,
 		pathChecker:  pathChecker,
+		uploader:     uploaderImpl,
 	}
 }
 
@@ -133,7 +141,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 	s.logger.Println()
 	s.logger.Infof("Uploading archive...")
 	uploadStartTime := time.Now()
-	err = s.upload(archivePath, fileInfo.Size(), config)
+	err = s.upload(archivePath, fileInfo.Size(), archiveChecksum, config)
 	if err != nil {
 		return fmt.Errorf("cache upload failed: %w", err)
 	}
@@ -272,13 +280,14 @@ func (s *saver) compress(paths []string, compressionLevel int) (string, error) {
 	return archivePath, nil
 }
 
-func (s *saver) upload(archivePath string, archiveSize int64, config saveCacheConfig) error {
+func (s *saver) upload(archivePath string, archiveSize int64, archiveChecksum string, config saveCacheConfig) error {
 	params := network.UploadParams{
-		APIBaseURL:  string(config.APIBaseURL),
-		Token:       string(config.APIAccessToken),
-		ArchivePath: archivePath,
-		ArchiveSize: archiveSize,
-		CacheKey:    config.Key,
+		APIBaseURL:      string(config.APIBaseURL),
+		Token:           string(config.APIAccessToken),
+		ArchivePath:     archivePath,
+		ArchiveChecksum: archiveChecksum,
+		ArchiveSize:     archiveSize,
+		CacheKey:        config.Key,
 	}
-	return network.Upload(params, s.logger)
+	return s.uploader.Upload(context.Background(), params, s.logger)
 }

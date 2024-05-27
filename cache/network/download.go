@@ -14,6 +14,9 @@ import (
 	"github.com/melbahja/got"
 )
 
+// DefaultDownloader ...
+type DefaultDownloader struct{}
+
 // DownloadParams ...
 type DownloadParams struct {
 	APIBaseURL     string
@@ -28,7 +31,7 @@ var ErrCacheNotFound = errors.New("no cache archive found for the provided keys"
 
 // Download archive from the cache API based on the provided keys in params.
 // If there is no match for any of the keys, the error is ErrCacheNotFound.
-func Download(ctx context.Context, params DownloadParams, logger log.Logger) (string, error) {
+func (d DefaultDownloader) Download(ctx context.Context, params DownloadParams, logger log.Logger) (string, error) {
 	retryableHTTPClient := retryhttp.NewClient(logger)
 	return downloadWithClient(ctx, retryableHTTPClient, params, logger)
 }

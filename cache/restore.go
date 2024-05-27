@@ -45,6 +45,7 @@ type restorer struct {
 	envRepo    env.Repository
 	logger     log.Logger
 	cmdFactory command.Factory
+	downloader network.Downloader
 }
 
 type downloadResult struct {
@@ -52,9 +53,19 @@ type downloadResult struct {
 	matchedKey string
 }
 
-// NewRestorer ...
-func NewRestorer(envRepo env.Repository, logger log.Logger, cmdFactory command.Factory) *restorer {
-	return &restorer{envRepo: envRepo, logger: logger, cmdFactory: cmdFactory}
+// NewRestorer creates a new cache restorer instance. `downloader` can be nil, unless you want to provide a custom `Downloader` implementation.
+func NewRestorer(
+	envRepo env.Repository,
+	logger log.Logger,
+	cmdFactory command.Factory,
+	downloader network.Downloader,
+) *restorer {
+	var downloaderImpl network.Downloader = downloader
+	if downloader == nil {
+		downloaderImpl = network.DefaultDownloader{}
+	}
+
+	return &restorer{envRepo: envRepo, logger: logger, cmdFactory: cmdFactory, downloader: downloaderImpl}
 }
 
 // Restore ...
@@ -180,7 +191,7 @@ func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (dow
 		DownloadPath:   downloadPath,
 		NumFullRetries: config.NumFullRetries,
 	}
-	matchedKey, err := network.Download(ctx, params, r.logger)
+	matchedKey, err := r.downloader.Download(ctx, params, r.logger)
 	if err != nil {
 		return downloadResult{}, err
 	}

@@ -44,7 +44,8 @@ func TestSuccessfulDownload(t *testing.T) {
 		DownloadPath: downloadPath,
 	}
 	logger.EnableDebugLog(true)
-	matchedKey, err := network.Download(context.Background(), params, logger)
+	downloader := network.DefaultDownloader{}
+	matchedKey, err := downloader.Download(context.Background(), params, logger)
 
 	// Then
 	if err != nil {
@@ -83,7 +84,8 @@ func TestNotFoundDownload(t *testing.T) {
 		DownloadPath: downloadPath,
 	}
 	logger.EnableDebugLog(true)
-	matchedKey, err := network.Download(context.Background(), params, logger)
+	downloader := network.DefaultDownloader{}
+	matchedKey, err := downloader.Download(context.Background(), params, logger)
 
 	// Then
 	assert.Equal(t, "", matchedKey)
@@ -105,7 +107,8 @@ func uploadArchive(cacheKey, path, baseURL, token string) error {
 	}
 	logger := log.NewLogger()
 	logger.EnableDebugLog(true)
-	err = network.Upload(params, logger)
+	uploader := network.DefaultUploader{}
+	err = uploader.Upload(context.Background(), params, logger)
 	if err != nil {
 		return err
 	}

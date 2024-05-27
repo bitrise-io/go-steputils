@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -9,17 +10,21 @@ import (
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
 )
 
+// DefaultUploader ...
+type DefaultUploader struct{}
+
 // UploadParams ...
 type UploadParams struct {
-	APIBaseURL  string
-	Token       string
-	ArchivePath string
-	ArchiveSize int64
-	CacheKey    string
+	APIBaseURL      string
+	Token           string
+	ArchivePath     string
+	ArchiveChecksum string
+	ArchiveSize     int64
+	CacheKey        string
 }
 
 // Upload a cache archive and associate it with the provided cache key
-func Upload(params UploadParams, logger log.Logger) error {
+func (u DefaultUploader) Upload(ctx context.Context, params UploadParams, logger log.Logger) error {
 	validatedKey, err := validateKey(params.CacheKey, logger)
 	if err != nil {
 		return err
