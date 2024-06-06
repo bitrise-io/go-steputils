@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/bitrise-io/go-steputils/v2/cache/compression"
@@ -39,6 +40,7 @@ type restoreCacheConfig struct {
 	APIBaseURL     stepconf.Secret
 	APIAccessToken stepconf.Secret
 	NumFullRetries int
+	MaxConcurrency uint
 }
 
 type restorer struct {
@@ -140,6 +142,17 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 		return restoreCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
 
+	maxConcurrency := uint(0)
+	maxConcurrencyStr := r.envRepo.Get("BITRISEIO_DEPENDENCY_CACHE_MAX_CONCURRENCY")
+	if maxConcurrencyStr != "" {
+		parsedConcurrency, err := strconv.ParseUint(maxConcurrencyStr, 10, 32)
+		if err != nil {
+			r.logger.Warnf("Failed to parse BITRISEIO_DEPENDENCY_CACHE_MAX_CONCURRENCY: %s", err)
+		}
+
+		maxConcurrency = uint(parsedConcurrency)
+	}
+
 	keys, err := r.evaluateKeys(input.Keys)
 	if err != nil {
 		return restoreCacheConfig{}, fmt.Errorf("failed to evaluate keys: %w", err)
@@ -151,6 +164,7 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 		APIBaseURL:     stepconf.Secret(apiBaseURL),
 		APIAccessToken: stepconf.Secret(apiAccessToken),
 		NumFullRetries: input.NumFullRetries,
+		MaxConcurrency: maxConcurrency,
 	}, nil
 }
 
@@ -190,6 +204,7 @@ func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (dow
 		CacheKeys:      config.Keys,
 		DownloadPath:   downloadPath,
 		NumFullRetries: config.NumFullRetries,
+		MaxConcurrency: config.MaxConcurrency,
 	}
 	matchedKey, err := r.downloader.Download(ctx, params, r.logger)
 	if err != nil {
