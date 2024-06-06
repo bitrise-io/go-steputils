@@ -24,6 +24,7 @@ type DownloadParams struct {
 	CacheKeys      []string
 	DownloadPath   string
 	NumFullRetries int
+	MaxConcurrency uint
 }
 
 // ErrCacheNotFound ...
@@ -33,6 +34,8 @@ var ErrCacheNotFound = errors.New("no cache archive found for the provided keys"
 // If there is no match for any of the keys, the error is ErrCacheNotFound.
 func (d DefaultDownloader) Download(ctx context.Context, params DownloadParams, logger log.Logger) (string, error) {
 	retryableHTTPClient := retryhttp.NewClient(logger)
+	retryableHTTPClient.HTTPClient.Transport.(*http.Transport).MaxIdleConns = 10
+
 	return downloadWithClient(ctx, retryableHTTPClient, params, logger)
 }
 
@@ -69,7 +72,7 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 		}
 
 		logger.Debugf("Downloading archive...")
-		downloadErr := downloadFile(ctx, httpClient.StandardClient(), restoreResponse.URL, params.DownloadPath)
+		downloadErr := downloadFile(ctx, httpClient.StandardClient(), restoreResponse.URL, params.DownloadPath, params.MaxConcurrency)
 		if downloadErr != nil {
 			logger.Debugf("Failed to download archive: %s", downloadErr)
 			return fmt.Errorf("failed to download archive: %w", downloadErr), false
@@ -82,7 +85,7 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 	return matchedKey, err
 }
 
-func downloadFile(ctx context.Context, client *http.Client, url string, dest string) error {
+func downloadFile(ctx context.Context, client *http.Client, url string, dest string, maxConcurrency uint) error {
 	downloader := got.New()
 	downloader.Client = client
 
@@ -91,6 +94,7 @@ func downloadFile(ctx context.Context, client *http.Client, url string, dest str
 	// as depending on how downloader is called
 	// either the Client from the downloader or from the Download will be used.
 	gDownload.Client = client
+	gDownload.Concurrency = maxConcurrency
 
 	err := downloader.Do(gDownload)
 
