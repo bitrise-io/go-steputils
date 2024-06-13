@@ -41,9 +41,10 @@ func Test_ProcessSaveConfig(t *testing.T) {
 		{
 			name: "Key with template",
 			input: SaveCacheInput{
-				Verbose: false,
-				Key:     `test-key-{{ getenv "INTEGRATION_TEST_ENV" }}`,
-				Paths:   []string{"/dev/null"},
+				Verbose:       false,
+				Key:           `test-key-{{ getenv "INTEGRATION_TEST_ENV" }}`,
+				Paths:         []string{"/dev/null"},
+				CustomTarArgs: []string{"--format", "posix"},
 			},
 			want: saveCacheConfig{
 				Verbose:          false,
@@ -52,6 +53,7 @@ func Test_ProcessSaveConfig(t *testing.T) {
 				APIBaseURL:       "fake cache service URL",
 				APIAccessToken:   "fake cache service access token",
 				CompressionLevel: 3,
+				CustomTarArgs:    []string{"--format", "posix"},
 			},
 			wantErr: false,
 		},

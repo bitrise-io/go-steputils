@@ -29,6 +29,9 @@ type SaveCacheInput struct {
 	// CompressionLevel is the zstd compression level used. Valid values are between 1 and 19.
 	// If not provided (0), the default value (3) will be used.
 	CompressionLevel int
+	// CustomTarArgs is a list of custom arguments to pass to the tar command. These are appended to the default arguments.
+	// Example: []string{"--format", "posix"}
+	CustomTarArgs []string
 	// IsKeyUnique indicates that the cache key is enough for knowing the cache archive is different from
 	// another cache archive.
 	// This can be set to true if the cache key contains a checksum that changes when any of the cached files change.
@@ -47,6 +50,7 @@ type saveCacheConfig struct {
 	Key              string
 	Paths            []string
 	CompressionLevel int
+	CustomTarArgs    []string
 	APIBaseURL       stepconf.Secret
 	APIAccessToken   stepconf.Secret
 }
@@ -109,7 +113,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 	s.logger.Println()
 	s.logger.Infof("Creating archive...")
 	compressionStartTime := time.Now()
-	archivePath, err := s.compress(config.Paths, config.CompressionLevel)
+	archivePath, err := s.compress(config.Paths, config.CompressionLevel, config.CustomTarArgs)
 	if err != nil {
 		return fmt.Errorf("compression failed: %s", err)
 	}
@@ -191,6 +195,7 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 		Key:              evaluatedKey,
 		Paths:            finalPaths,
 		CompressionLevel: input.CompressionLevel,
+		CustomTarArgs:    input.CustomTarArgs,
 		APIBaseURL:       stepconf.Secret(apiBaseURL),
 		APIAccessToken:   stepconf.Secret(apiAccessToken),
 	}, nil
@@ -254,7 +259,7 @@ func (s *saver) evaluateKey(keyTemplate string) (string, error) {
 	return model.Evaluate(keyTemplate)
 }
 
-func (s *saver) compress(paths []string, compressionLevel int) (string, error) {
+func (s *saver) compress(paths []string, compressionLevel int, customTarArgs []string) (string, error) {
 	if compression.AreAllPathsEmpty(paths) {
 		s.logger.Warnf("The provided paths are all empty, skipping compression and upload.")
 		os.Exit(0)
@@ -272,7 +277,7 @@ func (s *saver) compress(paths []string, compressionLevel int) (string, error) {
 		s.envRepo,
 		compression.NewDependencyChecker(s.logger, s.envRepo))
 
-	err = archiver.Compress(archivePath, paths, compressionLevel)
+	err = archiver.Compress(archivePath, paths, compressionLevel, customTarArgs)
 	if err != nil {
 		return "", err
 	}

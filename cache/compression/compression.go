@@ -67,7 +67,7 @@ func NewArchiver(logger log.Logger, envRepo env.Repository, archiveDependencyChe
 }
 
 // Compress creates a compressed archive from the provided files and folders using absolute paths.
-func (a *Archiver) Compress(archivePath string, includePaths []string, compressionLevel int) error {
+func (a *Archiver) Compress(archivePath string, includePaths []string, compressionLevel int, customTarArgs []string) error {
 	haveZstdAndTar := a.archiveDependencyChecker.CheckDependencies()
 
 	if !haveZstdAndTar {
@@ -79,7 +79,7 @@ func (a *Archiver) Compress(archivePath string, includePaths []string, compressi
 	}
 
 	a.logger.Infof("Using installed zstd binary")
-	if err := a.compressWithBinary(archivePath, includePaths, compressionLevel); err != nil {
+	if err := a.compressWithBinary(archivePath, includePaths, compressionLevel, customTarArgs); err != nil {
 		return fmt.Errorf("compress files: %w", err)
 	}
 	return nil
@@ -183,7 +183,7 @@ func (a *Archiver) compressWithGoLib(archivePath string, includePaths []string, 
 	return nil
 }
 
-func (a *Archiver) compressWithBinary(archivePath string, includePaths []string, compressionLevel int) error {
+func (a *Archiver) compressWithBinary(archivePath string, includePaths []string, compressionLevel int, customTarArgs []string) error {
 	cmdFactory := command.NewFactory(a.envRepo)
 
 	/*
@@ -207,6 +207,7 @@ func (a *Archiver) compressWithBinary(archivePath string, includePaths []string,
 		"-c",
 		"-f", archivePath,
 	}
+	tarArgs = append(tarArgs, customTarArgs...)
 	tarArgs = append(tarArgs, includePaths...)
 
 	cmd := cmdFactory.Create("tar", tarArgs, nil)
