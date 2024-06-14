@@ -21,6 +21,7 @@ func Test_compression(t *testing.T) {
 		name             string
 		zstdFound        bool
 		compressionLevel int
+		customTarArgs    []string
 	}{
 		{
 			name:             "zstd installed=true",
@@ -41,6 +42,12 @@ func Test_compression(t *testing.T) {
 			name:             "compression_level=19",
 			zstdFound:        true,
 			compressionLevel: 1,
+		},
+		{
+			name:             "custom arg: --format posix",
+			zstdFound:        true,
+			compressionLevel: 1,
+			customTarArgs:    []string{"--format", "posix"},
 		},
 	}
 
@@ -68,7 +75,7 @@ func Test_compression(t *testing.T) {
 				envRepo,
 				checkerMock)
 
-			err := archiver.Compress(archivePath, []string{"testdata/subfolder"}, tc.compressionLevel)
+			err := archiver.Compress(archivePath, []string{"testdata/subfolder"}, tc.compressionLevel, tc.customTarArgs)
 			if err != nil {
 				t.Errorf(err.Error())
 			}

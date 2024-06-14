@@ -56,6 +56,25 @@ func Test_ProcessSaveConfig(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Custom tar arguments",
+			input: SaveCacheInput{
+				Verbose:       false,
+				Key:           "cache-key",
+				Paths:         []string{"testdata/dummy_file.txt"},
+				CustomTarArgs: []string{"--format", "posix"},
+			},
+			want: saveCacheConfig{
+				Verbose:          false,
+				Key:              "cache-key",
+				Paths:            []string{filepath.Join(testdataAbsPath, "dummy_file.txt")},
+				APIBaseURL:       "fake cache service URL",
+				APIAccessToken:   "fake cache service access token",
+				CompressionLevel: 3,
+				CustomTarArgs:    []string{"--format", "posix"},
+			},
+			wantErr: false,
+		},
+		{
 			name: "Single file path",
 			input: SaveCacheInput{
 				Verbose: false,
