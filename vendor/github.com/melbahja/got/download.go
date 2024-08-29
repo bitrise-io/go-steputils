@@ -13,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bitrise-io/go-utils/retry"
 )
 
 type (
@@ -305,6 +307,8 @@ func (d *Download) dl(dest io.WriterAt, errC chan error) {
 		max = make(chan int, d.Concurrency)
 	)
 
+	var average, sum time.Duration
+	var n int
 	for i := 0; i < len(d.chunks); i++ {
 
 		max <- 1
@@ -313,10 +317,46 @@ func (d *Download) dl(dest io.WriterAt, errC chan error) {
 		go func(i int) {
 			defer wg.Done()
 
-			// Concurrently download and write chunk
-			if err := d.DownloadChunk(d.chunks[i], &OffsetWriter{dest, int64(d.chunks[i].Start)}); err != nil {
+			maxRetries := 2
+			err := retry.Times(uint(maxRetries)).Try(func(attempt uint) error {
+				// Concurrently download and write chunk
+				start := time.Now()
+
+				ctx, cancel := context.WithCancel(d.ctx)
+				defer cancel()
+
+				ticker := time.NewTicker(time.Second)
+				defer ticker.Stop()
+
+				go func() {
+					fmt.Printf("[DEBUG][CHUNK %d][ATTEMPT %d] start ticker", i, attempt)
+					if attempt == uint(maxRetries) {
+						fmt.Printf("[DEBUG][CHUNK %d][ATTEMPT %d] last try, no ticker usage", i, attempt)
+						return // never interrupt the last try
+					}
+					for range ticker.C {
+						if average > 0 && time.Since(start)-average > 30*time.Second {
+							fmt.Printf("[DEBUG][CHUNK %d][ATTEMPT %d] found outlier, canceling request", i, attempt)
+							cancel()
+							return
+						}
+					}
+					fmt.Printf("[DEBUG][CHUNK %d][ATTEMPT %d] stop ticker", i, attempt)
+				}()
+
+				if err := d.DownloadChunk(ctx, d.chunks[i], &OffsetWriter{dest, int64(d.chunks[i].Start)}); err != nil {
+					return err
+				}
+
+				took := time.Since(start)
+				sum += took
+				n++
+				average = sum / time.Duration(n)
+				fmt.Printf("[DEBUG][CHUNK %d][ATTEMPT %d] took=%v; average=%v; n=%v", i, attempt, took, average, n)
+				return nil
+			})
+			if err != nil {
 				errC <- err
-				return
 			}
 
 			<-max
@@ -348,7 +388,7 @@ func (d *Download) Path() string {
 }
 
 // DownloadChunk downloads a file chunk.
-func (d *Download) DownloadChunk(c *Chunk, dest io.Writer) error {
+func (d *Download) DownloadChunk(ctx context.Context, c *Chunk, dest io.Writer) error {
 
 	var (
 		err error
@@ -356,7 +396,7 @@ func (d *Download) DownloadChunk(c *Chunk, dest io.Writer) error {
 		res *http.Response
 	)
 
-	if req, err = NewRequest(d.ctx, "GET", d.URL, d.Header); err != nil {
+	if req, err = NewRequest(ctx, "GET", d.URL, d.Header); err != nil {
 		return err
 	}
 
