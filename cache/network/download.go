@@ -121,6 +121,7 @@ func downloadFile(ctx context.Context, httpClient *retryablehttp.Client, url str
 	// either the Client from the downloader or from the Download will be used.
 	gDownload.Client = httpClient.StandardClient()
 	gDownload.Concurrency = maxConcurrency
+	gDownload.Logger = logger
 
 	env = os.Getenv("BITRISEIO_DEPENDENCY_CACHE_MAX_RETRY_PER_CHUNK")
 	if val, err := strconv.Atoi(env); err == nil {
