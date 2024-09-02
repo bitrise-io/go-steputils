@@ -306,14 +306,20 @@ func (d *Download) IsRangeable() bool {
 type chunkStatistics struct {
 	sum       time.Duration
 	numChunks int
+	mu sync.Mutex
 }
 
 func (cs *chunkStatistics) update(d time.Duration) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	cs.sum += d
 	cs.numChunks++
 }
 
 func (cs *chunkStatistics) average() time.Duration {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
 	if cs.numChunks == 0 {
 		return 0
 	}
@@ -321,6 +327,9 @@ func (cs *chunkStatistics) average() time.Duration {
 }
 
 func (cs *chunkStatistics) String() string {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	
 	return fmt.Sprintf("[numChunks=%d][avg=%s]", cs.numChunks, cs.average().Round(time.Second))
 }
 

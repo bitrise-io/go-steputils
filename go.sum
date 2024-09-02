@@ -3,8 +3,8 @@ github.com/bitrise-io/go-utils v1.0.13 h1:1QENhTS/JlKH9F7+/nB+TtbTcor6jGrE6cQ4CJ
 github.com/bitrise-io/go-utils v1.0.13/go.mod h1:ZY1DI+fEpZuFpO9szgDeICM4QbqoWVt0RSY3tRI1heY=
 github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.23 h1:Dfh4nyZPuEtilBisidejqxBrkx9cWvbOUrpq8VEION0=
 github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.23/go.mod h1:3XUplo0dOWc3DqT2XA2SeHToDSg7+j1y1HTHibT2H68=
-github.com/bitrise-io/got v0.0.0-20240902092231-471b3c2fd0b6 h1:TBezuJpR7kyaifEXIyJCeVH8Cx1KoGDafpQVa7EkzRA=
-github.com/bitrise-io/got v0.0.0-20240902092231-471b3c2fd0b6/go.mod h1:uBBISwY9ylo62hC1MRHqGxH+VJGHwXR1VJ17QApnG14=
+github.com/bitrise-io/got v0.0.0-20240902094432-de386ad07c16 h1:MIHxOX0+rTcgzYGvtvDXiFJLGPxtWYEH9a+HC3swAM4=
+github.com/bitrise-io/got v0.0.0-20240902094432-de386ad07c16/go.mod h1:uBBISwY9ylo62hC1MRHqGxH+VJGHwXR1VJ17QApnG14=
 github.com/bmatcuk/doublestar/v4 v4.2.0 h1:Qu+u9wR3Vd89LnlLMHvnZ5coJMWKQamqdz9/p5GNthA=
 github.com/bmatcuk/doublestar/v4 v4.2.0/go.mod h1:xBQ8jztBU6kakFMg+8WGxn0c6z1fTSPVIjEY1Wr7jzc=
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
