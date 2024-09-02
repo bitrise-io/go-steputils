@@ -321,7 +321,7 @@ func (cs *chunkStatistics) average() time.Duration {
 }
 
 func (cs *chunkStatistics) String() string {
-	return fmt.Sprintf("[numChunks=%d][avg=%d]", cs.numChunks, cs.average())
+	return fmt.Sprintf("[numChunks=%d][avg=%s]", cs.numChunks, cs.average().Round(time.Second))
 }
 
 // Download chunks
@@ -364,14 +364,14 @@ func (d *Download) dl(dest io.WriterAt, errC chan error) {
 				defer ticker.Stop()
 
 				go func() {
-					log("start ticker")
 					if attempt == uint(d.MaxInterruptPerChunk) {
-						log("last try, no ticker usage")
+						log("last attempt, won't start ticker")
 						return // never interrupt the last try
 					}
+					log("start ticker")
 					for range ticker.C {
 						if stats.numChunks > 0 && time.Since(start)-stats.average() > d.ChunkDelayThreshold {
-							log("found outlier, canceling request, took %s", time.Since(start))
+							log("found outlier, canceling request, took %s", time.Since(start).Round(time.Second))
 							cancel()
 							return
 						}

@@ -156,7 +156,7 @@ func Test_downloadFile_multipart_retrycheck(t *testing.T) {
 	downloadURL := svr.URL
 
 	// When
-	err := downloadFile(context.Background(), retryableHTTPClient.StandardClient(), downloadURL, tmpFile, 5)
+	err := downloadFile(context.Background(), retryableHTTPClient.StandardClient(), downloadURL, tmpFile, 5, log.NewLogger())
 
 	// Then
 	require.True(t, isCheckRetryCalled.Load())
