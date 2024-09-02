@@ -327,9 +327,6 @@ func (cs *chunkStatistics) average() time.Duration {
 }
 
 func (cs *chunkStatistics) String() string {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-	
 	return fmt.Sprintf("[numChunks=%d][avg=%s]", cs.numChunks, cs.average().Round(time.Second))
 }
 
