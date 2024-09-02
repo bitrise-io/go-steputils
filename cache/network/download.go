@@ -98,7 +98,7 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 		}
 
 		logger.Debugf("Downloading archive...")
-		downloadErr := downloadFile(ctx, httpClient.StandardClient(), restoreResponse.URL, params.DownloadPath, params.MaxConcurrency)
+		downloadErr := downloadFile(ctx, httpClient.StandardClient(), restoreResponse.URL, params.DownloadPath, params.MaxConcurrency, logger)
 		if downloadErr != nil {
 			logger.Debugf("Failed to download archive: %s", downloadErr)
 			return fmt.Errorf("failed to download archive: %w", downloadErr), false
@@ -111,7 +111,7 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 	return matchedKey, err
 }
 
-func downloadFile(ctx context.Context, client *http.Client, url string, dest string, maxConcurrency uint) error {
+func downloadFile(ctx context.Context, client *http.Client, url string, dest string, maxConcurrency uint, logger log.Logger) error {
 	downloader := got.New()
 	downloader.Client = client
 
@@ -121,6 +121,8 @@ func downloadFile(ctx context.Context, client *http.Client, url string, dest str
 	// either the Client from the downloader or from the Download will be used.
 	gDownload.Client = client
 	gDownload.Concurrency = maxConcurrency
+
+	gDownload.Logger = logger
 
 	err := downloader.Do(gDownload)
 
