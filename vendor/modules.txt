@@ -16,7 +16,7 @@ github.com/bitrise-io/go-utils/v2/log/colorstring
 github.com/bitrise-io/go-utils/v2/mocks
 github.com/bitrise-io/go-utils/v2/pathutil
 github.com/bitrise-io/go-utils/v2/retryhttp
-# github.com/bitrise-io/got v0.0.0-20240902095546-120f9a66ef03
+# github.com/bitrise-io/got v0.0.0-20240902100046-b28a311d9a9f
 ## explicit; go 1.18
 github.com/bitrise-io/got
 # github.com/bmatcuk/doublestar/v4 v4.2.0

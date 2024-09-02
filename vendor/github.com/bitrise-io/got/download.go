@@ -327,7 +327,15 @@ func (cs *chunkStatistics) average() time.Duration {
 }
 
 func (cs *chunkStatistics) String() string {
-	return fmt.Sprintf("[numChunks=%d][avg=%s]", cs.numChunks, cs.average().Round(time.Second))
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	var avg time.Duration
+	if cs.numChunks > 0 {
+		avg = cs.sum / time.Duration(cs.numChunks)
+	}
+
+	return fmt.Sprintf("[numChunks=%d][avg=%s]", cs.numChunks, avg.Round(time.Second))
 }
 
 // Download chunks
