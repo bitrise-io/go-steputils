@@ -39,15 +39,18 @@ type (
 
 		Interval, ChunkSize, MinChunkSize, MaxChunkSize uint64
 
+		// MaxRetryPerChunk is controls how many times to interrupt and retry a slow chunk download.
+		// If zero, the chunk download monitoring is disabled and the chunk download won't be interrupted.
+		MaxRetryPerChunk int
+
+		// ChunkRetryThreshold is the deviation from the moving average (of chunks downloaded so far) after which a chunk is interrupted and retried.
+		ChunkRetryThreshold time.Duration
+
+		Logger log.Logger
+
 		Header []GotHeader
 
 		StopProgress bool
-
-		MaxInterruptPerChunk int
-
-		ChunkDelayThreshold time.Duration
-
-		Logger log.Logger
 
 		path string
 
@@ -303,41 +306,6 @@ func (d *Download) IsRangeable() bool {
 	return d.info.Rangeable
 }
 
-type chunkStatistics struct {
-	sum       time.Duration
-	numChunks int
-	mu sync.Mutex
-}
-
-func (cs *chunkStatistics) update(d time.Duration) {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-	cs.sum += d
-	cs.numChunks++
-}
-
-func (cs *chunkStatistics) average() time.Duration {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-
-	if cs.numChunks == 0 {
-		return 0
-	}
-	return cs.sum / time.Duration(cs.numChunks)
-}
-
-func (cs *chunkStatistics) String() string {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-
-	var avg time.Duration
-	if cs.numChunks > 0 {
-		avg = cs.sum / time.Duration(cs.numChunks)
-	}
-
-	return fmt.Sprintf("[numChunks=%d][avg=%s]", cs.numChunks, avg.Round(time.Second))
-}
-
 // Download chunks
 func (d *Download) dl(dest io.WriterAt, errC chan error) {
 	var (
@@ -357,9 +325,12 @@ func (d *Download) dl(dest io.WriterAt, errC chan error) {
 		go func(i int) {
 			defer wg.Done()
 
+			// This OffsetWriter allows two things:
+			// - write to the offset of the file
+			// - in case of an interrupt and re-download, it will resume from the last position
 			offsetWriter := &OffsetWriter{dest, int64(d.chunks[i].Start)}
 
-			err := retry.Times(uint(d.MaxInterruptPerChunk)).Try(func(attempt uint) error {
+			err := retry.Times(uint(d.MaxRetryPerChunk)).Try(func(attempt uint) error {
 				log := func(msg string, args ...interface{}) {
 					if d.Logger == nil {
 						return
@@ -371,29 +342,31 @@ func (d *Download) dl(dest io.WriterAt, errC chan error) {
 				// Concurrently download and write chunk
 				start := time.Now()
 
-				ctx, cancel := context.WithCancel(d.ctx)
-				defer cancel()
+				// Per-chunk cancellation signal
+				chunkCtx, cancelChunk := context.WithCancel(d.ctx)
+				defer cancelChunk()
 
-				ticker := time.NewTicker(time.Second)
-				defer ticker.Stop()
+				// Check for hanged downloads and interrupt them
+				downloadCheckTicker := time.NewTicker(time.Second)
+				defer downloadCheckTicker.Stop()
 
 				go func() {
-					if attempt == uint(d.MaxInterruptPerChunk) {
+					if attempt == uint(d.MaxRetryPerChunk) {
 						log("last attempt, won't start ticker")
 						return // never interrupt the last try
 					}
 					log("start ticker")
-					for range ticker.C {
-						if stats.numChunks > 0 && time.Since(start)-stats.average() > d.ChunkDelayThreshold {
-							log("found outlier, canceling request, took %s", time.Since(start).Round(time.Second))
-							cancel()
+					for range downloadCheckTicker.C {
+						if stats.finishedChunks > 0 && time.Since(start)-stats.average() > d.ChunkRetryThreshold {
+							log("⚠️ found hanged chunk download, canceling request after %s", time.Since(start).Round(time.Second))
+							cancelChunk()
 							return
 						}
 					}
 					log("stop ticker")
 				}()
 
-				if err := d.DownloadChunk(ctx, offsetWriter, d.chunks[i].End); err != nil {
+				if err := d.DownloadChunk(chunkCtx, offsetWriter, d.chunks[i].End); err != nil {
 					return err
 				}
 
