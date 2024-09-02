@@ -122,6 +122,8 @@ func downloadFile(ctx context.Context, client *http.Client, url string, dest str
 	gDownload.Client = client
 	gDownload.Concurrency = maxConcurrency
 
+	gDownload.MaxInterruptPerChunk = 10
+	gDownload.ChunkDelayThreshold = time.Second * 30
 	gDownload.Logger = logger
 
 	err := downloader.Do(gDownload)
