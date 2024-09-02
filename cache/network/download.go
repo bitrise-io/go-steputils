@@ -11,7 +11,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/melbahja/got"
+	"github.com/bitrise-io/got"
 )
 
 // DefaultDownloader ...
