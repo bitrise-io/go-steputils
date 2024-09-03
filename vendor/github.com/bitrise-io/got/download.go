@@ -13,6 +13,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bitrise-io/go-utils/retry"
+	"github.com/bitrise-io/go-utils/v2/log"
 )
 
 type (
@@ -35,6 +38,15 @@ type (
 		URL, Dir, Dest string
 
 		Interval, ChunkSize, MinChunkSize, MaxChunkSize uint64
+
+		// MaxRetryPerChunk is controls how many times to interrupt and retry a slow chunk download.
+		// If zero, the chunk download monitoring is disabled and the chunk download won't be interrupted.
+		MaxRetryPerChunk int
+
+		// ChunkRetryThreshold is the deviation from the moving average (of chunks downloaded so far) after which a chunk is interrupted and retried.
+		ChunkRetryThreshold time.Duration
+
+		Logger log.Logger
 
 		Header []GotHeader
 
@@ -296,7 +308,6 @@ func (d *Download) IsRangeable() bool {
 
 // Download chunks
 func (d *Download) dl(dest io.WriterAt, errC chan error) {
-
 	var (
 		// Wait group.
 		wg sync.WaitGroup
@@ -305,6 +316,7 @@ func (d *Download) dl(dest io.WriterAt, errC chan error) {
 		max = make(chan int, d.Concurrency)
 	)
 
+	var stats chunkStatistics
 	for i := 0; i < len(d.chunks); i++ {
 
 		max <- 1
@@ -313,10 +325,58 @@ func (d *Download) dl(dest io.WriterAt, errC chan error) {
 		go func(i int) {
 			defer wg.Done()
 
-			// Concurrently download and write chunk
-			if err := d.DownloadChunk(d.chunks[i], &OffsetWriter{dest, int64(d.chunks[i].Start)}); err != nil {
+			// This OffsetWriter allows two things:
+			// - write to the offset of the file
+			// - in case of an interrupt and re-download, it will resume from the last position
+			offsetWriter := &OffsetWriter{dest, int64(d.chunks[i].Start)}
+
+			err := retry.Times(uint(d.MaxRetryPerChunk)).Try(func(attempt uint) error {
+				log := func(msg string, args ...interface{}) {
+					if d.Logger == nil {
+						return
+					}
+					prefix := fmt.Sprintf("[chunk=%d][attempt=%d]%s ", i, attempt, stats.String())
+					d.Logger.Debugf(prefix+msg, args...)
+				}
+
+				// Concurrently download and write chunk
+				start := time.Now()
+
+				// Per-chunk cancellation signal
+				chunkCtx, cancelChunk := context.WithCancel(d.ctx)
+				defer cancelChunk()
+
+				// Check for hanged downloads and interrupt them
+				downloadCheckTicker := time.NewTicker(time.Second)
+				defer downloadCheckTicker.Stop()
+
+				go func() {
+					if attempt == uint(d.MaxRetryPerChunk) {
+						log("last attempt, won't start ticker")
+						return // never interrupt the last try
+					}
+					log("start ticker")
+					for range downloadCheckTicker.C {
+						if stats.finishedChunks > 0 && time.Since(start)-stats.average() > d.ChunkRetryThreshold {
+							log("⚠️ found hanged chunk download, canceling request after %s", time.Since(start).Round(time.Second))
+							cancelChunk()
+							return
+						}
+					}
+					log("stop ticker")
+				}()
+
+				if err := d.DownloadChunk(chunkCtx, offsetWriter, d.chunks[i].End); err != nil {
+					return err
+				}
+
+				took := time.Since(start)
+				stats.update(took)
+				log("finished chunk download, took %s", took)
+				return nil
+			})
+			if err != nil {
 				errC <- err
-				return
 			}
 
 			<-max
@@ -348,7 +408,7 @@ func (d *Download) Path() string {
 }
 
 // DownloadChunk downloads a file chunk.
-func (d *Download) DownloadChunk(c *Chunk, dest io.Writer) error {
+func (d *Download) DownloadChunk(ctx context.Context, dest *OffsetWriter, chunkEnd uint64) error {
 
 	var (
 		err error
@@ -356,11 +416,11 @@ func (d *Download) DownloadChunk(c *Chunk, dest io.Writer) error {
 		res *http.Response
 	)
 
-	if req, err = NewRequest(d.ctx, "GET", d.URL, d.Header); err != nil {
+	if req, err = NewRequest(ctx, "GET", d.URL, d.Header); err != nil {
 		return err
 	}
 
-	contentRange := fmt.Sprintf("bytes=%d-%d", c.Start, c.End)
+	contentRange := fmt.Sprintf("bytes=%d-%d", dest.offset, chunkEnd)
 	req.Header.Set("Range", contentRange)
 
 	if res, err = d.Client.Do(req); err != nil {
@@ -368,7 +428,7 @@ func (d *Download) DownloadChunk(c *Chunk, dest io.Writer) error {
 	}
 
 	// Verify the length
-	if res.ContentLength != int64(c.End-c.Start+1) {
+	if res.ContentLength != int64(chunkEnd-uint64(dest.offset)+1) {
 		return fmt.Errorf(
 			"Range request returned invalid Content-Length: %d however the range was: %s",
 			res.ContentLength, contentRange,
