@@ -3,7 +3,9 @@ package keytemplate
 import (
 	"testing"
 
+	"fmt"
 	"github.com/bitrise-io/go-utils/v2/log"
+	"os"
 )
 
 var triggerEnvVars = map[string]string{
@@ -124,6 +126,49 @@ func TestEvaluate(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Key with non-relative file", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "testdir")
+		if err != nil {
+			t.Fatalf("Failed to create temp directory: %v", err)
+		}
+		defer func(path string) {
+			err := os.RemoveAll(path)
+			if err != nil {
+				t.Errorf("Failed to remove temp directory: %v", err)
+			}
+		}(tmpDir)
+
+		tmpFile, err := os.CreateTemp(tmpDir, "testfile")
+		if err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+		err = tmpFile.Close()
+		if err != nil {
+			t.Fatalf("Failed to close temp file: %v", err)
+		}
+		checksum, err := checksumOfFile(tmpFile.Name())
+		if err != nil {
+			t.Fatalf("Failed to calculate checksum: %v", err)
+		}
+
+		model := Model{
+			envRepo: envRepository{},
+			logger:  log.NewLogger(),
+			os:      "darwin",
+			arch:    "arm64",
+		}
+		got, err := model.Evaluate(fmt.Sprintf("gradle-cache-{{ checksum \"%s/*\" }}", tmpDir))
+		if err != nil {
+			t.Errorf("Evaluate() error = %v", err)
+			return
+		}
+
+		want := fmt.Sprintf("gradle-cache-%x", checksum)
+		if got != want {
+			t.Errorf("Evaluate() got = %v, want %v", got, want)
+		}
+	})
 }
 
 type envRepository struct {
