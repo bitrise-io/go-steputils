@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/bitrise-io/go-utils/v2/log"
 	"os"
+	"path/filepath"
 )
 
 var triggerEnvVars = map[string]string{
@@ -127,8 +128,13 @@ func TestEvaluate(t *testing.T) {
 		})
 	}
 
-	t.Run("Key with non-relative file", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp("", "testdir")
+	t.Run("Key with home file", func(t *testing.T) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("Failed to get home directory: %v", err)
+		}
+		tmpDirPath := filepath.Join(home, "/go-steputils-test/")
+		err = os.MkdirAll(tmpDirPath, 0755)
 		if err != nil {
 			t.Fatalf("Failed to create temp directory: %v", err)
 		}
@@ -137,28 +143,36 @@ func TestEvaluate(t *testing.T) {
 			if err != nil {
 				t.Errorf("Failed to remove temp directory: %v", err)
 			}
-		}(tmpDir)
+		}(tmpDirPath)
 
-		tmpFile, err := os.CreateTemp(tmpDir, "testfile")
+		tmpFile, err := os.Create(filepath.Join(tmpDirPath, "testfile"))
 		if err != nil {
 			t.Fatalf("Failed to create temp file: %v", err)
+		}
+		_, err = tmpFile.WriteString("test")
+		if err != nil {
+			t.Fatalf("Failed to write to temp file: %v", err)
 		}
 		err = tmpFile.Close()
 		if err != nil {
 			t.Fatalf("Failed to close temp file: %v", err)
 		}
+
 		checksum, err := checksumOfFile(tmpFile.Name())
 		if err != nil {
 			t.Fatalf("Failed to calculate checksum: %v", err)
 		}
 
+		l := log.NewLogger()
+		l.EnableDebugLog(true)
+		l.Debugf("Tempfile: %s", tmpFile.Name())
 		model := Model{
 			envRepo: envRepository{},
-			logger:  log.NewLogger(),
+			logger:  l,
 			os:      "darwin",
 			arch:    "arm64",
 		}
-		got, err := model.Evaluate(fmt.Sprintf("gradle-cache-{{ checksum \"%s/*\" }}", tmpDir))
+		got, err := model.Evaluate(`gradle-cache-{{ checksum "~/go-steputils-test/*" }}`)
 		if err != nil {
 			t.Errorf("Evaluate() error = %v", err)
 			return

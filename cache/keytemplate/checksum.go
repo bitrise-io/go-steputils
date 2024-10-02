@@ -62,6 +62,7 @@ func (m Model) evaluateGlobPatterns(paths []string) []string {
 				m.logger.Warnf("Failed to convert %s to an absolute path: %s", path, err)
 				continue
 			}
+			m.logger.Debugf("Finding matches for %s/%s", absBase, pattern)
 			matches, err := doublestar.Glob(os.DirFS(absBase), pattern)
 			if matches == nil {
 				m.logger.Warnf("No match for pattern: %s", path)
