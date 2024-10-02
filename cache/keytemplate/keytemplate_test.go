@@ -133,46 +133,26 @@ func TestEvaluate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get home directory: %v", err)
 		}
-		tmpDirPath := filepath.Join(home, "/go-steputils-test/")
-		err = os.MkdirAll(tmpDirPath, 0755)
-		if err != nil {
-			t.Fatalf("Failed to create temp directory: %v", err)
-		}
-		defer func(path string) {
-			err := os.RemoveAll(path)
+
+		tmpDir := filepath.Join(home, "go-test")
+		tmpFile, checksum, err := createTempFileAndGetChecksum(t, tmpDir)
+		defer func() {
+			err := os.RemoveAll(tmpDir)
 			if err != nil {
 				t.Errorf("Failed to remove temp directory: %v", err)
 			}
-		}(tmpDirPath)
-
-		tmpFile, err := os.Create(filepath.Join(tmpDirPath, "testfile"))
-		if err != nil {
-			t.Fatalf("Failed to create temp file: %v", err)
-		}
-		_, err = tmpFile.WriteString("test")
-		if err != nil {
-			t.Fatalf("Failed to write to temp file: %v", err)
-		}
-		err = tmpFile.Close()
-		if err != nil {
-			t.Fatalf("Failed to close temp file: %v", err)
-		}
-
-		checksum, err := checksumOfFile(tmpFile.Name())
-		if err != nil {
-			t.Fatalf("Failed to calculate checksum: %v", err)
-		}
+		}()
 
 		l := log.NewLogger()
 		l.EnableDebugLog(true)
-		l.Debugf("Tempfile: %s", tmpFile.Name())
+		l.Debugf("Tempfile: %s", tmpFile)
 		model := Model{
 			envRepo: envRepository{},
 			logger:  l,
 			os:      "darwin",
 			arch:    "arm64",
 		}
-		got, err := model.Evaluate(`gradle-cache-{{ checksum "~/go-steputils-test/*" }}`)
+		got, err := model.Evaluate(`gradle-cache-{{ checksum "~/go-test/*" }}`)
 		if err != nil {
 			t.Errorf("Evaluate() error = %v", err)
 			return
