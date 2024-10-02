@@ -62,6 +62,7 @@ func (m Model) evaluateGlobPatterns(paths []string) []string {
 				m.logger.Warnf("Failed to convert %s to an absolute path: %s", path, err)
 				continue
 			}
+			m.logger.Debugf("Finding matches for %s/%s", absBase, pattern)
 			matches, err := doublestar.Glob(os.DirFS(absBase), pattern)
 			if matches == nil {
 				m.logger.Warnf("No match for pattern: %s", path)
@@ -72,14 +73,14 @@ func (m Model) evaluateGlobPatterns(paths []string) []string {
 				continue
 			}
 			for _, match := range matches {
-				finalPaths = append(finalPaths, filepath.Join(base, match))
+				finalPaths = append(finalPaths, filepath.Join(absBase, match))
 			}
 		} else {
 			finalPaths = append(finalPaths, path)
 		}
 	}
 
-	return filterFilesOnly(finalPaths)
+	return m.filterFilesOnly(finalPaths)
 }
 
 func checksumOfFile(path string) ([]byte, error) {
@@ -98,14 +99,16 @@ func checksumOfFile(path string) ([]byte, error) {
 	return hash.Sum(nil), nil
 }
 
-func filterFilesOnly(paths []string) []string {
+func (m Model) filterFilesOnly(paths []string) []string {
 	var files []string
 	for _, path := range paths {
 		info, err := os.Stat(path)
 		if err != nil {
+			m.logger.Warnf("Failed to get file info for %s: %s", path, err)
 			continue
 		}
 		if info.IsDir() {
+			m.logger.Debugf("Skipping directory: %s", path)
 			continue
 		}
 		files = append(files, path)

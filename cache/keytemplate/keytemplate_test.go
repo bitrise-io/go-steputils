@@ -3,7 +3,10 @@ package keytemplate
 import (
 	"testing"
 
+	"fmt"
 	"github.com/bitrise-io/go-utils/v2/log"
+	"os"
+	"path/filepath"
 )
 
 var triggerEnvVars = map[string]string{
@@ -124,6 +127,45 @@ func TestEvaluate(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Key with home file", func(t *testing.T) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("Failed to get home directory: %v", err)
+		}
+
+		tmpDir := filepath.Join(home, "go-test")
+		tmpFile, checksum, err := createTempFileAndGetChecksum(t, tmpDir)
+		defer func() {
+			err := os.RemoveAll(tmpDir)
+			if err != nil {
+				t.Errorf("Failed to remove temp directory: %v", err)
+			}
+		}()
+		if err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+
+		l := log.NewLogger()
+		l.EnableDebugLog(true)
+		l.Debugf("Tempfile: %s", tmpFile)
+		model := Model{
+			envRepo: envRepository{},
+			logger:  l,
+			os:      "darwin",
+			arch:    "arm64",
+		}
+		got, err := model.Evaluate(`gradle-cache-{{ checksum "~/go-test/*" }}`)
+		if err != nil {
+			t.Errorf("Evaluate() error = %v", err)
+			return
+		}
+
+		want := fmt.Sprintf("gradle-cache-%x", checksum)
+		if got != want {
+			t.Errorf("Evaluate() got = %v, want %v", got, want)
+		}
+	})
 }
 
 type envRepository struct {
