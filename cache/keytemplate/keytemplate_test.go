@@ -142,6 +142,9 @@ func TestEvaluate(t *testing.T) {
 				t.Errorf("Failed to remove temp directory: %v", err)
 			}
 		}()
+		if err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
 
 		l := log.NewLogger()
 		l.EnableDebugLog(true)
