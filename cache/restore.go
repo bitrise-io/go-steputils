@@ -23,10 +23,11 @@ import (
 // RestoreCacheInput is the information that comes from the cache steps that call this shared implementation
 type RestoreCacheInput struct {
 	// StepId identifies the exact cache step. Used for logging events.
-	StepId         string
-	Verbose        bool
-	Keys           []string
-	NumFullRetries int
+	StepId             string
+	Verbose            bool
+	Keys               []string
+	NumFullRetries     int
+	EncryptionPassword stepconf.Secret
 }
 
 // Restorer ...
@@ -35,12 +36,13 @@ type Restorer interface {
 }
 
 type restoreCacheConfig struct {
-	Verbose        bool
-	Keys           []string
-	APIBaseURL     stepconf.Secret
-	APIAccessToken stepconf.Secret
-	NumFullRetries int
-	MaxConcurrency uint
+	Verbose            bool
+	Keys               []string
+	APIBaseURL         stepconf.Secret
+	APIAccessToken     stepconf.Secret
+	NumFullRetries     int
+	MaxConcurrency     uint
+	EncryptionPassword stepconf.Secret
 }
 
 type restorer struct {
@@ -116,7 +118,7 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 		r.envRepo,
 		compression.NewDependencyChecker(r.logger, r.envRepo))
 
-	if err := archiver.Decompress(result.filePath, ""); err != nil {
+	if err := archiver.Decompress(result.filePath, "", config.EncryptionPassword); err != nil {
 		return fmt.Errorf("failed to decompress cache archive: %w", err)
 	}
 	extractionTime := time.Since(extractionStartTime).Round(time.Second)
@@ -159,12 +161,13 @@ func (r *restorer) createConfig(input RestoreCacheInput) (restoreCacheConfig, er
 	}
 
 	return restoreCacheConfig{
-		Verbose:        input.Verbose,
-		Keys:           keys,
-		APIBaseURL:     stepconf.Secret(apiBaseURL),
-		APIAccessToken: stepconf.Secret(apiAccessToken),
-		NumFullRetries: input.NumFullRetries,
-		MaxConcurrency: maxConcurrency,
+		Verbose:            input.Verbose,
+		Keys:               keys,
+		APIBaseURL:         stepconf.Secret(apiBaseURL),
+		APIAccessToken:     stepconf.Secret(apiAccessToken),
+		NumFullRetries:     input.NumFullRetries,
+		MaxConcurrency:     maxConcurrency,
+		EncryptionPassword: input.EncryptionPassword,
 	}, nil
 }
 

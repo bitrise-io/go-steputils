@@ -38,6 +38,9 @@ type SaveCacheInput struct {
 	// Example of such key: my-cache-key-{{ checksum "package-lock.json" }}
 	// Example where this is not true: my-cache-key-{{ .OS }}-{{ .Arch }}
 	IsKeyUnique bool
+	// EncryptionPassword is the password used to generate the encryption key
+	// for AES-256-CBC encryption.
+	EncryptionPassword stepconf.Secret
 }
 
 // Saver ...
@@ -46,13 +49,14 @@ type Saver interface {
 }
 
 type saveCacheConfig struct {
-	Verbose          bool
-	Key              string
-	Paths            []string
-	CompressionLevel int
-	CustomTarArgs    []string
-	APIBaseURL       stepconf.Secret
-	APIAccessToken   stepconf.Secret
+	Verbose            bool
+	Key                string
+	Paths              []string
+	CompressionLevel   int
+	CustomTarArgs      []string
+	APIBaseURL         stepconf.Secret
+	APIAccessToken     stepconf.Secret
+	EncryptionPassword stepconf.Secret
 }
 
 type saver struct {
@@ -113,7 +117,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 	s.logger.Println()
 	s.logger.Infof("Creating archive...")
 	compressionStartTime := time.Now()
-	archivePath, err := s.compress(config.Paths, config.CompressionLevel, config.CustomTarArgs)
+	archivePath, err := s.compress(config.Paths, config.CompressionLevel, config.CustomTarArgs, config.EncryptionPassword)
 	if err != nil {
 		return fmt.Errorf("compression failed: %s", err)
 	}
@@ -191,13 +195,14 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 	}
 
 	return saveCacheConfig{
-		Verbose:          input.Verbose,
-		Key:              evaluatedKey,
-		Paths:            finalPaths,
-		CompressionLevel: input.CompressionLevel,
-		CustomTarArgs:    input.CustomTarArgs,
-		APIBaseURL:       stepconf.Secret(apiBaseURL),
-		APIAccessToken:   stepconf.Secret(apiAccessToken),
+		Verbose:            input.Verbose,
+		Key:                evaluatedKey,
+		Paths:              finalPaths,
+		CompressionLevel:   input.CompressionLevel,
+		CustomTarArgs:      input.CustomTarArgs,
+		APIBaseURL:         stepconf.Secret(apiBaseURL),
+		APIAccessToken:     stepconf.Secret(apiAccessToken),
+		EncryptionPassword: input.EncryptionPassword,
 	}, nil
 }
 
@@ -259,7 +264,7 @@ func (s *saver) evaluateKey(keyTemplate string) (string, error) {
 	return model.Evaluate(keyTemplate)
 }
 
-func (s *saver) compress(paths []string, compressionLevel int, customTarArgs []string) (string, error) {
+func (s *saver) compress(paths []string, compressionLevel int, customTarArgs []string, encryptionPass stepconf.Secret) (string, error) {
 	if compression.AreAllPathsEmpty(paths) {
 		s.logger.Warnf("The provided paths are all empty, skipping compression and upload.")
 		os.Exit(0)
@@ -277,7 +282,7 @@ func (s *saver) compress(paths []string, compressionLevel int, customTarArgs []s
 		s.envRepo,
 		compression.NewDependencyChecker(s.logger, s.envRepo))
 
-	err = archiver.Compress(archivePath, paths, compressionLevel, customTarArgs)
+	err = archiver.Compress(archivePath, paths, compressionLevel, customTarArgs, encryptionPass)
 	if err != nil {
 		return "", err
 	}
