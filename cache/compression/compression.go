@@ -273,7 +273,7 @@ func (a *Archiver) compressWithBinaryEncrypted(archivePath string, includePaths 
 
 	openSSLCmd := fmt.Sprintf(
 		"openssl enc -aes-256-cbc -salt -pass pass:%s -out %s",
-		encryptionPass, archivePath,
+		string(encryptionPass), archivePath,
 	)
 
 	cmd := cmdFactory.Create("bash", []string{
@@ -392,7 +392,7 @@ func (a *Archiver) decompressWithBinaryEncrypted(archivePath, destinationDirecto
 
 	openSSLCmd := fmt.Sprintf(
 		"openssl enc -d -aes-256-cbc -salt -pass pass:%s -in %s",
-		encryptionPass, archivePath,
+		string(encryptionPass), archivePath,
 	)
 
 	/*
