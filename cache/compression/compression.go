@@ -70,6 +70,7 @@ func NewArchiver(logger log.Logger, envRepo env.Repository, archiveDependencyChe
 
 // Compress creates a compressed archive from the provided files and folders using absolute paths.
 func (a *Archiver) Compress(archivePath string, includePaths []string, compressionLevel int, customTarArgs []string, encryptionPass stepconf.Secret) error {
+	// TODO: check if openssl is present if encryption is enabled
 	haveZstdAndTar := a.archiveDependencyChecker.CheckDependencies()
 
 	if !haveZstdAndTar {
@@ -99,6 +100,7 @@ func (a *Archiver) Compress(archivePath string, includePaths []string, compressi
 
 // Decompress takes an archive path and extracts files. This assumes an archive created with absolute file paths.
 func (a *Archiver) Decompress(archivePath string, destinationDirectory string, encryptionPass stepconf.Secret) error {
+	// TODO: check if openssl is present if encryption is enabled
 	haveZstdAndTar := a.archiveDependencyChecker.CheckDependencies()
 	if !haveZstdAndTar {
 		if len(encryptionPass) > 0 {
@@ -113,8 +115,14 @@ func (a *Archiver) Decompress(archivePath string, destinationDirectory string, e
 	}
 
 	a.logger.Infof("Using installed zstd binary")
-	if err := a.decompressWithBinary(archivePath, destinationDirectory); err != nil {
-		return fmt.Errorf("decompress files: %w", err)
+	if len(encryptionPass) > 0 {
+		if err := a.decompressWithBinaryEncrypted(archivePath, destinationDirectory, encryptionPass); err != nil {
+			return fmt.Errorf("decompress encrypted files: %w", err)
+		}
+	} else {
+		if err := a.decompressWithBinary(archivePath, destinationDirectory); err != nil {
+			return fmt.Errorf("decompress files: %w", err)
+		}
 	}
 	return nil
 }
@@ -368,6 +376,49 @@ func (a *Archiver) decompressWithBinary(archivePath string, destinationDirectory
 	}
 
 	cmd := commandFactory.Create("tar", decompressTarArgs, nil)
+	a.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
+
+	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
+	if err != nil {
+		a.logger.Printf("Output: %s", out)
+		return err
+	}
+
+	return nil
+}
+
+func (a *Archiver) decompressWithBinaryEncrypted(archivePath, destinationDirectory string, encryptionPass stepconf.Secret) error {
+	commandFactory := command.NewFactory(a.envRepo)
+
+	openSSLCmd := fmt.Sprintf(
+		"openssl enc -d -aes-256-cbc -salt -pass pass:%s -in %s",
+		encryptionPass, archivePath,
+	)
+
+	/*
+		tar arguments:
+		--use-compress-program: Pipe the input to zstd instead of using the built-in gzip compression
+		-P: Alias for --absolute-paths in BSD tar and --absolute-names in GNU tar (step runs on both Linux and macOS)
+			Storing absolute paths in the archive allows paths outside the current directory (such as ~/.gradle)
+		-x: Extract archive
+		-f: Output file
+	*/
+	decompressTarArgs := []string{
+		"tar",
+		"--use-compress-program", "'zstd -d'",
+		"-x",
+		"-f", archivePath,
+		"-P",
+	}
+	if destinationDirectory != "" {
+		decompressTarArgs = append(decompressTarArgs, "--directory", destinationDirectory)
+	}
+	tarCmd := strings.Join(decompressTarArgs, " ")
+
+	cmd := commandFactory.Create("bash", []string{
+		"-lc",
+		strings.Join([]string{openSSLCmd, tarCmd}, "|"),
+	}, nil)
 	a.logger.Debugf("$ %s", cmd.PrintableCommandArgs())
 
 	out, err := cmd.RunAndReturnTrimmedCombinedOutput()
