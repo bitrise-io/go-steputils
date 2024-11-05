@@ -272,7 +272,7 @@ func (a *Archiver) compressWithBinaryEncrypted(archivePath string, includePaths 
 	}
 
 	openSSLCmd := fmt.Sprintf(
-		"openssl enc -aes-256-cbc -salt -pass pass:%s -out %s",
+		"openssl enc -aes-256-cbc -salt -pass pass:'%s' -out %s",
 		string(encryptionPass), archivePath,
 	)
 
@@ -391,7 +391,7 @@ func (a *Archiver) decompressWithBinaryEncrypted(archivePath, destinationDirecto
 	commandFactory := command.NewFactory(a.envRepo)
 
 	openSSLCmd := fmt.Sprintf(
-		"openssl enc -d -aes-256-cbc -salt -pass pass:%s -in %s",
+		"openssl enc -d -aes-256-cbc -salt -pass pass:'%s' -in %s",
 		string(encryptionPass), archivePath,
 	)
 
