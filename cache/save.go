@@ -89,14 +89,24 @@ func NewSaver(
 
 // Save ...
 func (s *saver) Save(input SaveCacheInput) error {
+	saveStartTime := time.Now()
+	phaseStartTime := saveStartTime
+	defer func() {
+		saveTime := time.Since(saveStartTime).Round(time.Second)
+		s.logger.Donef("Save done in %s", saveTime)
+	}()
+
 	config, err := s.createConfig(input)
 	if err != nil {
 		return fmt.Errorf("failed to parse inputs: %w", err)
 	}
+	phaseTime := time.Since(phaseStartTime).Round(time.Second)
+	s.logger.Donef("Config created in %s", phaseTime)
 
 	tracker := newStepTracker(input.StepId, s.envRepo, s.logger)
 	defer tracker.wait()
 
+	phaseStartTime = time.Now()
 	canSkipSave, reason := s.canSkipSave(input.Key, config.Key, input.IsKeyUnique)
 	tracker.logSkipSaveResult(canSkipSave, reason)
 	s.logger.Println()
@@ -109,6 +119,8 @@ func (s *saver) Save(input SaveCacheInput) error {
 			s.logOtherHits()
 		}
 	}
+	phaseTime = time.Since(phaseStartTime).Round(time.Second)
+	s.logger.Donef("Save skip decision reached in %s", phaseTime)
 
 	s.logger.Println()
 	s.logger.Infof("Creating archive...")
@@ -121,18 +133,26 @@ func (s *saver) Save(input SaveCacheInput) error {
 	tracker.logArchiveCompressed(compressionTime, len(config.Paths))
 	s.logger.Donef("Archive created in %s", compressionTime)
 
+	phaseStartTime = time.Now()
 	fileInfo, err := os.Stat(archivePath)
 	if err != nil {
 		return err
 	}
 	s.logger.Printf("Archive size: %s", units.HumanSizeWithPrecision(float64(fileInfo.Size()), 3))
 	s.logger.Debugf("Archive path: %s", archivePath)
+	phaseTime = time.Since(phaseStartTime).Round(time.Second)
+	s.logger.Donef("Stats collected in %s", phaseTime)
 
+	phaseStartTime = time.Now()
 	archiveChecksum, err := checksumOfFile(archivePath)
 	if err != nil {
 		s.logger.Warnf(err.Error())
 		// fail silently and continue
 	}
+	phaseTime = time.Since(phaseStartTime).Round(time.Second)
+	s.logger.Donef("Checksum computed in %s", phaseTime)
+
+	phaseStartTime = time.Now()
 	canSkipUpload, reason := s.canSkipUpload(config.Key, archiveChecksum)
 	tracker.logSkipUploadResult(canSkipUpload, reason)
 	s.logger.Println()
@@ -141,6 +161,8 @@ func (s *saver) Save(input SaveCacheInput) error {
 		return nil
 	}
 	s.logger.Infof("Can't skip uploading the cache, reason: %s", reason.description())
+	phaseTime = time.Since(phaseStartTime).Round(time.Second)
+	s.logger.Donef("Upload skip decision reached in %s", phaseTime)
 
 	s.logger.Println()
 	s.logger.Infof("Uploading archive...")
