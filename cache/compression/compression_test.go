@@ -12,19 +12,19 @@ func TestAreAllPathsEmpty(t *testing.T) {
 	basePath := t.TempDir()
 	err := os.MkdirAll(filepath.Join(basePath, "empty_dir"), 0700)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("failed to create empty directory: %s", err)
 	}
 	err = os.MkdirAll(filepath.Join(basePath, "dir_with_dir_child", "nested_empty_dir"), 0700)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("failed to create directory with empty nested dir: %s", err)
 	}
 	err = os.MkdirAll(filepath.Join(basePath, "first_level", "second_level"), 0700)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("failed to create directory with a second level directory: %s", err)
 	}
 	err = ioutil.WriteFile(filepath.Join(basePath, "first_level", "second_level", "nested_file.txt"), []byte("hello"), 0700)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("failed to write file: %s", err)
 	}
 
 	tests := []struct {

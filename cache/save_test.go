@@ -14,11 +14,11 @@ import (
 func Test_ProcessSaveConfig(t *testing.T) {
 	testdataAbsPath, err := filepath.Abs("testdata")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("Failed to get test data absolute path, error: %s", err)
 	}
 	homeAbsPath, err := os.UserHomeDir()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("Failed to get home absolute path, error: %s", err)
 	}
 
 	tests := []struct {

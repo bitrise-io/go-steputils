@@ -11,7 +11,7 @@ import (
 func TestChecksum(t *testing.T) {
 	testdataAbsPath, err := filepath.Abs("testdata")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("Failed to get absolute path, error: %s", err)
 	}
 
 	tests := []struct {

@@ -89,16 +89,24 @@ func NewSaver(
 
 // Save ...
 func (s *saver) Save(input SaveCacheInput) error {
+	s.logger.TDebugf("Save start")
+	defer func() {
+		s.logger.TDebugf("Save done")
+	}()
+
 	config, err := s.createConfig(input)
 	if err != nil {
 		return fmt.Errorf("failed to parse inputs: %w", err)
 	}
+	s.logger.TDebugf("Config created")
 
 	tracker := newStepTracker(input.StepId, s.envRepo, s.logger)
 	defer tracker.wait()
+	s.logger.TDebugf("Tracker created")
 
 	canSkipSave, reason := s.canSkipSave(input.Key, config.Key, input.IsKeyUnique)
 	tracker.logSkipSaveResult(canSkipSave, reason)
+	s.logger.TDebugf("Determined save skipping eligibility")
 	s.logger.Println()
 	if canSkipSave {
 		s.logger.Donef("Cache save can be skipped, reason: %s", reason.description())
@@ -120,6 +128,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 	compressionTime := time.Since(compressionStartTime).Round(time.Second)
 	tracker.logArchiveCompressed(compressionTime, len(config.Paths))
 	s.logger.Donef("Archive created in %s", compressionTime)
+	s.logger.TDebugf("Archive created")
 
 	fileInfo, err := os.Stat(archivePath)
 	if err != nil {
@@ -127,14 +136,18 @@ func (s *saver) Save(input SaveCacheInput) error {
 	}
 	s.logger.Printf("Archive size: %s", units.HumanSizeWithPrecision(float64(fileInfo.Size()), 3))
 	s.logger.Debugf("Archive path: %s", archivePath)
+	s.logger.TDebugf("Archive stats printed")
 
 	archiveChecksum, err := checksumOfFile(archivePath)
 	if err != nil {
 		s.logger.Warnf(err.Error())
 		// fail silently and continue
 	}
+	s.logger.TDebugf("Archive cheksum computed")
+
 	canSkipUpload, reason := s.canSkipUpload(config.Key, archiveChecksum)
 	tracker.logSkipUploadResult(canSkipUpload, reason)
+	s.logger.TDebugf("Determined upload skipping eligibility")
 	s.logger.Println()
 	if canSkipUpload {
 		s.logger.Donef("Cache upload can be skipped, reason: %s", reason.description())
@@ -152,6 +165,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 	uploadTime := time.Since(uploadStartTime).Round(time.Second)
 	s.logger.Donef("Archive uploaded in %s", uploadTime)
 	tracker.logArchiveUploaded(uploadTime, fileInfo, len(config.Paths))
+	s.logger.TDebugf("Archive uploaded")
 
 	return nil
 }
@@ -164,12 +178,14 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 	s.logger.Println()
 	s.logger.Printf("Evaluating key template: %s", input.Key)
 	evaluatedKey, err := s.evaluateKey(input.Key)
+	s.logger.TDebugf("Key template evaluated")
 	if err != nil {
 		return saveCacheConfig{}, fmt.Errorf("failed to evaluate key template: %s", err)
 	}
 	s.logger.Donef("Cache key: %s", evaluatedKey)
 
 	finalPaths, err := s.evaluatePaths(input.Paths)
+	s.logger.TDebugf("Final paths evaluated")
 	if err != nil {
 		return saveCacheConfig{}, fmt.Errorf("failed to parse paths: %w", err)
 	}
@@ -182,6 +198,7 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 	if apiAccessToken == "" {
 		return saveCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
+	s.logger.TDebugf("Url and token are valid")
 
 	if input.CompressionLevel == 0 {
 		input.CompressionLevel = 3
