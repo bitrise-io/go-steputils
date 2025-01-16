@@ -178,12 +178,14 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 	s.logger.Println()
 	s.logger.Printf("Evaluating key template: %s", input.Key)
 	evaluatedKey, err := s.evaluateKey(input.Key)
+	s.logger.TDebugf("Key template evaluated")
 	if err != nil {
 		return saveCacheConfig{}, fmt.Errorf("failed to evaluate key template: %s", err)
 	}
 	s.logger.Donef("Cache key: %s", evaluatedKey)
 
 	finalPaths, err := s.evaluatePaths(input.Paths)
+	s.logger.TDebugf("Final paths evaluated")
 	if err != nil {
 		return saveCacheConfig{}, fmt.Errorf("failed to parse paths: %w", err)
 	}
@@ -196,6 +198,7 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 	if apiAccessToken == "" {
 		return saveCacheConfig{}, fmt.Errorf("the secret 'BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN' is not defined")
 	}
+	s.logger.TDebugf("Url and token are valid")
 
 	if input.CompressionLevel == 0 {
 		input.CompressionLevel = 3
