@@ -232,7 +232,7 @@ func (s *saver) evaluatePaths(paths []string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		matches, err := doublestar.Glob(os.DirFS(absBase), pattern)
+		matches, err := doublestar.Glob(os.DirFS(absBase), pattern, doublestar.WithNoFollow())
 		if matches == nil {
 			s.logger.Warnf("No match for path pattern: %s", path)
 			continue

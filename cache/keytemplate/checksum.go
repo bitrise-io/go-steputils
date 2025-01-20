@@ -63,7 +63,7 @@ func (m Model) evaluateGlobPatterns(paths []string) []string {
 				continue
 			}
 			m.logger.Debugf("Finding matches for %s/%s", absBase, pattern)
-			matches, err := doublestar.Glob(os.DirFS(absBase), pattern)
+			matches, err := doublestar.Glob(os.DirFS(absBase), pattern, doublestar.WithNoFollow())
 			if matches == nil {
 				m.logger.Warnf("No match for pattern: %s", path)
 				continue
