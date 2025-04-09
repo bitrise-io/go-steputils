@@ -83,7 +83,11 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	r.logger.Println()
 	r.logger.Infof("Downloading archive...")
 	downloadStartTime := time.Now()
-	result, err := r.download(context.Background(), config)
+	timeout := time.Second * 2
+	ctx, cancellation := context.WithTimeout(context.Background(), timeout)
+	defer cancellation()
+
+	result, err := r.download(ctx, config)
 	if err != nil {
 		if errors.Is(err, network.ErrCacheNotFound) {
 			r.logger.Donef("No cache entry found for the provided key")
