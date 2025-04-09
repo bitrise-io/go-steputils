@@ -367,6 +367,10 @@ func (d *Download) dl(dest io.WriterAt, errC chan error) {
 				}()
 
 				if err := d.DownloadChunk(chunkCtx, offsetWriter, d.chunks[i].End); err != nil {
+					if d.ctx.Err() != nil {
+						log("timouted, skipping chunk %d: %w", i, err)
+						return nil
+					}
 					return err
 				}
 
