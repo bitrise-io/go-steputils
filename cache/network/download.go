@@ -38,6 +38,15 @@ var ErrCacheNotFound = errors.New("no cache archive found for the provided keys"
 func (d DefaultDownloader) Download(ctx context.Context, params DownloadParams, logger log.Logger) (string, error) {
 	retryableHTTPClient := retryhttp.NewClient(logger)
 
+	retryableHTTPClient.ResponseLogHook = func(_ retryablehttp.Logger, resp *http.Response) {
+		logger.Debugf("Response headers for %s:", resp.Request.URL)
+		for key, values := range resp.Header {
+			for _, value := range values {
+				logger.Debugf("%s: %s", key, value)
+			}
+		}
+	}
+
 	return downloadWithClient(ctx, retryableHTTPClient, params, logger)
 }
 
@@ -111,7 +120,7 @@ func downloadFile(ctx context.Context, httpClient *retryablehttp.Client, url str
 		KeepAlive: 30 * time.Second,
 		DualStack: dualStack,
 	}).DialContext
-	
+
 	downloader := got.New()
 	downloader.Client = httpClient.StandardClient()
 
@@ -120,6 +129,7 @@ func downloadFile(ctx context.Context, httpClient *retryablehttp.Client, url str
 	// as depending on how downloader is called
 	// either the Client from the downloader or from the Download will be used.
 	gDownload.Client = httpClient.StandardClient()
+
 	gDownload.Concurrency = maxConcurrency
 	gDownload.Logger = logger
 
