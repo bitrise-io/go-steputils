@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	cache "github.com/bitrise-io/go-steputils/v2/oldcache"
+	"github.com/bitrise-io/go-utils/v2/env"
 )
 
 // Create ItemCollectors for listing Bitrise cache include and exclude patterns.
@@ -17,8 +18,7 @@ func (c SampleItemCollector) Collect(dir string, cacheLevel cache.Level) ([]stri
 func Example() {
 	// Create a cache, usually using cache.New()
 	getterSetter := NewMockGetterSetter()
-	testConfig := cache.Config{getterSetter, []cache.VariableSetter{getterSetter}}
-	c := testConfig.NewCache()
+	c := cache.New(getterSetter)
 
 	for _, collector := range []cache.ItemCollector{SampleItemCollector{}} {
 		// Run some Cache ItemCollectors
@@ -42,16 +42,10 @@ func Example() {
 	// exclude_me.txt
 }
 
-func printIncludeAndExcludeEnvs(getterSetter MockGetterSetter) {
-	includePaths, err := getterSetter.Get(cache.CacheIncludePathsEnvKey)
-	if err != nil {
-		panic(err)
-	}
+func printIncludeAndExcludeEnvs(getterSetter env.Repository) {
+	includePaths := getterSetter.Get(cache.CacheIncludePathsEnvKey)
 	fmt.Println(includePaths)
 
-	excludePaths, err := getterSetter.Get(cache.CacheExcludePathsEnvKey)
-	if err != nil {
-		panic(err)
-	}
+	excludePaths := getterSetter.Get(cache.CacheExcludePathsEnvKey)
 	fmt.Println(excludePaths)
 }

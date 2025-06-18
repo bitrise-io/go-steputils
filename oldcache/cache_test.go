@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	cache "github.com/bitrise-io/go-steputils/v2/oldcache"
+	"github.com/bitrise-io/go-steputils/v2/stepenv"
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
@@ -20,18 +21,33 @@ type MockGetterSetter struct {
 }
 
 // NewMockGetterSetter ...
-func NewMockGetterSetter() MockGetterSetter {
+func NewMockGetterSetter() env.Repository {
 	return MockGetterSetter{values: map[string]string{}}
 }
 
 // Get ...
-func (g MockGetterSetter) Get(key string) (string, error) {
-	return g.values[key], nil
+func (g MockGetterSetter) Get(key string) string {
+	return g.values[key]
 }
 
 // Set ...
 func (g MockGetterSetter) Set(key, value string) error {
 	g.values[key] = value
+	return nil
+}
+
+// List ...
+func (g MockGetterSetter) List() []string {
+	var envs []string
+	for k, v := range g.values {
+		envs = append(envs, fmt.Sprintf("%s=%s", k, v))
+	}
+	return envs
+}
+
+// Unset ...
+func (g MockGetterSetter) Unset(key string) error {
+	delete(g.values, key)
 	return nil
 }
 
@@ -59,6 +75,7 @@ const testThirdCommitIgnoreEnvVarContent = `/*.log
 func TestCacheFunctions(t *testing.T) {
 	filemanager := fileutil.NewFileManager()
 	pathmodifier := pathutil.NewPathModifier()
+	cacheEnvRepository := stepenv.NewRepository(env.NewRepository())
 
 	t.Log("Init envman")
 	{
@@ -85,7 +102,7 @@ func TestCacheFunctions(t *testing.T) {
 
 	t.Log("Test - cache")
 	{
-		c := cache.New()
+		c := cache.New(cacheEnvRepository)
 		c.IncludePath("/tmp/mypath -> /tmp/mypath/cachefile")
 		c.IncludePath("/tmp/otherpath")
 		c.IncludePath("/tmp/anotherpath")
@@ -105,12 +122,12 @@ func TestCacheFunctions(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, testIgnoreEnvVarContent, content)
 
-		c = cache.New()
+		c = cache.New(cacheEnvRepository)
 		c.ExcludePath("/*.lock")
 		err = c.Commit()
 		require.NoError(t, err)
 
-		c = cache.New()
+		c = cache.New(cacheEnvRepository)
 		c.ExcludePath("/*.lock")
 		err = c.Commit()
 		require.NoError(t, err)
