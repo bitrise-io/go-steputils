@@ -76,6 +76,10 @@ func downloadWithClient(ctx context.Context, httpClient *retryablehttp.Client, p
 		logger.Debugf("Downloading archive...")
 		downloadErr := downloadFile(ctx, httpClient, restoreResponse.URL, params.DownloadPath, params.MaxConcurrency, logger)
 		if downloadErr != nil {
+			if ctx.Err() != nil {
+				logger.Warnf("Download timed out.")
+				return fmt.Errorf("failed to download archive: %w", downloadErr), true
+			}
 			logger.Debugf("Failed to download archive: %s", downloadErr)
 			return fmt.Errorf("failed to download archive: %w", downloadErr), false
 		}
@@ -111,7 +115,7 @@ func downloadFile(ctx context.Context, httpClient *retryablehttp.Client, url str
 		KeepAlive: 30 * time.Second,
 		DualStack: dualStack,
 	}).DialContext
-	
+
 	downloader := got.New()
 	downloader.Client = httpClient.StandardClient()
 
