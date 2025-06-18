@@ -1,0 +1,51 @@
+package oldcache_test
+
+import (
+	"fmt"
+
+	cache "github.com/bitrise-io/go-steputils/v2/oldcache"
+	"github.com/bitrise-io/go-utils/v2/env"
+)
+
+// Create ItemCollectors for listing Bitrise cache include and exclude patterns.
+type SampleItemCollector struct{}
+
+// List of include and exclude patterns are collected in a given directory, cacheLevel describes what files should be included in the cache.
+func (c SampleItemCollector) Collect(dir string, cacheLevel cache.Level) ([]string, []string, error) {
+	return []string{"include_me.md"}, []string{"exclude_me.txt"}, nil
+}
+
+func Example() {
+	// Create a cache, usually using cache.New()
+	getterSetter := NewMockGetterSetter()
+	c := cache.New(getterSetter)
+
+	for _, collector := range []cache.ItemCollector{SampleItemCollector{}} {
+		// Run some Cache ItemCollectors
+		in, ex, err := collector.Collect("", cache.LevelDeps)
+		if err != nil {
+			panic(err)
+		}
+
+		// Store the include and exclude patterns in the cache
+		c.IncludePath(in...)
+		c.ExcludePath(ex...)
+	}
+	// Commit the cache changes
+	if err := c.Commit(); err != nil {
+		panic(err)
+	}
+
+	printIncludeAndExcludeEnvs(getterSetter)
+	// Output: include_me.md
+	//
+	// exclude_me.txt
+}
+
+func printIncludeAndExcludeEnvs(getterSetter env.Repository) {
+	includePaths := getterSetter.Get(cache.CacheIncludePathsEnvKey)
+	fmt.Println(includePaths)
+
+	excludePaths := getterSetter.Get(cache.CacheExcludePathsEnvKey)
+	fmt.Println(excludePaths)
+}
