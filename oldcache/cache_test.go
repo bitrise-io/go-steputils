@@ -1,16 +1,16 @@
-package cache_test
+package oldcache_test
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/bitrise-io/go-steputils/cache"
-	"github.com/bitrise-io/go-utils/command"
-	"github.com/bitrise-io/go-utils/fileutil"
-	"github.com/bitrise-io/go-utils/pathutil"
+	cache "github.com/bitrise-io/go-steputils/v2/oldcache"
+	"github.com/bitrise-io/go-utils/v2/command"
+	"github.com/bitrise-io/go-utils/v2/env"
+	"github.com/bitrise-io/go-utils/v2/fileutil"
+	"github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,25 +57,26 @@ const testThirdCommitIgnoreEnvVarContent = `/*.log
 `
 
 func TestCacheFunctions(t *testing.T) {
+	filemanager := fileutil.NewFileManager()
+	pathmodifier := pathutil.NewPathModifier()
 
 	t.Log("Init envman")
 	{
 		// envman requires an envstore path to use, or looks for default envstore path: ./.envstore.yml
-		workDir, err := pathutil.CurrentWorkingDirectoryAbsolutePath()
+		defaultEnvstorePth, err := pathmodifier.AbsPath(".envstore.yml")
 		require.NoError(t, err)
-		defaultEnvstorePth := filepath.Join(workDir, ".envstore.yml")
-		require.NoError(t, fileutil.WriteStringToFile(defaultEnvstorePth, ""))
+		require.NoError(t, filemanager.WriteBytes(defaultEnvstorePth, []byte("")))
 		defer func() {
 			require.NoError(t, os.Remove(defaultEnvstorePth))
 		}()
-		//
 
 		{
 			// envstore should be clear
-			cmd := command.New("envman", "clear")
+			cmdFactory := command.NewFactory(env.NewRepository())
+			cmd := cmdFactory.Create("envman", []string{"clear"}, nil)
 			out, err := cmd.RunAndReturnTrimmedCombinedOutput()
 			require.NoError(t, err, out)
-			cmd = command.New("envman", "print")
+			cmd = cmdFactory.Create("envman", []string{"print"}, nil)
 			out, err = cmd.RunAndReturnTrimmedCombinedOutput()
 			require.NoError(t, err, out)
 			require.Equal(t, "", out)
@@ -121,7 +122,8 @@ func TestCacheFunctions(t *testing.T) {
 }
 
 func getEnvironmentValueWithEnvman(key string) (string, error) {
-	cmd := command.New("envman", "print", "--format", "json")
+	cmdFactory := command.NewFactory(env.NewRepository())
+	cmd := cmdFactory.Create("envman", []string{"print", "--format", "json"}, nil)
 	output, err := cmd.RunAndReturnTrimmedCombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("%s\n%s", output, err)

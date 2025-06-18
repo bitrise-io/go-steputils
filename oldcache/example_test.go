@@ -1,9 +1,9 @@
-package cache_test
+package oldcache_test
 
 import (
 	"fmt"
 
-	"github.com/bitrise-io/go-steputils/cache"
+	cache "github.com/bitrise-io/go-steputils/v2/oldcache"
 )
 
 // Create ItemCollectors for listing Bitrise cache include and exclude patterns.

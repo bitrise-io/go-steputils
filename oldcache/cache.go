@@ -1,10 +1,12 @@
-package cache
+package oldcache
 
 import (
 	"os"
 	"strings"
 
-	"github.com/bitrise-io/go-steputils/tools"
+	"github.com/bitrise-io/go-steputils/v2/export"
+	"github.com/bitrise-io/go-utils/v2/command"
+	"github.com/bitrise-io/go-utils/v2/env"
 )
 
 // CacheIncludePathsEnvKey ...
@@ -42,7 +44,8 @@ func NewEnvmanVariableSetter() VariableSetter {
 
 // Set ...
 func (e EnvmanVariableSetter) Set(key, value string) error {
-	return tools.ExportEnvironmentWithEnvman(key, value)
+	exporter := export.NewExporter(command.NewFactory(env.NewRepository()))
+	return exporter.ExportOutput(key, value)
 }
 
 // VariableGetter ...
