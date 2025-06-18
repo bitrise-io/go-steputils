@@ -7,10 +7,10 @@ import (
 	"github.com/bitrise-io/go-utils/v2/env"
 )
 
-// CacheIncludePathsEnvKey's value is a newline separated list of paths that should be included in the cache.
+// CacheIncludePathsEnvKey is the env key whose value is a newline separated list of paths that should be included in the cache.
 const CacheIncludePathsEnvKey = "BITRISE_CACHE_INCLUDE_PATHS"
 
-// CacheExcludePathsEnvKey's value is a newline separated list of paths that should be excluded from the cache.
+// CacheExcludePathsEnvKey is the env key whose value is a newline separated list of paths that should be excluded from the cache.
 const CacheExcludePathsEnvKey = "BITRISE_CACHE_EXCLUDE_PATHS"
 
 // Cache is an interface for managing cache paths.
