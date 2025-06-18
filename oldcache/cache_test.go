@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	cache "github.com/bitrise-io/go-steputils/v2/oldcache"
-	"github.com/bitrise-io/go-steputils/v2/stepenv"
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
@@ -75,7 +74,6 @@ const testThirdCommitIgnoreEnvVarContent = `/*.log
 func TestCacheFunctions(t *testing.T) {
 	filemanager := fileutil.NewFileManager()
 	pathmodifier := pathutil.NewPathModifier()
-	cacheEnvRepository := stepenv.NewRepository(env.NewRepository())
 
 	t.Log("Init envman")
 	{
@@ -102,7 +100,7 @@ func TestCacheFunctions(t *testing.T) {
 
 	t.Log("Test - cache")
 	{
-		c := cache.New(cacheEnvRepository)
+		c := cache.NewDefault()
 		c.IncludePath("/tmp/mypath -> /tmp/mypath/cachefile")
 		c.IncludePath("/tmp/otherpath")
 		c.IncludePath("/tmp/anotherpath")
@@ -122,12 +120,12 @@ func TestCacheFunctions(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, testIgnoreEnvVarContent, content)
 
-		c = cache.New(cacheEnvRepository)
+		c = cache.NewDefault()
 		c.ExcludePath("/*.lock")
 		err = c.Commit()
 		require.NoError(t, err)
 
-		c = cache.New(cacheEnvRepository)
+		c = cache.NewDefault()
 		c.ExcludePath("/*.lock")
 		err = c.Commit()
 		require.NoError(t, err)
