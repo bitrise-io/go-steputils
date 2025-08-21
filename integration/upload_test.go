@@ -11,6 +11,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/bitrise-io/go-steputils/v2/cache/network"
@@ -20,38 +22,75 @@ import (
 )
 
 func TestUpload(t *testing.T) {
-	// Given
-	cacheKey := "integration-test"
 	baseURL := os.Getenv("BITRISEIO_ABCS_API_URL")
 	token := os.Getenv("BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN")
-	testFile := "testdata/single-item.tzst"
-	params := network.UploadParams{
-		APIBaseURL:  baseURL,
-		Token:       token,
-		ArchivePath: testFile,
-		ArchiveSize: 468,
-		CacheKey:    cacheKey,
-	}
-
 	logger.EnableDebugLog(true)
 
-	uploader := network.DefaultUploader{}
-	// When
-	err := uploader.Upload(context.Background(), params, logger)
+	t.Run("small file multipart upload", func(t *testing.T) {
+		cacheKey := "integration-test-small"
+		testFile := "testdata/single-item.tzst"
+		params := network.UploadParams{
+			APIBaseURL:  baseURL,
+			Token:       token,
+			ArchivePath: testFile,
+			ArchiveSize: 468,
+			CacheKey:    cacheKey,
+		}
 
-	// Then
-	assert.NoError(t, err)
+		uploader := network.DefaultUploader{}
+		err := uploader.Upload(context.Background(), params, logger)
+		assert.NoError(t, err)
 
-	bytes, err := ioutil.ReadFile(testFile)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	expectedChecksum := checksumOf(bytes)
-	checksum, err := downloadArchive(cacheKey, baseURL, token)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	assert.Equal(t, expectedChecksum, checksum)
+		// Verify file integrity
+		bytes, err := os.ReadFile(testFile)
+		assert.NoError(t, err)
+		expectedChecksum := checksumOf(bytes)
+		checksum, err := downloadArchive(cacheKey, baseURL, token)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedChecksum, checksum)
+	})
+
+	t.Run("large file multipart upload", func(t *testing.T) {
+		cacheKey := "integration-test-large"
+		tmpDir := t.TempDir()
+		testFile := filepath.Join(tmpDir, "large-multipart-test.dat")
+		compressedFile := filepath.Join(tmpDir, "large-multipart-test.tzst")
+
+		// Create a 35MB file with random data that won't compress well
+		logger.Infof("Creating 35MB test file with random data...")
+		err := exec.Command("dd", "if=/dev/urandom", "of="+testFile, "bs=1048576", "count=35").Run()
+		assert.NoError(t, err)
+
+		// Compress the file with zstd
+		err = exec.Command("zstd", testFile, "-o", compressedFile).Run()
+		assert.NoError(t, err)
+
+		// Get file info
+		fileInfo, err := os.Stat(compressedFile)
+		assert.NoError(t, err)
+
+		logger.Infof("Testing large file multipart upload with compressed file size: %d bytes", fileInfo.Size())
+
+		params := network.UploadParams{
+			APIBaseURL:  baseURL,
+			Token:       token,
+			ArchivePath: compressedFile,
+			ArchiveSize: fileInfo.Size(),
+			CacheKey:    cacheKey,
+		}
+
+		uploader := network.DefaultUploader{}
+		err = uploader.Upload(context.Background(), params, logger)
+		assert.NoError(t, err)
+
+		// Verify file integrity
+		bytes, err := os.ReadFile(compressedFile)
+		assert.NoError(t, err)
+		expectedChecksum := checksumOf(bytes)
+		checksum, err := downloadArchive(cacheKey, baseURL, token)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedChecksum, checksum)
+	})
 }
 
 // downloadArchive downloads the archive from the API based on cacheKey and returns its SHA256 checksum
@@ -111,3 +150,4 @@ func downloadArchive(cacheKey string, baseURL string, token string) (string, err
 
 	return checksumOf(bytes), nil
 }
+
