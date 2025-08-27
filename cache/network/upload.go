@@ -206,7 +206,7 @@ func (u DefaultUploader) uploadChunks(ctx context.Context, archivePath string, r
 								return
 							case <-ticker.C:
 								if stats.getFinishedCount() > 0 && time.Since(start)-stats.average() > chunkRetryThreshold {
-									logger.Warnf("⚠️ found hanged chunk upload, canceling request after %s",
+									logger.Warnf("⚠️ Found hung chunk upload; canceling request after %s",
 										time.Since(start).Round(time.Second))
 									cancelChunk()
 									return
