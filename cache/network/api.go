@@ -40,7 +40,7 @@ type prepareMultipartUploadURL struct {
 
 type completeMultipartUploadRequest struct {
 	Successful bool     `json:"successful"`
-	Etags      []string `json:"etags"`
+	Etags      []string `json:"etags,omitempty"`
 }
 
 type acknowledgeResponse struct {
@@ -109,10 +109,26 @@ func (c apiClient) prepareMultipartUpload(requestBody prepareUploadRequest) (pre
 }
 
 func (c apiClient) completeMultipartUpload(uploadID string, etags []string) (acknowledgeResponse, error) {
+	resp, err := c.acknowledgeMultipartUpload(uploadID, true, etags)
+	if err != nil {
+		return acknowledgeResponse{}, fmt.Errorf("complete multipart upload: %w", err)
+	}
+	return resp, nil
+}
+
+func (c apiClient) abortMultipartUpload(uploadID string) error {
+	_, err := c.acknowledgeMultipartUpload(uploadID, false, nil)
+	if err != nil {
+		return fmt.Errorf("abort multipart upload: %w", err)
+	}
+	return nil
+}
+
+func (c apiClient) acknowledgeMultipartUpload(uploadID string, successful bool, etags []string) (acknowledgeResponse, error) {
 	url := fmt.Sprintf("%s/multipart-upload/%s/acknowledge", c.baseURL, uploadID)
 
 	requestBody := completeMultipartUploadRequest{
-		Successful: true,
+		Successful: successful,
 		Etags:      etags,
 	}
 
