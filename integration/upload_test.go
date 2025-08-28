@@ -126,12 +126,16 @@ func TestUpload(t *testing.T) {
 			cancel()
 		}()
 
+		start := time.Now()
 		uploader := network.DefaultUploader{}
 		err = uploader.Upload(ctx, params, logger)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cancelled")
 		logger.Infof("Successfully received cancellation error: %v", err)
+
+		elapsed := time.Since(start)
+		assert.Less(t, elapsed, 2*time.Second, "upload should have been cancelled quickly")
 
 		// verify that the upload was properly cancelled and no partial cache entry exists
 		// we expect this to fail with a "not found" error since the upload was cancelled

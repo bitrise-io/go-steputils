@@ -131,6 +131,49 @@ type chunkResult struct {
 	err   error
 }
 
+type ChunkReader struct {
+	file          *os.File
+	chunkSize     int64
+	lastChunkSize int64
+	numChunks     int
+	mu            sync.Mutex
+}
+
+func (cr *ChunkReader) ReadChunk(index int) ([]byte, error) {
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
+
+	size := cr.chunkSize
+	if index == cr.numChunks-1 {
+		size = cr.lastChunkSize
+	}
+
+	offset := int64(index) * cr.chunkSize
+	_, err := cr.file.Seek(offset, io.SeekStart)
+	if err != nil {
+		return nil, fmt.Errorf("seek to position %d for chunk %d: %w", offset, index+1, err)
+	}
+
+	chunk := make([]byte, size)
+	n, err := io.ReadFull(cr.file, chunk)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return nil, fmt.Errorf("read chunk %d: %w", index+1, err)
+	}
+
+	if n == 0 {
+		return nil, fmt.Errorf("unexpected end of file at chunk %d", index+1)
+	}
+
+	return chunk[:n], nil
+}
+
+func (cr *ChunkReader) Close() error {
+	if cr.file != nil {
+		return cr.file.Close()
+	}
+	return nil
+}
+
 type chunkUploadContext struct {
 	stats               *chunkStatistics
 	resultChan          chan chunkResult
@@ -148,12 +191,17 @@ func (c *chunkUploadContext) closeIdleConnections() {
 }
 
 func (u DefaultUploader) uploadChunks(ctx context.Context, archivePath string, response prepareMultipartUploadResponse, logger log.Logger) ([]string, error) {
-	chunks, err := u.readFileChunks(ctx, archivePath, response, logger)
+	chunkReader, err := u.createChunkReader(archivePath, response)
 	if err != nil {
-		return nil, fmt.Errorf("read file chunks: %w", err)
+		return nil, fmt.Errorf("create chunk reader: %w", err)
 	}
+	defer func() {
+		if err := chunkReader.Close(); err != nil {
+			logger.Errorf("close chunk reader: %v", err)
+		}
+	}()
 
-	etags, err := u.uploadAllChunks(ctx, chunks, response, logger)
+	etags, err := u.uploadAllChunks(ctx, chunkReader, response, logger)
 	if err != nil {
 		return nil, fmt.Errorf("upload all chunks: %w", err)
 	}
@@ -161,60 +209,21 @@ func (u DefaultUploader) uploadChunks(ctx context.Context, archivePath string, r
 	return etags, nil
 }
 
-func (u DefaultUploader) readFileChunks(ctx context.Context, archivePath string, response prepareMultipartUploadResponse, logger log.Logger) ([][]byte, error) {
+func (u DefaultUploader) createChunkReader(archivePath string, response prepareMultipartUploadResponse) (*ChunkReader, error) {
 	file, err := os.Open(archivePath)
 	if err != nil {
 		return nil, fmt.Errorf("open archive file: %w", err)
 	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			logger.Errorf("close archive: %v", err)
-		}
-	}()
 
-	chunkSize := response.ChunkSizeBytes
-	numChunks := len(response.URLs)
-
-	chunks := make([][]byte, numChunks)
-	currentOffset := int64(0)
-
-	for i := 0; i < numChunks; i++ {
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("context cancelled while reading chunks: %w", ctx.Err())
-		default:
-		}
-
-		currentChunkSize := chunkSize
-		if i == numChunks-1 {
-			currentChunkSize = response.LastChunkSizeBytes
-		}
-
-		// seek to correct position
-		_, err := file.Seek(currentOffset, io.SeekStart)
-		if err != nil {
-			return nil, fmt.Errorf("seek to position %d for chunk %d: %w", currentOffset, i+1, err)
-		}
-
-		// read chunk from file
-		chunk := make([]byte, currentChunkSize)
-		n, err := io.ReadFull(file, chunk)
-		if err != nil && err != io.ErrUnexpectedEOF {
-			return nil, fmt.Errorf("read chunk %d: %w", i+1, err)
-		}
-
-		if n == 0 {
-			return nil, fmt.Errorf("unexpected end of file at chunk %d", i+1)
-		}
-
-		chunks[i] = chunk[:n]
-		currentOffset += int64(n)
-	}
-
-	return chunks, nil
+	return &ChunkReader{
+		file:          file,
+		chunkSize:     response.ChunkSizeBytes,
+		lastChunkSize: response.LastChunkSizeBytes,
+		numChunks:     len(response.URLs),
+	}, nil
 }
 
-func (u DefaultUploader) uploadAllChunks(ctx context.Context, chunks [][]byte, response prepareMultipartUploadResponse, logger log.Logger) ([]string, error) {
+func (u DefaultUploader) uploadAllChunks(ctx context.Context, chunkReader *ChunkReader, response prepareMultipartUploadResponse, logger log.Logger) ([]string, error) {
 	numChunks := len(response.URLs)
 
 	var stats chunkStatistics
@@ -239,9 +248,19 @@ func (u DefaultUploader) uploadAllChunks(ctx context.Context, chunks [][]byte, r
 	defer uploadCtx.closeIdleConnections()
 
 	for i, uploadURL := range response.URLs {
-		go func(index int, url prepareMultipartUploadURL, chunkData []byte) {
+		go func(index int, url prepareMultipartUploadURL) {
 			uploadCtx.semaphore <- struct{}{}
 			defer func() { <-uploadCtx.semaphore }()
+
+			chunkData, err := chunkReader.ReadChunk(index)
+			if err != nil {
+				uploadCtx.resultChan <- chunkResult{
+					index: index,
+					etag:  "",
+					err:   fmt.Errorf("read chunk %d: %w", index+1, err),
+				}
+				return
+			}
 
 			etag, err := u.uploadChunkWithRetry(ctx, chunkData, url, index, uploadCtx, logger)
 			uploadCtx.resultChan <- chunkResult{
@@ -249,7 +268,7 @@ func (u DefaultUploader) uploadAllChunks(ctx context.Context, chunks [][]byte, r
 				etag:  etag,
 				err:   err,
 			}
-		}(i, uploadURL, chunks[i])
+		}(i, uploadURL)
 	}
 
 	etags := make([]string, numChunks)
