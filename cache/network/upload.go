@@ -131,7 +131,7 @@ type chunkResult struct {
 	err   error
 }
 
-type ChunkReader struct {
+type chunkReader struct {
 	file          *os.File
 	chunkSize     int64
 	lastChunkSize int64
@@ -139,7 +139,7 @@ type ChunkReader struct {
 	mu            sync.Mutex
 }
 
-func (cr *ChunkReader) ReadChunk(index int) ([]byte, error) {
+func (cr *chunkReader) readChunk(index int) ([]byte, error) {
 	cr.mu.Lock()
 	defer cr.mu.Unlock()
 
@@ -167,7 +167,7 @@ func (cr *ChunkReader) ReadChunk(index int) ([]byte, error) {
 	return chunk[:n], nil
 }
 
-func (cr *ChunkReader) Close() error {
+func (cr *chunkReader) close() error {
 	if cr.file != nil {
 		return cr.file.Close()
 	}
@@ -196,7 +196,7 @@ func (u DefaultUploader) uploadChunks(ctx context.Context, archivePath string, r
 		return nil, fmt.Errorf("create chunk reader: %w", err)
 	}
 	defer func() {
-		if err := chunkReader.Close(); err != nil {
+		if err := chunkReader.close(); err != nil {
 			logger.Errorf("close chunk reader: %v", err)
 		}
 	}()
@@ -209,13 +209,13 @@ func (u DefaultUploader) uploadChunks(ctx context.Context, archivePath string, r
 	return etags, nil
 }
 
-func (u DefaultUploader) createChunkReader(archivePath string, response prepareMultipartUploadResponse) (*ChunkReader, error) {
+func (u DefaultUploader) createChunkReader(archivePath string, response prepareMultipartUploadResponse) (*chunkReader, error) {
 	file, err := os.Open(archivePath)
 	if err != nil {
 		return nil, fmt.Errorf("open archive file: %w", err)
 	}
 
-	return &ChunkReader{
+	return &chunkReader{
 		file:          file,
 		chunkSize:     response.ChunkSizeBytes,
 		lastChunkSize: response.LastChunkSizeBytes,
@@ -223,7 +223,7 @@ func (u DefaultUploader) createChunkReader(archivePath string, response prepareM
 	}, nil
 }
 
-func (u DefaultUploader) uploadAllChunks(ctx context.Context, chunkReader *ChunkReader, response prepareMultipartUploadResponse, logger log.Logger) ([]string, error) {
+func (u DefaultUploader) uploadAllChunks(ctx context.Context, chunkReader *chunkReader, response prepareMultipartUploadResponse, logger log.Logger) ([]string, error) {
 	numChunks := len(response.URLs)
 
 	var stats chunkStatistics
@@ -252,7 +252,7 @@ func (u DefaultUploader) uploadAllChunks(ctx context.Context, chunkReader *Chunk
 			uploadCtx.semaphore <- struct{}{}
 			defer func() { <-uploadCtx.semaphore }()
 
-			chunkData, err := chunkReader.ReadChunk(index)
+			chunkData, err := chunkReader.readChunk(index)
 			if err != nil {
 				uploadCtx.resultChan <- chunkResult{
 					index: index,
