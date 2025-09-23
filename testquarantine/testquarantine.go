@@ -10,6 +10,10 @@ type QuarantinedTest struct {
 
 // ParseQuarantinedTests parses Bitrise quarantined tests JSON ($BITRISE_QUARANTINED_TESTS_JSON) into a slice of QuarantinedTest structs.
 func ParseQuarantinedTests(jsonContent string) ([]QuarantinedTest, error) {
+	if jsonContent == "" {
+		return nil, nil
+	}
+
 	var quarantinedTests []QuarantinedTest
 	err := json.Unmarshal([]byte(jsonContent), &quarantinedTests)
 	if err != nil {
