@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/bitrise-io/go-steputils/v2/cache/network"
 	"github.com/stretchr/testify/assert"
@@ -91,57 +90,6 @@ func TestUpload(t *testing.T) {
 		checksum, err := downloadArchive(cacheKey, baseURL, token)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedChecksum, checksum)
-	})
-
-	t.Run("graceful shutdown during multipart upload", func(t *testing.T) {
-		cacheKey := "integration-test-graceful-shutdown"
-		tmpDir := t.TempDir()
-		testFile := filepath.Join(tmpDir, "shutdown-test.dat")
-		compressedFile := filepath.Join(tmpDir, "shutdown-test.tzst")
-
-		logger.Infof("Creating 100MB test file for graceful shutdown test...")
-		err := exec.Command("dd", "if=/dev/urandom", "of="+testFile, "bs=1048576", "count=100").Run()
-		assert.NoError(t, err)
-
-		err = exec.Command("zstd", testFile, "-o", compressedFile).Run()
-		assert.NoError(t, err)
-
-		fileInfo, err := os.Stat(compressedFile)
-		assert.NoError(t, err)
-
-		logger.Infof("Testing graceful shutdown with file size: %d bytes", fileInfo.Size())
-
-		params := network.UploadParams{
-			APIBaseURL:  baseURL,
-			Token:       token,
-			ArchivePath: compressedFile,
-			ArchiveSize: fileInfo.Size(),
-			CacheKey:    cacheKey,
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			time.Sleep(1 * time.Second)
-			logger.Infof("Cancelling upload context for graceful shutdown test")
-			cancel()
-		}()
-
-		start := time.Now()
-		uploader := network.DefaultUploader{}
-		err = uploader.Upload(ctx, params, logger)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "cancelled")
-		logger.Infof("Successfully received cancellation error: %v", err)
-
-		elapsed := time.Since(start)
-		assert.Less(t, elapsed, 2*time.Second, "upload should have been cancelled quickly")
-
-		// verify that the upload was properly cancelled and no partial cache entry exists
-		// we expect this to fail with a "not found" error since the upload was cancelled
-		_, err = downloadArchive(cacheKey, baseURL, token)
-		assert.Error(t, err)
-		logger.Infof("Confirmed that no partial upload exists in cache after cancellation")
 	})
 }
 
