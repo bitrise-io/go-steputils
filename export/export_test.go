@@ -19,7 +19,16 @@ func TestExportOutput(t *testing.T) {
 	e := NewExporter(command.NewFactory(env.NewRepository()))
 	require.NoError(t, e.ExportOutput("my_key", "my value"))
 
-	requireEnvmanContainsValueForKey(t, "my_key", "my value", envmanStorePath)
+	requireEnvmanContainsValueForKey(t, "my_key", "my value", false, envmanStorePath)
+}
+
+func TestExportSecretOutput(t *testing.T) {
+	envmanStorePath := setupEnvman(t)
+
+	e := NewExporter(command.NewFactory(env.NewRepository()))
+	require.NoError(t, e.ExportSecretOutput("my_key", "my secret value"))
+
+	requireEnvmanContainsValueForKey(t, "my_key", "my secret value", true, envmanStorePath)
 }
 
 func TestExportOutputFile(t *testing.T) {
@@ -34,7 +43,7 @@ func TestExportOutputFile(t *testing.T) {
 	e := NewExporter(command.NewFactory(env.NewRepository()))
 	require.NoError(t, e.ExportOutputFile("my_key", sourcePath, destinationPath))
 
-	requireEnvmanContainsValueForKey(t, "my_key", destinationPath, envmanStorePath)
+	requireEnvmanContainsValueForKey(t, "my_key", destinationPath, false, envmanStorePath)
 }
 
 func TestZipDirectoriesAndExportOutput(t *testing.T) {
@@ -60,7 +69,7 @@ func TestZipDirectoriesAndExportOutput(t *testing.T) {
 	require.Equal(t, true, exist, tmpDir)
 
 	// destination should be exported
-	requireEnvmanContainsValueForKey(t, key, destinationZip, envmanStorePath)
+	requireEnvmanContainsValueForKey(t, key, destinationZip, false, envmanStorePath)
 }
 
 func TestZipFilesAndExportOutput(t *testing.T) {
@@ -91,7 +100,7 @@ func TestZipFilesAndExportOutput(t *testing.T) {
 	require.Equal(t, true, exist, tmpDir)
 
 	// destination should be exported
-	requireEnvmanContainsValueForKey(t, key, destinationZip, envmanStorePath)
+	requireEnvmanContainsValueForKey(t, key, destinationZip, false, envmanStorePath)
 }
 
 func TestZipMixedFilesAndFoldersAndExportOutput(t *testing.T) {
@@ -121,13 +130,17 @@ func TestZipMixedFilesAndFoldersAndExportOutput(t *testing.T) {
 	require.Error(t, e.ExportOutputFilesZip("EXPORTED_ZIP_PATH", sourceFilePaths, destinationZip))
 }
 
-func requireEnvmanContainsValueForKey(t *testing.T, key, value, envmanStorePath string) {
-	b, err := ioutil.ReadFile(envmanStorePath)
+func requireEnvmanContainsValueForKey(t *testing.T, key, value string, secret bool, envmanStorePath string) {
+	b, err := os.ReadFile(envmanStorePath)
 	require.NoError(t, err)
 	envstoreContent := string(b)
 
 	t.Logf("envstoreContent: %s\n", envstoreContent)
 	require.Equal(t, true, strings.Contains(envstoreContent, "- "+key+": "+value), envstoreContent)
+
+	if secret {
+		require.Equal(t, true, strings.Contains(envstoreContent, "is_sensitive: true"), envstoreContent)
+	}
 }
 
 func setupEnvman(t *testing.T) string {
