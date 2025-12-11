@@ -1,4 +1,4 @@
-package oldcache
+package legacycache
 
 // Level defines the extent to which caching should be used.
 // - LevelNone: no caching

@@ -1,9 +1,8 @@
-package oldcache_test
+package legacycache
 
 import (
 	"fmt"
 
-	cache "github.com/bitrise-io/go-steputils/v2/oldcache"
 	"github.com/bitrise-io/go-utils/v2/env"
 )
 
@@ -11,18 +10,18 @@ import (
 type SampleItemCollector struct{}
 
 // List of include and exclude patterns are collected in a given directory, cacheLevel describes what files should be included in the cache.
-func (c SampleItemCollector) Collect(dir string, cacheLevel cache.Level) ([]string, []string, error) {
+func (c SampleItemCollector) Collect(dir string, cacheLevel Level) ([]string, []string, error) {
 	return []string{"include_me.md"}, []string{"exclude_me.txt"}, nil
 }
 
 func Example() {
 	// Create a cache, usually using cache.New()
 	getterSetter := NewMockGetterSetter()
-	c := cache.New(getterSetter)
+	c := New(getterSetter)
 
-	for _, collector := range []cache.ItemCollector{SampleItemCollector{}} {
+	for _, collector := range []ItemCollector{SampleItemCollector{}} {
 		// Run some Cache ItemCollectors
-		in, ex, err := collector.Collect("", cache.LevelDeps)
+		in, ex, err := collector.Collect("", LevelDeps)
 		if err != nil {
 			panic(err)
 		}
@@ -43,9 +42,9 @@ func Example() {
 }
 
 func printIncludeAndExcludeEnvs(getterSetter env.Repository) {
-	includePaths := getterSetter.Get(cache.CacheIncludePathsEnvKey)
+	includePaths := getterSetter.Get(CacheIncludePathsEnvKey)
 	fmt.Println(includePaths)
 
-	excludePaths := getterSetter.Get(cache.CacheExcludePathsEnvKey)
+	excludePaths := getterSetter.Get(CacheExcludePathsEnvKey)
 	fmt.Println(excludePaths)
 }

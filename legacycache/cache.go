@@ -1,4 +1,4 @@
-package oldcache
+package legacycache
 
 import (
 	"strings"

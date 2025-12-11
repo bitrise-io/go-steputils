@@ -1,4 +1,4 @@
-package oldcache_test
+package legacycache
 
 import (
 	"encoding/json"
@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	cache "github.com/bitrise-io/go-steputils/v2/oldcache"
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
@@ -100,7 +99,7 @@ func TestCacheFunctions(t *testing.T) {
 
 	t.Log("Test - cache")
 	{
-		c := cache.NewDefault()
+		c := NewDefault()
 		c.IncludePath("/tmp/mypath -> /tmp/mypath/cachefile")
 		c.IncludePath("/tmp/otherpath")
 		c.IncludePath("/tmp/anotherpath")
@@ -112,25 +111,25 @@ func TestCacheFunctions(t *testing.T) {
 		err := c.Commit()
 		require.NoError(t, err)
 
-		content, err := getEnvironmentValueWithEnvman(cache.CacheIncludePathsEnvKey)
+		content, err := getEnvironmentValueWithEnvman(CacheIncludePathsEnvKey)
 		require.NoError(t, err)
 		require.Equal(t, testEnvVarContent, content)
 
-		content, err = getEnvironmentValueWithEnvman(cache.CacheExcludePathsEnvKey)
+		content, err = getEnvironmentValueWithEnvman(CacheExcludePathsEnvKey)
 		require.NoError(t, err)
 		require.Equal(t, testIgnoreEnvVarContent, content)
 
-		c = cache.NewDefault()
+		c = NewDefault()
 		c.ExcludePath("/*.lock")
 		err = c.Commit()
 		require.NoError(t, err)
 
-		c = cache.NewDefault()
+		c = NewDefault()
 		c.ExcludePath("/*.lock")
 		err = c.Commit()
 		require.NoError(t, err)
 
-		content, err = getEnvironmentValueWithEnvman(cache.CacheExcludePathsEnvKey)
+		content, err = getEnvironmentValueWithEnvman(CacheExcludePathsEnvKey)
 		require.NoError(t, err)
 		require.Equal(t, testThirdCommitIgnoreEnvVarContent, content)
 	}
