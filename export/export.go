@@ -3,11 +3,12 @@ package export
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 
+	envman "github.com/bitrise-io/envman/cli"
 	"github.com/bitrise-io/go-utils/v2/command"
+	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/bitrise-io/go-utils/ziputil"
 )
@@ -21,11 +22,12 @@ const (
 // Exporter ...
 type Exporter struct {
 	cmdFactory command.Factory
+	logger log.Logger
 }
 
 // NewExporter ...
-func NewExporter(cmdFactory command.Factory) Exporter {
-	return Exporter{cmdFactory: cmdFactory}
+func NewExporter(cmdFactory command.Factory, logger log.Logger) Exporter {
+	return Exporter{cmdFactory, logger}
 }
 
 // ExportOutput is used for exposing values for other steps.
@@ -34,6 +36,22 @@ func NewExporter(cmdFactory command.Factory) Exporter {
 func (e *Exporter) ExportOutput(key, value string) error {
 	cmd := e.cmdFactory.Create("envman", []string{"add", "--key", key, "--value", value}, nil)
 	return runExport(cmd)
+}
+
+type OutputOptions struct {
+	NoExpand bool
+	Sensitive bool
+	Append bool // TODO: what's the point? check what `remove()` does
+	SkipEmpty bool
+}
+
+func (e *Exporter) ExportOutput2(key, value string, opts OutputOptions) error {
+	envstorePath := os.Getenv("ENVMAN_ENVSTORE_PATH")
+	if envstorePath == "" {
+		e.logger.Warnf("ENVMAN_ENVSTORE_PATH is not set, so %s won't be saved to the envstore. This should not happen when a step is part of a Bitrise workflow", key)
+		return nil
+	}
+	return envman.AddEnv(envstorePath, key, value, !opts.NoExpand, !opts.Append, opts.SkipEmpty, opts.Sensitive)
 }
 
 // ExportOutputNoExpand works like ExportOutput but does not expand environment variables in the value.
