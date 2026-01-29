@@ -317,33 +317,39 @@ func lastNLines(s string, n int) string {
 	if n <= 0 {
 		return ""
 	}
-	if n == 1 {
-		// fast path: return substring after last '\n'
-		if idx := strings.LastIndexByte(s, '\n'); idx >= 0 {
-			return s[idx+1:]
-		}
-		return s
+	// normalize CRLF to LF if needed
+	if strings.Contains(s, "\r\n") {
+		s = strings.ReplaceAll(s, "\r\n", "\n")
 	}
 
-	// scan backwards and count '\n'
-	count := 0
+	// skip trailing newlines so we don't count empty trailing lines
 	i := len(s) - 1
-
-	// ignoring trailing newline(s)
 	for i >= 0 && s[i] == '\n' {
 		i--
 	}
+	if i < 0 {
+		return "" // string was all newlines
+	}
 
-	for i >= 0 {
+	// scan backward counting '\n' occurrences
+	count := 0
+	for ; i >= 0; i-- {
 		if s[i] == '\n' {
 			count++
 			if count == n {
-				// return the substring after this newline
-				return s[i+1:]
+				// substring after this newline is the last n lines
+				start := i + 1
+				res := s[start:]
+				// trim trailing whitespace (spaces, tabs, newlines, etc.)
+				return strings.TrimRightFunc(res, func(r rune) bool {
+					return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '\f' || r == '\v'
+				})
 			}
 		}
-		i--
 	}
-	// fewer than n newlines -> return whole string
-	return s
+
+	// fewer than n newlines => return whole string (trim trailing whitespace)
+	return strings.TrimRightFunc(s, func(r rune) bool {
+		return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '\f' || r == '\v'
+	})
 }
