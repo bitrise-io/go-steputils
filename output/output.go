@@ -4,12 +4,26 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/bitrise-io/go-utils/command"
-	"github.com/bitrise-io/go-utils/fileutil"
-	"github.com/bitrise-io/go-utils/pathutil"
-	"github.com/bitrise-io/go-utils/stringutil"
-	"github.com/bitrise-io/go-utils/ziputil"
+	v1_command "github.com/bitrise-io/go-utils/command"
+	v1_fileutil "github.com/bitrise-io/go-utils/fileutil"
+	v1_pathutil "github.com/bitrise-io/go-utils/pathutil"
+	v1_stringutil "github.com/bitrise-io/go-utils/stringutil"
+	v1_ziputil "github.com/bitrise-io/go-utils/ziputil"
+
+	"github.com/bitrise-io/go-utils/v2/command"
+	"github.com/bitrise-io/go-utils/v2/fileutil"
+	"github.com/bitrise-io/go-utils/v2/pathutil"
+	//"github.com/bitrise-io/go-utils/v2/stringutil"
+	//"github.com/bitrise-io/go-utils/v2/ziputil"
 )
+
+func temp() {
+	_ = v1_command.New("echo", "hello")
+	_, _ = v1_pathutil.AbsPath("")
+	_ = v1_fileutil.WriteStringToFile("", "")
+	_ = v1_stringutil.LastNLines("", 3)
+	_ = v1_ziputil.ZipFiles([]string{}, "")
+}
 
 // ExportOutputDir ...
 func ExportOutputDir(sourceDir, destinationDir, envKey string) error {
@@ -70,7 +84,7 @@ func ExportOutputFileContentAndReturnLastNLines(content, destinationPath, envKey
 		return "", err
 	}
 
-	return stringutil.LastNLines(content, lines), nil
+	return v1_stringutil.LastNLines(content, lines), nil
 }
 
 // ZipAndExportOutput ...
@@ -90,9 +104,9 @@ func ZipAndExportOutput(sourcePths []string, destinationZipPth, envKey string) e
 	// else leads to an error.
 	switch inputType {
 	case filesType:
-		err = ziputil.ZipFiles(sourcePths, tmpZipFilePth)
+		err = v1_ziputil.ZipFiles(sourcePths, tmpZipFilePth)
 	case foldersType:
-		err = ziputil.ZipDirs(sourcePths, tmpZipFilePth)
+		err = v1_ziputil.ZipDirs(sourcePths, tmpZipFilePth)
 	case mixedFileAndFolderType:
 		return fmt.Errorf("source path list (%s) contains a mix of files and folders", sourcePths)
 	default:
