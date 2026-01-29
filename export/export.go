@@ -73,6 +73,29 @@ func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) err
 	return e.ExportOutput(key, absDestinationPath)
 }
 
+// ExportOutputDir is a convenience method for copying sourceDir to destinationDir and then exporting the
+// absolute destination path with ExportOutput()
+// Note: Symlinks are followed when copying the directory (instead of copying the symlink itself)
+func (e *Exporter) ExportOutputDir(key, sourceDir, destinationDir string) error {
+	pathModifier := pathutil.NewPathModifier()
+	absSourceDir, err := pathModifier.AbsPath(sourceDir)
+	if err != nil {
+		return fmt.Errorf("resolve source directory path: %w", err)
+	}
+	absDestinationDir, err := pathModifier.AbsPath(destinationDir)
+	if err != nil {
+		return fmt.Errorf("resolve destination directory path: %w", err)
+	}
+
+	if absSourceDir != absDestinationDir {
+		if err = copyDir(absSourceDir, absDestinationDir); err != nil {
+			return err
+		}
+	}
+
+	return e.ExportOutput(key, absDestinationDir)
+}
+
 // ExportOutputFilesZip is a convenience method for creating a ZIP archive from sourcePaths at zipPath and then
 // exporting the absolute path of the ZIP with ExportOutput()
 func (e *Exporter) ExportOutputFilesZip(key string, sourcePaths []string, zipPath string) error {
@@ -174,6 +197,62 @@ func copyFile(source, destination string) error {
 		return err
 	}
 	return nil
+}
+
+func copyDir(src, dst string) error {
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("stat source directory: %w", err)
+	}
+	if !srcInfo.IsDir() {
+		return fmt.Errorf("source is not a directory: %s", src)
+	}
+
+	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
+		return fmt.Errorf("create destination directory: %w", err)
+	}
+
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return fmt.Errorf("calculate relative path: %w", err)
+		}
+
+		if relPath == "." {
+			return nil
+		}
+
+		dstPath := filepath.Join(dst, relPath)
+
+		// Follow symlinks by using os.Stat instead of the lstat-based info from Walk
+		if info.Mode()&os.ModeSymlink != 0 {
+			info, err = os.Stat(path)
+			if err != nil {
+				return fmt.Errorf("follow symlink %s: %w", path, err)
+			}
+		}
+
+		if info.IsDir() {
+			if err := os.MkdirAll(dstPath, info.Mode()); err != nil {
+				return fmt.Errorf("create directory %s: %w", dstPath, err)
+			}
+		} else if info.Mode().IsRegular() {
+			if err := copyFile(path, dstPath); err != nil {
+				return fmt.Errorf("copy file %s: %w", path, err)
+			}
+			if err := os.Chmod(dstPath, info.Mode()); err != nil {
+				return fmt.Errorf("set permissions on %s: %w", dstPath, err)
+			}
+		} else {
+			return fmt.Errorf("unsupported file type for %s (mode: %s)", path, info.Mode())
+		}
+
+		return nil
+	})
 }
 
 func runExport(cmd command.Command) error {
