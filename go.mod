@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/bitrise-io/go-utils v1.0.13
-	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.26
+	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.27.0.20260130092325-4428782b68f1
 	github.com/bitrise-io/got v0.0.0-20240902113940-25f6469d1456
 	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/docker/go-units v0.4.0
