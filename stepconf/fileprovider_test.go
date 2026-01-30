@@ -128,8 +128,6 @@ func TestFileProvider_LocalPath_HTTPUrl_WithPath(t *testing.T) {
 func TestFileProvider_LocalPath_HTTPUrl_404Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		_, err := w.Write([]byte("Not Found"))
-		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -140,7 +138,7 @@ func TestFileProvider_LocalPath_HTTPUrl_404Error(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Empty(t, localPath)
-	assert.Contains(t, err.Error(), "status code 404")
+	assert.Contains(t, err.Error(), "404 Not Found")
 }
 
 func TestFileProvider_Contents_FileScheme(t *testing.T) {
