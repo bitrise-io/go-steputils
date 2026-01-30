@@ -54,7 +54,7 @@ func TestFileProvider_LocalPath_FileScheme_RelativePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	origDir, err := os.Getwd()
 	require.NoError(t, err)
-	defer os.Chdir(origDir)
+	defer func() { require.NoError(t, os.Chdir(origDir)) }()
 
 	err = os.Chdir(tmpDir)
 	require.NoError(t, err)
@@ -84,7 +84,8 @@ func TestFileProvider_LocalPath_HTTPUrl(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/config.json", r.URL.Path)
 		w.WriteHeader(http.StatusOK)
-		w.Write(expectedContent)
+		_, err := w.Write(expectedContent)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -106,7 +107,8 @@ func TestFileProvider_LocalPath_HTTPUrl_WithPath(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/path/to/file.txt", r.URL.Path)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("file content"))
+		_, err := w.Write([]byte("file content"))
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -126,7 +128,8 @@ func TestFileProvider_LocalPath_HTTPUrl_WithPath(t *testing.T) {
 func TestFileProvider_LocalPath_HTTPUrl_404Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("Not Found"))
+		_, err := w.Write([]byte("Not Found"))
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -155,7 +158,7 @@ func TestFileProvider_Contents_FileScheme(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, reader)
-	defer reader.Close()
+	defer func() { require.NoError(t, reader.Close()) }()
 
 	content, err := io.ReadAll(reader)
 	require.NoError(t, err)
@@ -166,7 +169,8 @@ func TestFileProvider_Contents_HTTPUrl(t *testing.T) {
 	expectedContent := "remote file content"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(expectedContent))
+		_, err := w.Write([]byte(expectedContent))
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -177,7 +181,7 @@ func TestFileProvider_Contents_HTTPUrl(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, reader)
-	defer reader.Close()
+	defer func() { require.NoError(t, reader.Close()) }()
 
 	content, err := io.ReadAll(reader)
 	require.NoError(t, err)
@@ -193,7 +197,8 @@ func TestFileProvider_Contents_HTTPUrl_Streaming(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write(largeContent)
+		_, err := w.Write(largeContent)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -204,7 +209,7 @@ func TestFileProvider_Contents_HTTPUrl_Streaming(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, reader)
-	defer reader.Close()
+	defer func() { require.NoError(t, reader.Close()) }()
 
 	// Read in chunks to verify streaming
 	chunk := make([]byte, 4096)
