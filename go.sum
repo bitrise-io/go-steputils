@@ -2,8 +2,8 @@ github.com/BurntSushi/toml v1.1.0/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbi
 github.com/bitrise-io/go-utils v1.0.13 h1:1QENhTS/JlKH9F7+/nB+TtbTcor6jGrE6cQ4CJWfp5U=
 github.com/bitrise-io/go-utils v1.0.13/go.mod h1:ZY1DI+fEpZuFpO9szgDeICM4QbqoWVt0RSY3tRI1heY=
 github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.23/go.mod h1:3XUplo0dOWc3DqT2XA2SeHToDSg7+j1y1HTHibT2H68=
-github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.27.0.20260130092325-4428782b68f1 h1:NqCbj1YN+ISsn/p+u7UJ1yV2OROdE0DDWtcnIrO2ka0=
-github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.27.0.20260130092325-4428782b68f1/go.mod h1:3XUplo0dOWc3DqT2XA2SeHToDSg7+j1y1HTHibT2H68=
+github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.31 h1:Lay9mco4/T88oYY+kqZlpdWeU9aj32/qWMRwcTg812o=
+github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.31/go.mod h1:3XUplo0dOWc3DqT2XA2SeHToDSg7+j1y1HTHibT2H68=
 github.com/bitrise-io/got v0.0.0-20240902113940-25f6469d1456 h1:nnr8l7tIFNx9ESyEOLKeihQMoxmrOohmCMucWTXZM9Y=
 github.com/bitrise-io/got v0.0.0-20240902113940-25f6469d1456/go.mod h1:uBBISwY9ylo62hC1MRHqGxH+VJGHwXR1VJ17QApnG14=
 github.com/bmatcuk/doublestar/v4 v4.6.1 h1:FH9SifrbvJhnlQpztAx++wlkk70QBf0iBWDwNy7PA4I=
