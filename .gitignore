@@ -3,4 +3,3 @@ _bin/
 .gows*
 .idea/
 .bitrise.secrets.yml
-vendor/
