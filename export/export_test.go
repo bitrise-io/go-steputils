@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	internaltesting "github.com/bitrise-io/go-steputils/v2/internal/testing"
+
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/bitrise-io/go-utils/v2/pathutil"
@@ -130,28 +132,43 @@ func TestZipMixedFilesAndFoldersAndExportOutput(t *testing.T) {
 	require.Error(t, e.ExportOutputFilesZip("EXPORTED_ZIP_PATH", sourceFilePaths, destinationZip))
 }
 
-func TestExportOutputDir(t *testing.T) {
+func TestExportOutputDirE2E(t *testing.T) {
 	tmpDir := t.TempDir()
 	envmanStorePath := setupEnvman(t)
 
+	// umask in tmp is likely 022, so testing with compatible permissions (0700, 0755)
 	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
-	extraDir := filepath.Join(srcDir, "empty-folder")
-	require.NoError(t, os.MkdirAll(extraDir, 0777))
+	extraDir := filepath.Join(srcDir, "extraDir")
+	require.NoError(t, os.MkdirAll(extraDir, 0700))
 	linkTarget := filepath.Join(srcDir, "file1")
 	os.Symlink(linkTarget, filepath.Join(extraDir, "link")) // nolint:errcheck
+	//os.Chown(srcDir+"/file1", os.Getuid(), os.Getgid())     // nolint:errcheck
+	os.Chown(srcDir+"/file1", os.Getuid(), os.Getgid()) // nolint:errcheck
 
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
-	e := NewExporter((command.NewFactory(env.NewRepository())))
-	assert.NoError(t, e.ExportOutputDir(srcDir, dstDir, "ENV_KEY"))
+	sut := NewExporter((command.NewFactory(env.NewRepository())))
+	assert.NoError(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir))
 	requireEnvmanContainsValueForKey(t, "ENV_KEY", dstDir, false, envmanStorePath)
 
-	assertDirExists(t, dstDir)
-	assertDirExists(t, dstDir+"/empty-folder")
-	assertFileExists(t, dstDir+"/file1")
-	assertFileExists(t, dstDir+"/file2")
-	assertFileExists(t, dstDir+"/file3")
-	assertIsSymlink(t, dstDir+"/empty-folder/link")
+	assert.NoError(t,
+		internaltesting.NewFileChecker(dstDir).IsDir().ModeEquals(0755).Check(),
+	)
+	assert.NoError(t,
+		internaltesting.NewFileChecker(dstDir+"/extraDir").IsDir().ModeEquals(0700).Check(),
+	)
+	assert.NoError(t,
+		internaltesting.NewFileChecker(dstDir+"/file1").IsFile().ModeEquals(0755).Check(),
+	)
+	assert.NoError(t,
+		internaltesting.NewFileChecker(dstDir+"/file2").IsFile().ModeEquals(0755).Check(),
+	)
+	assert.NoError(t,
+		internaltesting.NewFileChecker(dstDir+"/file3").IsFile().ModeEquals(0755).Check(),
+	)
+	assert.NoError(t,
+		internaltesting.NewFileChecker(dstDir+"/extraDir/link").IsSymlink().Check(),
+	)
 }
 
 func TestExportOutputDir_GivenSrcIsFile_Fails(t *testing.T) {
@@ -166,7 +183,7 @@ func TestExportOutputDir_GivenSrcIsFile_Fails(t *testing.T) {
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
 	e := NewExporter((command.NewFactory(env.NewRepository())))
-	assert.Error(t, e.ExportOutputDir(srcDir+"/file1", dstDir, "ENV_KEY"))
+	assert.Error(t, e.ExportOutputDir("ENV_KEY", srcDir+"/file1", dstDir))
 }
 
 func TestExportOutputDir_GivenMissingSrc_Fails(t *testing.T) {
@@ -177,22 +194,23 @@ func TestExportOutputDir_GivenMissingSrc_Fails(t *testing.T) {
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
 	e := NewExporter((command.NewFactory(env.NewRepository())))
-	assert.Error(t, e.ExportOutputDir("src-dir", dstDir, "ENV_KEY"))
+	assert.Error(t, e.ExportOutputDir("ENV_KEY", dstDir+"/file1", dstDir))
 }
 
-func TestExportOutputFileContent(t *testing.T) {
+func TestExportStringToFileOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 	envmanStorePath := setupEnvman(t)
 
 	e := NewExporter((command.NewFactory(env.NewRepository())))
-	require.NoError(t, e.ExportOutputFileContent("content", tmpDir+"/file.txt", "ENV_KEY"))
+	require.NoError(t, e.ExportStringToFileOutput("ENV_KEY", "content", tmpDir+"/file.txt"))
 	requireEnvmanContainsValueForKey(t, "ENV_KEY", tmpDir+"/file.txt", false, envmanStorePath)
 
-	assertFileExists(t, tmpDir+"/file.txt")
-	assertFileContentEqual(t, tmpDir+"/file.txt", "content")
+	assert.NoError(t, internaltesting.NewFileChecker(tmpDir+"/file.txt").IsFile().Check())
+	assert.NoError(t, internaltesting.NewFileChecker(tmpDir+"/file.txt").Content("content").Check())
+
 }
 
-func TestExportOutputFileContentAndReturnLastNLines(t *testing.T) {
+func TestExportStringToFileOutputAndReturnLastNLines(t *testing.T) {
 	tmpDir := t.TempDir()
 	envmanStorePath := setupEnvman(t)
 
@@ -207,21 +225,25 @@ line 5
 `
 
 	e := NewExporter((command.NewFactory(env.NewRepository())))
-	lines, err := e.ExportOutputFileContentAndReturnLastNLines(content, tmpDir+"/file.txt", "ENV_KEY", 4)
+	lines, err := e.ExportStringToFileOutputAndReturnLastNLines("ENV_KEY", content, tmpDir+"/file.txt", 4)
 	require.NoError(t, err)
 	requireEnvmanContainsValueForKey(t, "ENV_KEY", tmpDir+"/file.txt", false, envmanStorePath)
 
-	assertFileExists(t, tmpDir+"/file.txt")
-	assertFileContentEqual(t, tmpDir+"/file.txt", content)
+	assert.NoError(t, internaltesting.NewFileChecker(tmpDir+"/file.txt").IsFile().Check())
+	assert.NoError(t, internaltesting.NewFileChecker(tmpDir+"/file.txt").Content(content).Check())
 	assert.Equal(t, "line 3\n\nline 4\nline 5", lines)
 }
 
+// ---------------------------
+// Helpers
+// ---------------------------
+
 func createSrcDirWithFiles(t *testing.T, baseDir string, fileNames []string) string {
 	srcDir := filepath.Join(baseDir, "src-dir")
-	require.NoError(t, os.MkdirAll(srcDir, 0777))
+	require.NoError(t, os.MkdirAll(srcDir, 0755))
 	for _, name := range fileNames {
 		sourceFile := filepath.Join(srcDir, name)
-		require.NoError(t, os.WriteFile(sourceFile, []byte(name), 0777))
+		require.NoError(t, os.WriteFile(sourceFile, []byte(name), 0755))
 	}
 	return srcDir
 }
@@ -261,81 +283,10 @@ func setupEnvman(t *testing.T) string {
 	return tmpEnvStorePth
 }
 
-// assertDirExists fails the test if path does not exist or is not a directory.
-func assertDirExists(t *testing.T, path string) {
-	t.Helper()
-	info, err := os.Stat(path)
-
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Logf("expected directory to exist, but it does not: %s", path)
-		}
-		t.Logf("unexpected error statting path %s: %v", path, err)
-		t.Fail()
-		return
-	}
-
-	if !info.IsDir() {
-		t.Logf("expected %s to be a directory, but it's not", path)
-		t.Fail()
-		return
-	}
-}
-
-// assertFileExists fails the test if path does not exist or is not a regular file.
-func assertFileExists(t *testing.T, path string) {
-	t.Helper()
-	info, err := os.Stat(path)
-
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Logf("expected file to exist, but it does not: %s", path)
-		}
-		t.Logf("unexpected error statting path %s: %v", path, err)
-		t.Fail()
-		return
-	}
-
-	if info.IsDir() {
-		t.Logf("expected %s to be a file, but it's a directory", path)
-		t.Fail()
-		return
-	}
-}
-
-// isSymlink returns true if path exists and is a symlink
-func assertIsSymlink(t *testing.T, path string) {
-	t.Helper()
-	info, err := os.Lstat(path)
-
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Logf("expected file to exist, but it does not: %s", path)
-		}
-		t.Logf("unexpected error statting path %s: %v", path, err)
-		t.Fail()
-		return
-	}
-
-	if (info.Mode() & os.ModeSymlink) == 0 {
-		t.Logf("expected %s to be a symlink, but it's not", path)
-		t.Fail()
-		return
-	}
-}
-
-func assertFileContentEqual(t *testing.T, path string, want string) {
-	t.Helper()
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Logf("read file %s: %v", path, err)
-		t.Fail()
-		return
-	}
-	got := string(b)
-	if got != want {
-		t.Logf("file %s content mismatch\nwant:\n%q\n\ngot:\n%q", path, want, got)
-		t.Fail()
-		return
-	}
+func setup() (Exporter, *MockFileManager) {
+	mockFileManager := &MockFileManager{}
+	return Exporter{
+		cmdFactory:  command.NewFactory(env.NewRepository()),
+		fileManager: mockFileManager,
+	}, mockFileManager
 }

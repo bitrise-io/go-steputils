@@ -2,14 +2,9 @@ package export
 
 import (
 	"fmt"
-	"io"
-	"log"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/bitrise-io/go-utils/v2/command"
-	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/bitrise-io/go-utils/ziputil"
 )
@@ -23,14 +18,14 @@ const (
 // Exporter ...
 type Exporter struct {
 	cmdFactory  command.Factory
-	fileManager fileutil.FileManager
+	fileManager FileManager
 }
 
 // NewExporter ...
 func NewExporter(cmdFactory command.Factory) Exporter {
 	return Exporter{
 		cmdFactory:  cmdFactory,
-		fileManager: fileutil.NewFileManager(),
+		fileManager: NewFileManager(),
 	}
 }
 
@@ -71,7 +66,7 @@ func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) err
 	}
 
 	if absSourcePath != absDestinationPath {
-		if err = copyFile(absSourcePath, absDestinationPath); err != nil {
+		if err = e.fileManager.CopyFile(absSourcePath, absDestinationPath); err != nil {
 			return err
 		}
 	}
@@ -114,28 +109,39 @@ func (e *Exporter) ExportOutputFilesZip(key string, sourcePaths []string, zipPat
 
 // ExportOutputDir is a convenience method for copying sourceDir to destinationDir and then exporting the
 // absolute destination dir with ExportOutput()
-func (e *Exporter) ExportOutputDir(sourceDir, destinationDir, envKey string) error {
-	absSourceDir, err := filepath.Abs(sourceDir)
+// Note: symlinks are preserved during the copy operation
+func (e *Exporter) ExportOutputDir(envKey, srcDir, dstDir string) error {
+	srcDir, err := filepath.Abs(srcDir)
+	if err != nil {
+		return err
+	}
+	srcInfo, err := e.fileManager.Lstat(srcDir)
+	if err != nil {
+		return fmt.Errorf("stat src root: %w", err)
+	}
+	if !srcInfo.IsDir() {
+		return fmt.Errorf("src is not a directory: %s", srcDir)
+	}
+
+	dstDir, err = filepath.Abs(dstDir)
 	if err != nil {
 		return err
 	}
 
-	absDestinationDir, err := filepath.Abs(destinationDir)
-	if err != nil {
+	if srcDir == dstDir {
+		return e.ExportOutput(envKey, dstDir)
+	}
+
+	if err := e.fileManager.CopyDir(srcDir, dstDir); err != nil {
 		return err
 	}
 
-	if absSourceDir != absDestinationDir {
-		if err := copyDir(absSourceDir, absDestinationDir); err != nil {
-			return err
-		}
-	}
-
-	return e.ExportOutput(envKey, absDestinationDir)
+	return e.ExportOutput(envKey, dstDir)
 }
 
-// ExportOutputFileContent ...
-func (e *Exporter) ExportOutputFileContent(content, dst, envKey string) error {
+// ExportStringToFileOutput is a convenience method for writing content to dst and then exporting the
+// absolute dst path with ExportOutputFile()
+func (e *Exporter) ExportStringToFileOutput(envKey, content, dst string) error {
 	if err := e.fileManager.WriteBytes(dst, []byte(content)); err != nil {
 		return err
 	}
@@ -143,13 +149,14 @@ func (e *Exporter) ExportOutputFileContent(content, dst, envKey string) error {
 	return e.ExportOutputFile(envKey, dst, dst)
 }
 
-// ExportOutputFileContentAndReturnLastNLines ...
-func (e *Exporter) ExportOutputFileContentAndReturnLastNLines(content, dst, envKey string, lines int) (string, error) {
-	if err := e.ExportOutputFileContent(content, dst, envKey); err != nil {
+// ExportStringToFileOutputAndReturnLastNLines is similar to ExportOutputFileContent but it also returns the
+// last N lines of the content.
+func (e *Exporter) ExportStringToFileOutputAndReturnLastNLines(envKey, content, dst string, lines int) (string, error) {
+	if err := e.ExportStringToFileOutput(envKey, content, dst); err != nil {
 		return "", err
 	}
 
-	return lastNLines(content, lines), nil
+	return e.fileManager.LastNLines(content, lines), nil
 }
 
 func zipFilePath() (string, error) {
@@ -203,153 +210,4 @@ func runExport(cmd command.Command) error {
 		return fmt.Errorf("exporting output with envman failed: %s, output: %s", err, out)
 	}
 	return nil
-}
-
-func copyFile(source, destination string) error {
-	in, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer in.Close() //nolint:errcheck
-
-	out, err := os.Create(destination)
-	if err != nil {
-		return err
-	}
-	defer func(out *os.File) {
-		err := out.Close()
-		if err != nil {
-			log.Fatalf("Failed to close output file: %s", err)
-		}
-	}(out)
-
-	_, err = io.Copy(out, in)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func copyFilePreservingMode(src, dst string, info os.FileInfo) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close() //nolint:errcheck
-
-	// create destination file with same mode
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
-	if err != nil {
-		return err
-	}
-	defer func(out *os.File) {
-		err := out.Close()
-		if err != nil {
-			log.Fatalf("Failed to close output file: %s", err)
-		}
-	}(out)
-
-	if _, err := io.Copy(out, in); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func copySymlink(src, dst string) error {
-	linkTarget, err := os.Readlink(src)
-	if err != nil {
-		return err
-	}
-	// create symlink at dst pointing to same target
-	return os.Symlink(linkTarget, dst)
-}
-
-func copyDir(srcDir, dstDir string) error {
-	srcDir = filepath.Clean(srcDir)
-	dstDir = filepath.Clean(dstDir)
-
-	info, err := os.Lstat(srcDir)
-	if err != nil {
-		return err
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("source is not a directory: %s", srcDir)
-	}
-
-	// create destination root
-	if err := os.MkdirAll(dstDir, info.Mode()); err != nil {
-		return err
-	}
-
-	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(srcDir, path)
-		if err != nil {
-			return err
-		}
-		targetPath := filepath.Join(dstDir, rel)
-
-		switch {
-		case info.Mode()&os.ModeSymlink != 0:
-			// symlink: reproduce it
-			if err := copySymlink(path, targetPath); err != nil {
-				return err
-			}
-		case info.IsDir():
-			// create directory with same permissions
-			if err := os.MkdirAll(targetPath, info.Mode()); err != nil {
-				return err
-			}
-		default:
-			// regular file
-			if err := copyFilePreservingMode(path, targetPath, info); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
-func lastNLines(s string, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	// normalize CRLF to LF if needed
-	if strings.Contains(s, "\r\n") {
-		s = strings.ReplaceAll(s, "\r\n", "\n")
-	}
-
-	// skip trailing newlines so we don't count empty trailing lines
-	i := len(s) - 1
-	for i >= 0 && s[i] == '\n' {
-		i--
-	}
-	if i < 0 {
-		return "" // string was all newlines
-	}
-
-	// scan backward counting '\n' occurrences
-	count := 0
-	for ; i >= 0; i-- {
-		if s[i] == '\n' {
-			count++
-			if count == n {
-				// substring after this newline is the last n lines
-				start := i + 1
-				res := s[start:]
-				// trim trailing whitespace (spaces, tabs, newlines, etc.)
-				return strings.TrimRightFunc(res, func(r rune) bool {
-					return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '\f' || r == '\v'
-				})
-			}
-		}
-	}
-
-	// fewer than n newlines => return whole string (trim trailing whitespace)
-	return strings.TrimRightFunc(s, func(r rune) bool {
-		return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '\f' || r == '\v'
-	})
 }
