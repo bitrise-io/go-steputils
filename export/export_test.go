@@ -1,6 +1,7 @@
 package export
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,6 +47,38 @@ func TestExportOutputFile(t *testing.T) {
 	require.NoError(t, e.ExportOutputFile("my_key", sourcePath, destinationPath))
 
 	requireEnvmanContainsValueForKey(t, "my_key", destinationPath, false, envmanStorePath)
+}
+
+func TestExportOutputFile_GivenCopyFails_WillFail(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	_ = setupEnvman(t)
+	sut, fileManager := setup()
+	fileManager.CopyFileFunc = func(src, dst string) error {
+		return fmt.Errorf("test")
+	}
+
+	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
+	dstDir := filepath.Join(tmpDir, "dst-dir")
+
+	require.ErrorContains(t, sut.ExportOutputFile("my_key", srcDir, dstDir), "test")
+}
+
+func TestExportOutputFile_GivenSameSrcAndDst_SkipsCopy(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	envmanStorePath := setupEnvman(t)
+	sut, fileManager := setup()
+	fileManager.CopyFileFunc = func(src, dst string) error { return nil }
+
+	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
+	dstDir := filepath.Join(tmpDir, "dst-dir")
+
+	require.NoError(t, sut.ExportOutputFile("my_key", srcDir, dstDir))
+	requireEnvmanContainsValueForKey(t, "my_key", dstDir, false, envmanStorePath)
+	require.Equal(t, []struct{ src, dst string }{
+		{src: srcDir, dst: dstDir},
+	}, fileManager.CopyFileCalls)
 }
 
 func TestZipDirectoriesAndExportOutput(t *testing.T) {
@@ -172,7 +205,6 @@ func TestExportOutputDirE2E(t *testing.T) {
 }
 
 func TestExportOutputDir_GivenSrcIsFile_Fails(t *testing.T) {
-
 	tmpDir := t.TempDir()
 	_ = setupEnvman(t)
 
@@ -207,7 +239,6 @@ func TestExportStringToFileOutput(t *testing.T) {
 
 	assert.NoError(t, internaltesting.NewFileChecker(tmpDir+"/file.txt").IsFile().Check())
 	assert.NoError(t, internaltesting.NewFileChecker(tmpDir+"/file.txt").Content("content").Check())
-
 }
 
 func TestExportStringToFileOutputAndReturnLastNLines(t *testing.T) {
@@ -234,11 +265,77 @@ line 5
 	assert.Equal(t, "line 3\n\nline 4\nline 5", lines)
 }
 
+func TestExportOutputDir_GivenLStatSrcFails_Fails(t *testing.T) {
+	tmpDir := t.TempDir()
+	_ = setupEnvman(t)
+
+	sut, fileManager := setup()
+	fileManager.LstatFunc = func(path string) (os.FileInfo, error) {
+		return nil, fmt.Errorf("test")
+	}
+
+	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
+	dstDir := filepath.Join(tmpDir, "dst-dir")
+
+	assert.ErrorContains(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir), "test")
+}
+
+func TestExportOutputDir_GivenMatchingSrcAndDst_SkipsCopy(t *testing.T) {
+	tmpDir := t.TempDir()
+	envmanStorePath := setupEnvman(t)
+
+	sut, fileManager := setup()
+	fileManager.LstatFunc = os.Lstat
+
+	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
+
+	assert.NoError(t, sut.ExportOutputDir("ENV_KEY", srcDir, srcDir), "test")
+	requireEnvmanContainsValueForKey(t, "ENV_KEY", srcDir, false, envmanStorePath)
+}
+
+func TestExportOutputDir_GivenFileManagerCopyFails_Fails(t *testing.T) {
+	tmpDir := t.TempDir()
+	_ = setupEnvman(t)
+
+	sut, fileManager := setup()
+	fileManager.LstatFunc = os.Lstat
+	fileManager.CopyDirFunc = func(srcDir, dstDir string) error {
+		return fmt.Errorf("test")
+	}
+
+	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
+	dstDir := filepath.Join(tmpDir, "dst-dir")
+
+	assert.ErrorContains(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir), "test")
+	assert.Equal(t, []struct{ src, dst string }{
+		{src: srcDir, dst: dstDir},
+	}, fileManager.CopyDirCalls)
+}
+
+func TestExportStringToFileOutput_GivenWriteBytesFails_WillFail(t *testing.T) {
+	tmpDir := t.TempDir()
+	_ = setupEnvman(t)
+
+	sut, fileManager := setup()
+	fileManager.WriteBytesFunc = func(path string, content []byte) error {
+		return fmt.Errorf("test")
+	}
+
+	require.ErrorContains(t, sut.ExportStringToFileOutput("ENV_KEY", "content", tmpDir+"/file.txt"), "test")
+	require.Equal(t, []struct {
+		path  string
+		value []byte
+	}{
+		{path: tmpDir + "/file.txt", value: []byte("content")},
+	}, fileManager.WriteBytesCalls)
+}
+
 // ---------------------------
 // Helpers
 // ---------------------------
 
 func createSrcDirWithFiles(t *testing.T, baseDir string, fileNames []string) string {
+	t.Helper()
 	srcDir := filepath.Join(baseDir, "src-dir")
 	require.NoError(t, os.MkdirAll(srcDir, 0755))
 	for _, name := range fileNames {
@@ -249,6 +346,7 @@ func createSrcDirWithFiles(t *testing.T, baseDir string, fileNames []string) str
 }
 
 func requireEnvmanContainsValueForKey(t *testing.T, key, value string, secret bool, envmanStorePath string) {
+	t.Helper()
 	b, err := os.ReadFile(envmanStorePath)
 	require.NoError(t, err)
 	envstoreContent := string(b)
@@ -262,6 +360,7 @@ func requireEnvmanContainsValueForKey(t *testing.T, key, value string, secret bo
 }
 
 func setupEnvman(t *testing.T) string {
+	t.Helper()
 	originalWorkDir, err := os.Getwd()
 	require.NoError(t, err)
 

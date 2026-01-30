@@ -22,42 +22,42 @@ type MockFileManager struct {
 	RemoveCalls             []string
 	RemoveAllCalls          []string
 	WriteCalls              []struct {
-		Path, Value string
-		Perm        os.FileMode
+		path, value string
+		perm        os.FileMode
 	}
 	WriteBytesCalls []struct {
-		Path  string
-		Value []byte
+		path  string
+		value []byte
 	}
 	FileSizeInBytesCalls []string
 
-	CopyFileCalls   []struct{ Src, Dst string }
-	CopyFileFSCalls []struct{ FSName, Src, Dst string } // FSName is informative
-	CopyDirCalls    []struct{ Src, Dst string }
+	CopyFileCalls   []struct{ src, dst string }
+	CopyFileFSCalls []struct{ fsName, src, dst string } // fsName is informative
+	CopyDirCalls    []struct{ src, dst string }
 	CopyFSCalls     []struct {
-		Dir    string
-		FSName string
+		dir    string
+		fsName string
 	}
 	LchownCalls []struct {
-		Path     string
-		UID, GID int
+		path     string
+		uid, gid int
 	}
-	CopyOwnerCalls []struct{ InfoName, Dst string }
+	CopyOwnerCalls []struct{ InfoName, dst string }
 	ChtimesCalls   []struct {
-		Path         string
-		Atime, Mtime time.Time
+		path         string
+		atime, mtime time.Time
 	}
-	CopyTimesCalls []struct{ InfoName, Dst string }
+	CopyTimesCalls []struct{ InfoName, dst string }
 	ChmodCalls     []struct {
-		Path string
-		Mode os.FileMode
+		path string
+		mode os.FileMode
 	}
-	CopyModeCalls   []struct{ InfoName, Dst string }
+	CopyModeCalls   []struct{ InfoName, dst string }
 	LstatCalls      []string
 	SysCalls        []string
 	LastNLinesCalls []struct {
-		S string
-		N int
+		s string
+		n int
 	}
 
 	// configured returns (default zero values mean no special behavior)
@@ -151,8 +151,8 @@ func (m *MockFileManager) RemoveAll(path string) error {
 func (m *MockFileManager) Write(path string, value string, perm os.FileMode) error {
 	m.record(func() {
 		m.WriteCalls = append(m.WriteCalls, struct {
-			Path, Value string
-			Perm        os.FileMode
+			path, value string
+			perm        os.FileMode
 		}{path, value, perm})
 	})
 	if m.WriteFunc != nil {
@@ -165,8 +165,8 @@ func (m *MockFileManager) Write(path string, value string, perm os.FileMode) err
 func (m *MockFileManager) WriteBytes(path string, value []byte) error {
 	m.record(func() {
 		m.WriteBytesCalls = append(m.WriteBytesCalls, struct {
-			Path  string
-			Value []byte
+			path  string
+			value []byte
 		}{path, append([]byte(nil), value...)})
 	})
 	if m.WriteBytesFunc != nil {
@@ -186,7 +186,7 @@ func (m *MockFileManager) FileSizeInBytes(pth string) (int64, error) {
 
 // CopyFile ...
 func (m *MockFileManager) CopyFile(src, dst string) error {
-	m.record(func() { m.CopyFileCalls = append(m.CopyFileCalls, struct{ Src, Dst string }{src, dst}) })
+	m.record(func() { m.CopyFileCalls = append(m.CopyFileCalls, struct{ src, dst string }{src, dst}) })
 	if m.CopyFileFunc != nil {
 		return m.CopyFileFunc(src, dst)
 	}
@@ -201,7 +201,7 @@ func (m *MockFileManager) CopyFileFS(fsys fs.FS, src, dst string) error {
 		name = dirFS.String()
 	}
 	m.record(func() {
-		m.CopyFileFSCalls = append(m.CopyFileFSCalls, struct{ FSName, Src, Dst string }{name, src, dst})
+		m.CopyFileFSCalls = append(m.CopyFileFSCalls, struct{ fsName, src, dst string }{name, src, dst})
 	})
 	if m.CopyFileFSFunc != nil {
 		return m.CopyFileFSFunc(fsys, src, dst)
@@ -211,7 +211,7 @@ func (m *MockFileManager) CopyFileFS(fsys fs.FS, src, dst string) error {
 
 // CopyDir ...
 func (m *MockFileManager) CopyDir(src, dst string) error {
-	m.record(func() { m.CopyDirCalls = append(m.CopyDirCalls, struct{ Src, Dst string }{src, dst}) })
+	m.record(func() { m.CopyDirCalls = append(m.CopyDirCalls, struct{ src, dst string }{src, dst}) })
 	if m.CopyDirFunc != nil {
 		return m.CopyDirFunc(src, dst)
 	}
@@ -226,8 +226,8 @@ func (m *MockFileManager) CopyFS(dir string, fsys fs.FS) error {
 	}
 	m.record(func() {
 		m.CopyFSCalls = append(m.CopyFSCalls, struct {
-			Dir    string
-			FSName string
+			dir    string
+			fsName string
 		}{dir, name})
 	})
 	if m.CopyFSFunc != nil {
@@ -240,8 +240,8 @@ func (m *MockFileManager) CopyFS(dir string, fsys fs.FS) error {
 func (m *MockFileManager) Lchown(path string, uid, gid int) error {
 	m.record(func() {
 		m.LchownCalls = append(m.LchownCalls, struct {
-			Path     string
-			UID, GID int
+			path     string
+			uid, gid int
 		}{path, uid, gid})
 	})
 	if m.LchownFunc != nil {
@@ -256,7 +256,7 @@ func (m *MockFileManager) CopyOwner(srcInfo os.FileInfo, dstPath string) error {
 	if srcInfo != nil {
 		name = srcInfo.Name()
 	}
-	m.record(func() { m.CopyOwnerCalls = append(m.CopyOwnerCalls, struct{ InfoName, Dst string }{name, dstPath}) })
+	m.record(func() { m.CopyOwnerCalls = append(m.CopyOwnerCalls, struct{ InfoName, dst string }{name, dstPath}) })
 	if m.CopyOwnerFunc != nil {
 		return m.CopyOwnerFunc(srcInfo, dstPath)
 	}
@@ -277,8 +277,8 @@ func (m *MockFileManager) CopyOwner(srcInfo os.FileInfo, dstPath string) error {
 func (m *MockFileManager) Chtimes(path string, atime, mtime time.Time) error {
 	m.record(func() {
 		m.ChtimesCalls = append(m.ChtimesCalls, struct {
-			Path         string
-			Atime, Mtime time.Time
+			path         string
+			atime, mtime time.Time
 		}{path, atime, mtime})
 	})
 	if m.ChtimesFunc != nil {
@@ -293,7 +293,7 @@ func (m *MockFileManager) CopyTimes(srcInfo os.FileInfo, dstPath string) error {
 	if srcInfo != nil {
 		name = srcInfo.Name()
 	}
-	m.record(func() { m.CopyTimesCalls = append(m.CopyTimesCalls, struct{ InfoName, Dst string }{name, dstPath}) })
+	m.record(func() { m.CopyTimesCalls = append(m.CopyTimesCalls, struct{ InfoName, dst string }{name, dstPath}) })
 	if m.CopyTimesFunc != nil {
 		return m.CopyTimesFunc(srcInfo, dstPath)
 	}
@@ -304,8 +304,8 @@ func (m *MockFileManager) CopyTimes(srcInfo os.FileInfo, dstPath string) error {
 func (m *MockFileManager) Chmod(path string, mode os.FileMode) error {
 	m.record(func() {
 		m.ChmodCalls = append(m.ChmodCalls, struct {
-			Path string
-			Mode os.FileMode
+			path string
+			mode os.FileMode
 		}{path, mode})
 	})
 	if m.ChmodFunc != nil {
@@ -320,7 +320,7 @@ func (m *MockFileManager) CopyMode(srcInfo os.FileInfo, dstPath string) error {
 	if srcInfo != nil {
 		name = srcInfo.Name()
 	}
-	m.record(func() { m.CopyModeCalls = append(m.CopyModeCalls, struct{ InfoName, Dst string }{name, dstPath}) })
+	m.record(func() { m.CopyModeCalls = append(m.CopyModeCalls, struct{ InfoName, dst string }{name, dstPath}) })
 	if m.CopyModeFunc != nil {
 		return m.CopyModeFunc(srcInfo, dstPath)
 	}
@@ -359,8 +359,8 @@ func (m *MockFileManager) Sys(info os.FileInfo) (SysStat, error) {
 func (m *MockFileManager) LastNLines(s string, n int) string {
 	m.record(func() {
 		m.LastNLinesCalls = append(m.LastNLinesCalls, struct {
-			S string
-			N int
+			s string
+			n int
 		}{s, n})
 	})
 	if m.LastNLinesFunc != nil {
