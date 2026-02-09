@@ -6,7 +6,7 @@ formatter: goimports
 include-auto-generated: false
 log-level: info
 structname: "{{.InterfaceName}}"
-pkgname: "mocks"
+pkgname: mocks
 recursive: false
 require-template-schema-exists: true
 template: testify
