@@ -7,12 +7,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bitrise-io/go-steputils/v2/export/mocks"
 	internaltesting "github.com/bitrise-io/go-steputils/v2/internal/testing"
 
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,10 +55,12 @@ func TestExportOutputFile_GivenCopyFails_WillFail(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	_ = setupEnvman(t)
-	sut, fileManager := setup()
-	fileManager.CopyFileFunc = func(src, dst string) error {
-		return fmt.Errorf("test")
+	fileManager := mocks.NewFileManager(t)
+	sut := Exporter{
+		cmdFactory:  command.NewFactory(env.NewRepository()),
+		fileManager: fileManager,
 	}
+	fileManager.EXPECT().CopyFile(mock.Anything, mock.Anything).Return(fmt.Errorf("test"))
 
 	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
 	dstDir := filepath.Join(tmpDir, "dst-dir")
@@ -68,17 +72,16 @@ func TestExportOutputFile_GivenSameSrcAndDst_SkipsCopy(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	envmanStorePath := setupEnvman(t)
-	sut, fileManager := setup()
-	fileManager.CopyFileFunc = func(src, dst string) error { return nil }
+	fileManager := mocks.NewFileManager(t)
+	sut := Exporter{
+		cmdFactory:  command.NewFactory(env.NewRepository()),
+		fileManager: fileManager,
+	}
 
 	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
-	dstDir := filepath.Join(tmpDir, "dst-dir")
 
-	require.NoError(t, sut.ExportOutputFile("my_key", srcDir, dstDir))
-	requireEnvmanContainsValueForKey(t, "my_key", dstDir, false, envmanStorePath)
-	require.Equal(t, []struct{ src, dst string }{
-		{src: srcDir, dst: dstDir},
-	}, fileManager.CopyFileCalls)
+	require.NoError(t, sut.ExportOutputFile("my_key", srcDir, srcDir))
+	requireEnvmanContainsValueForKey(t, "my_key", srcDir, false, envmanStorePath)
 }
 
 func TestZipDirectoriesAndExportOutput(t *testing.T) {
@@ -175,8 +178,7 @@ func TestExportOutputDirE2E(t *testing.T) {
 	require.NoError(t, os.MkdirAll(extraDir, 0700))
 	linkTarget := filepath.Join(srcDir, "file1")
 	os.Symlink(linkTarget, filepath.Join(extraDir, "link")) // nolint:errcheck
-	//os.Chown(srcDir+"/file1", os.Getuid(), os.Getgid())     // nolint:errcheck
-	os.Chown(srcDir+"/file1", os.Getuid(), os.Getgid()) // nolint:errcheck
+	os.Chown(srcDir+"/file1", os.Getuid(), os.Getgid())     // nolint:errcheck
 
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
@@ -269,14 +271,16 @@ func TestExportOutputDir_GivenLStatSrcFails_Fails(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = setupEnvman(t)
 
-	sut, fileManager := setup()
-	fileManager.LstatFunc = func(path string) (os.FileInfo, error) {
-		return nil, fmt.Errorf("test")
+	fileManager := mocks.NewFileManager(t)
+	sut := Exporter{
+		cmdFactory:  command.NewFactory(env.NewRepository()),
+		fileManager: fileManager,
 	}
 
 	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
+	fileManager.EXPECT().Lstat(srcDir).Return(nil, fmt.Errorf("test"))
 	assert.ErrorContains(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir), "test")
 }
 
@@ -284,11 +288,15 @@ func TestExportOutputDir_GivenMatchingSrcAndDst_SkipsCopy(t *testing.T) {
 	tmpDir := t.TempDir()
 	envmanStorePath := setupEnvman(t)
 
-	sut, fileManager := setup()
-	fileManager.LstatFunc = os.Lstat
+	fileManager := mocks.NewFileManager(t)
+	sut := Exporter{
+		cmdFactory:  command.NewFactory(env.NewRepository()),
+		fileManager: fileManager,
+	}
 
 	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
 
+	fileManager.EXPECT().Lstat(srcDir).Return(os.Stat(srcDir))
 	assert.NoError(t, sut.ExportOutputDir("ENV_KEY", srcDir, srcDir), "test")
 	requireEnvmanContainsValueForKey(t, "ENV_KEY", srcDir, false, envmanStorePath)
 }
@@ -297,37 +305,34 @@ func TestExportOutputDir_GivenFileManagerCopyFails_Fails(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = setupEnvman(t)
 
-	sut, fileManager := setup()
-	fileManager.LstatFunc = os.Lstat
-	fileManager.CopyDirFunc = func(srcDir, dstDir string) error {
-		return fmt.Errorf("test")
+	fileManager := mocks.NewFileManager(t)
+	sut := Exporter{
+		cmdFactory:  command.NewFactory(env.NewRepository()),
+		fileManager: fileManager,
 	}
 
 	srcDir := createSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
+	fileManager.EXPECT().Lstat(srcDir).Return(os.Lstat(srcDir))
+	fileManager.EXPECT().CopyDir(srcDir, dstDir).Return(fmt.Errorf("test"))
+
 	assert.ErrorContains(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir), "test")
-	assert.Equal(t, []struct{ src, dst string }{
-		{src: srcDir, dst: dstDir},
-	}, fileManager.CopyDirCalls)
 }
 
 func TestExportStringToFileOutput_GivenWriteBytesFails_WillFail(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = setupEnvman(t)
 
-	sut, fileManager := setup()
-	fileManager.WriteBytesFunc = func(path string, content []byte) error {
-		return fmt.Errorf("test")
+	fileManager := mocks.NewFileManager(t)
+	sut := Exporter{
+		cmdFactory:  command.NewFactory(env.NewRepository()),
+		fileManager: fileManager,
 	}
 
+	fileManager.EXPECT().WriteBytes(tmpDir+"/file.txt", []byte("content")).Return(fmt.Errorf("test"))
+
 	require.ErrorContains(t, sut.ExportStringToFileOutput("ENV_KEY", "content", tmpDir+"/file.txt"), "test")
-	require.Equal(t, []struct {
-		path  string
-		value []byte
-	}{
-		{path: tmpDir + "/file.txt", value: []byte("content")},
-	}, fileManager.WriteBytesCalls)
 }
 
 // ---------------------------
@@ -380,12 +385,4 @@ func setupEnvman(t *testing.T) string {
 	t.Setenv("ENVMAN_ENVSTORE_PATH", tmpEnvStorePth)
 
 	return tmpEnvStorePth
-}
-
-func setup() (Exporter, *MockFileManager) {
-	mockFileManager := &MockFileManager{}
-	return Exporter{
-		cmdFactory:  command.NewFactory(env.NewRepository()),
-		fileManager: mockFileManager,
-	}, mockFileManager
 }
