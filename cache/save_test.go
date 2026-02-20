@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -230,35 +229,4 @@ func Test_evaluateKey(t *testing.T) {
 			}
 		})
 	}
-}
-
-type fakeEnvRepo struct {
-	envVars map[string]string
-}
-
-func (repo fakeEnvRepo) Get(key string) string {
-	value, ok := repo.envVars[key]
-	if ok {
-		return value
-	} else {
-		return ""
-	}
-}
-
-func (repo fakeEnvRepo) Set(key, value string) error {
-	repo.envVars[key] = value
-	return nil
-}
-
-func (repo fakeEnvRepo) Unset(key string) error {
-	repo.envVars[key] = ""
-	return nil
-}
-
-func (repo fakeEnvRepo) List() []string {
-	envs := []string{}
-	for k, v := range repo.envVars {
-		envs = append(envs, fmt.Sprintf("%s=%s", k, v))
-	}
-	return envs
 }
