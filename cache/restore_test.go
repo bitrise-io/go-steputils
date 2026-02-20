@@ -206,7 +206,7 @@ func Test_exposeCacheHit(t *testing.T) {
 			r := &restorer{
 				envRepo:    envRepo,
 				logger:     log.NewLogger(),
-				cmdFactory: command.NewFactory(envRepo),
+				cmdFactory: fakeCommandFactory{},
 			}
 			if err := r.exposeCacheHit(tt.downloadResult, tt.evaluatedKeys); (err != nil) != tt.wantErr {
 				t.Fatalf("exposeCacheHit() error = %v, wantErr %v", err, tt.wantErr)
