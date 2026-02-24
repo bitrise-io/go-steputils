@@ -26,6 +26,7 @@ type RestoreCacheInput struct {
 	StepId         string
 	Verbose        bool
 	Keys           []string
+	Timeout        time.Duration
 	NumFullRetries int
 }
 
@@ -83,7 +84,15 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 	r.logger.Println()
 	r.logger.Infof("Downloading archive...")
 	downloadStartTime := time.Now()
-	result, err := r.download(context.Background(), config)
+
+	ctx := context.Background()
+	cancel := context.CancelFunc(nil)
+	if input.Timeout != 0 {
+		ctx, cancel = context.WithTimeout(ctx, input.Timeout)
+		defer cancel()
+	}
+
+	result, err := r.download(ctx, config)
 	if err != nil {
 		if errors.Is(err, network.ErrCacheNotFound) {
 			r.logger.Donef("No cache entry found for the provided key")
