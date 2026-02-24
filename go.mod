@@ -11,6 +11,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/klauspost/compress v1.17.8
 	github.com/stretchr/testify v1.9.0
+	golang.org/x/sys v0.22.0
 )
 
 require (
