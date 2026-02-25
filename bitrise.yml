@@ -9,6 +9,11 @@ workflows:
 
   test:
     steps:
+    - script:
+        inputs:
+        - content: |-
+            # generate mocks
+            mockery
     - git::https://github.com/bitrise-steplib/steps-check.git:
         title: Lint
         inputs:
