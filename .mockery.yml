@@ -18,3 +18,23 @@ packages:
   github.com/bitrise-io/go-steputils/v2/internal:
     interfaces:
       OsProxy:
+  github.com/bitrise-io/go-steputils/v2/cache:
+    interfaces:
+      Restorer:
+      Saver:
+  github.com/bitrise-io/go-steputils/v2/cache/compression:
+    interfaces:
+      ArchiveDependencyChecker:
+  github.com/bitrise-io/go-steputils/v2/stepconf:
+    interfaces:
+      InputParser:
+      FileProvider:
+  github.com/bitrise-io/go-steputils/v2/secretkeys:
+    interfaces:
+      Manager:
+  github.com/bitrise-io/go-steputils/v2/ruby:
+    interfaces:
+      Environment:
+      CommandFactory:
+  
+  
