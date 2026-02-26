@@ -15,6 +15,3 @@ packages:
   github.com/bitrise-io/go-steputils/v2/export:
     interfaces:
       FileManager:
-  github.com/bitrise-io/go-steputils/v2/internal:
-    interfaces:
-      OsProxy:
