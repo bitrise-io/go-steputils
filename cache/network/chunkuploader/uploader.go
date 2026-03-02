@@ -218,7 +218,7 @@ func (u *Uploader) uploadChunk(ctx context.Context, provider ChunkProvider, url 
 		}
 		return "", fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errorBody := make([]byte, 1024)
@@ -239,14 +239,17 @@ type singleChunkProvider struct {
 	data []byte
 }
 
+// NumChunks returns the total number of chunks.
 func (p *singleChunkProvider) NumChunks() int {
 	return 1
 }
 
+// ChunkSize returns the size of the chunk at the given index.
 func (p *singleChunkProvider) ChunkSize(index int) int64 {
 	return int64(len(p.data))
 }
 
+// GetChunk returns a reader for the chunk at the given index.
 func (p *singleChunkProvider) GetChunk(index int) (io.Reader, error) {
 	return bytes.NewReader(p.data), nil
 }

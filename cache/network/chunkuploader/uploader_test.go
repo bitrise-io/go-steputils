@@ -69,7 +69,7 @@ func TestUploader_Upload_Retry(t *testing.T) {
 		count := atomic.AddInt32(&requestCount, 1)
 		if count <= 2 {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("temporary error"))
+			w.Write([]byte("temporary error")) //nolint:errcheck
 			return
 		}
 		w.Header().Set("ETag", "\"success-etag\"")

@@ -77,7 +77,7 @@ func TestFileChunkProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFileChunkProvider error: %v", err)
 	}
-	defer provider.Close()
+	defer provider.Close() //nolint:errcheck
 
 	if provider.NumChunks() != 4 {
 		t.Errorf("Expected 4 chunks, got %d", provider.NumChunks())
