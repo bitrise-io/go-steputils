@@ -29,16 +29,18 @@ func TestUpload(t *testing.T) {
 	t.Run("small file multipart upload", func(t *testing.T) {
 		cacheKey := "integration-test-small"
 		testFile := "testdata/single-item.tzst"
+		fileInfo, err := os.Stat(testFile)
+		assert.NoError(t, err)
 		params := network.UploadParams{
 			APIBaseURL:  baseURL,
 			Token:       token,
 			ArchivePath: testFile,
-			ArchiveSize: 468,
+			ArchiveSize: fileInfo.Size(),
 			CacheKey:    cacheKey,
 		}
 
 		uploader := network.DefaultUploader{}
-		err := uploader.Upload(context.Background(), params, logger)
+		err = uploader.Upload(context.Background(), params, logger)
 		assert.NoError(t, err)
 
 		// Verify file integrity
