@@ -1,7 +1,7 @@
 package stepconf
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/bitrise-io/go-steputils/v2/stepconf/mocks"
@@ -208,7 +208,7 @@ func TestValidatePath(t *testing.T) {
 		t.Error("no failure when path does not exist")
 	}
 
-	f, err := ioutil.TempFile("", "stepconf_test")
+	f, err := os.CreateTemp("", "stepconf_test")
 	if err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
@@ -232,7 +232,7 @@ func TestValidateDir(t *testing.T) {
 		t.Error("no failure when dir does not exist")
 	}
 
-	dir, err := ioutil.TempDir("", "stepconf_test")
+	dir, err := os.MkdirTemp("", "stepconf_test")
 	if err != nil {
 		t.Fatalf("should not have error: %s", err)
 	}
