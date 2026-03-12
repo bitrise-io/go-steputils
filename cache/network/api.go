@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -212,7 +211,7 @@ func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 }
 
 func unwrapError(resp *http.Response) error {
-	errorResp, err := ioutil.ReadAll(resp.Body)
+	errorResp, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,7 @@
 package stepconf
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"reflect"
 	"testing"
@@ -84,7 +84,7 @@ func Test_PrintFormat(t *testing.T) {
 	os.Stdout = origStdout
 	assert.NoError(t, writer.Close())
 
-	content, err := ioutil.ReadAll(reader)
+	content, err := io.ReadAll(reader)
 	assert.NoError(t, err)
 
 	expected := `[34;1mTestConfig:
