@@ -1,6 +1,6 @@
 module github.com/bitrise-io/go-steputils/v2
 
-go 1.17
+go 1.21
 
 require (
 	github.com/bitrise-io/go-utils v1.0.13

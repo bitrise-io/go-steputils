@@ -1,7 +1,6 @@
 package compression
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +21,7 @@ func TestAreAllPathsEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create directory with a second level directory: %s", err)
 	}
-	err = ioutil.WriteFile(filepath.Join(basePath, "first_level", "second_level", "nested_file.txt"), []byte("hello"), 0700)
+	err = os.WriteFile(filepath.Join(basePath, "first_level", "second_level", "nested_file.txt"), []byte("hello"), 0700)
 	if err != nil {
 		t.Fatalf("failed to write file: %s", err)
 	}
