@@ -29,6 +29,11 @@ func NewExporter(cmdFactory command.Factory) Exporter {
 	}
 }
 
+// NewExporterWithFileManager creates an Exporter with a custom FileManager, useful for testing.
+func NewExporterWithFileManager(cmdFactory command.Factory, fm FileManager) Exporter {
+	return Exporter{cmdFactory: cmdFactory, fileManager: fm}
+}
+
 // ExportOutput is used for exposing values for other steps.
 // Regular env vars are isolated between steps, so instead of calling `os.Setenv()`, use this to explicitly expose
 // a value for subsequent steps.
@@ -54,7 +59,7 @@ func (e *Exporter) ExportSecretOutput(key, value string) error {
 
 // ExportOutputFile is a convenience method for copying sourcePath to destinationPath and then exporting the
 // absolute destination path with ExportOutput()
-func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) error {
+func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string, opts *CopyOptions) error {
 	pathModifier := pathutil.NewPathModifier()
 	absSourcePath, err := pathModifier.AbsPath(sourcePath)
 	if err != nil {
@@ -66,7 +71,7 @@ func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) err
 	}
 
 	if absSourcePath != absDestinationPath {
-		if err = e.fileManager.CopyFile(absSourcePath, absDestinationPath); err != nil {
+		if err = e.fileManager.CopyFile(absSourcePath, absDestinationPath, opts); err != nil {
 			return err
 		}
 	}
@@ -76,7 +81,7 @@ func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) err
 
 // ExportOutputFilesZip is a convenience method for creating a ZIP archive from sourcePaths at zipPath and then
 // exporting the absolute path of the ZIP with ExportOutput()
-func (e *Exporter) ExportOutputFilesZip(key string, sourcePaths []string, zipPath string) error {
+func (e *Exporter) ExportOutputFilesZip(key string, sourcePaths []string, zipPath string, opts *CopyOptions) error {
 	tempZipPath, err := zipFilePath()
 	if err != nil {
 		return err
@@ -104,13 +109,13 @@ func (e *Exporter) ExportOutputFilesZip(key string, sourcePaths []string, zipPat
 		return err
 	}
 
-	return e.ExportOutputFile(key, tempZipPath, zipPath)
+	return e.ExportOutputFile(key, tempZipPath, zipPath, opts)
 }
 
 // ExportOutputDir is a convenience method for copying sourceDir to destinationDir and then exporting the
 // absolute destination dir with ExportOutput()
 // Note: symlinks are preserved during the copy operation
-func (e *Exporter) ExportOutputDir(envKey, srcDir, dstDir string) error {
+func (e *Exporter) ExportOutputDir(envKey, srcDir, dstDir string, opts *CopyOptions) error {
 	srcDir, err := filepath.Abs(srcDir)
 	if err != nil {
 		return err
@@ -132,7 +137,7 @@ func (e *Exporter) ExportOutputDir(envKey, srcDir, dstDir string) error {
 		return e.ExportOutput(envKey, dstDir)
 	}
 
-	if err := e.fileManager.CopyDir(srcDir, dstDir); err != nil {
+	if err := e.fileManager.CopyDir(srcDir, dstDir, opts); err != nil {
 		return err
 	}
 
@@ -141,18 +146,18 @@ func (e *Exporter) ExportOutputDir(envKey, srcDir, dstDir string) error {
 
 // ExportStringToFileOutput is a convenience method for writing content to dst and then exporting the
 // absolute dst path with ExportOutputFile()
-func (e *Exporter) ExportStringToFileOutput(envKey, content, dst string) error {
+func (e *Exporter) ExportStringToFileOutput(envKey, content, dst string, opts *CopyOptions) error {
 	if err := e.fileManager.WriteBytes(dst, []byte(content)); err != nil {
 		return err
 	}
 
-	return e.ExportOutputFile(envKey, dst, dst)
+	return e.ExportOutputFile(envKey, dst, dst, opts)
 }
 
 // ExportStringToFileOutputAndReturnLastNLines is similar to ExportStringToFileOutput but it also returns the
 // last N lines of the content.
-func (e *Exporter) ExportStringToFileOutputAndReturnLastNLines(envKey, content, dst string, lines int) (string, error) {
-	if err := e.ExportStringToFileOutput(envKey, content, dst); err != nil {
+func (e *Exporter) ExportStringToFileOutputAndReturnLastNLines(envKey, content, dst string, lines int, opts *CopyOptions) (string, error) {
+	if err := e.ExportStringToFileOutput(envKey, content, dst, opts); err != nil {
 		return "", err
 	}
 
