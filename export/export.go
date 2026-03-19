@@ -22,16 +22,11 @@ type Exporter struct {
 }
 
 // NewExporter ...
-func NewExporter(cmdFactory command.Factory) Exporter {
+func NewExporter(cmdFactory command.Factory, fm FileManager) Exporter {
 	return Exporter{
 		cmdFactory:  cmdFactory,
-		fileManager: NewFileManager(),
+		fileManager: fm,
 	}
-}
-
-// NewExporterWithFileManager creates an Exporter with a custom FileManager, useful for testing.
-func NewExporterWithFileManager(cmdFactory command.Factory, fm FileManager) Exporter {
-	return Exporter{cmdFactory: cmdFactory, fileManager: fm}
 }
 
 // ExportOutput is used for exposing values for other steps.
