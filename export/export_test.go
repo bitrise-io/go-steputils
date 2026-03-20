@@ -46,7 +46,7 @@ func TestExportOutputFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(sourcePath, []byte("hello"), 0700))
 
 	e := export.NewExporter(command.NewFactory(env.NewRepository()), export.NewFileManager())
-	require.NoError(t, e.ExportOutputFile("my_key", sourcePath, destinationPath, nil))
+	require.NoError(t, e.ExportOutputFile("my_key", sourcePath, destinationPath))
 
 	export.RequireEnvmanContainsValueForKey(t, "my_key", destinationPath, false, envmanStorePath)
 }
@@ -62,7 +62,7 @@ func TestExportOutputFile_GivenCopyFails_WillFail(t *testing.T) {
 	srcDir := export.CreateSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
-	require.ErrorContains(t, sut.ExportOutputFile("my_key", srcDir, dstDir, nil), "test")
+	require.ErrorContains(t, sut.ExportOutputFile("my_key", srcDir, dstDir), "test")
 }
 
 func TestExportOutputFile_GivenSameSrcAndDst_SkipsCopy(t *testing.T) {
@@ -74,7 +74,7 @@ func TestExportOutputFile_GivenSameSrcAndDst_SkipsCopy(t *testing.T) {
 
 	srcDir := export.CreateSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
 
-	require.NoError(t, sut.ExportOutputFile("my_key", srcDir, srcDir, nil))
+	require.NoError(t, sut.ExportOutputFile("my_key", srcDir, srcDir))
 	export.RequireEnvmanContainsValueForKey(t, "my_key", srcDir, false, envmanStorePath)
 }
 
@@ -93,7 +93,7 @@ func TestZipDirectoriesAndExportOutput(t *testing.T) {
 
 	key := "EXPORTED_ZIP_PATH"
 	e := export.NewExporter(command.NewFactory(env.NewRepository()), export.NewFileManager())
-	require.NoError(t, e.ExportOutputFilesZip(key, []string{sourceA, sourceB}, destinationZip, nil))
+	require.NoError(t, e.ExportOutputFilesZip(key, []string{sourceA, sourceB}, destinationZip))
 
 	// destination should exist
 	exist, err := pathutil.NewPathChecker().IsPathExists(destinationZip)
@@ -124,7 +124,7 @@ func TestZipFilesAndExportOutput(t *testing.T) {
 
 	key := "EXPORTED_ZIP_PATH"
 	e := export.NewExporter(command.NewFactory(env.NewRepository()), export.NewFileManager())
-	require.NoError(t, e.ExportOutputFilesZip(key, sourceFilePaths, destinationZip, nil))
+	require.NoError(t, e.ExportOutputFilesZip(key, sourceFilePaths, destinationZip))
 
 	// destination should exist
 	exist, err := pathutil.NewPathChecker().IsPathExists(destinationZip)
@@ -159,7 +159,7 @@ func TestZipMixedFilesAndFoldersAndExportOutput(t *testing.T) {
 	destinationZip := filepath.Join(tmpDir, "destination.zip")
 
 	e := export.NewExporter(command.NewFactory(env.NewRepository()), export.NewFileManager())
-	require.Error(t, e.ExportOutputFilesZip("EXPORTED_ZIP_PATH", sourceFilePaths, destinationZip, nil))
+	require.Error(t, e.ExportOutputFilesZip("EXPORTED_ZIP_PATH", sourceFilePaths, destinationZip))
 }
 
 func TestExportOutputDirE2E(t *testing.T) {
@@ -176,8 +176,8 @@ func TestExportOutputDirE2E(t *testing.T) {
 
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
-	sut := export.NewExporter((command.NewFactory(env.NewRepository())), export.NewFileManager())
-	assert.NoError(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir, nil))
+	sut := export.NewExporter(command.NewFactory(env.NewRepository()), export.NewFileManager())
+	assert.NoError(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir))
 	export.RequireEnvmanContainsValueForKey(t, "ENV_KEY", dstDir, false, envmanStorePath)
 
 	assert.NoError(t,
@@ -210,8 +210,8 @@ func TestExportOutputDir_GivenSrcIsFile_Fails(t *testing.T) {
 
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
-	e := export.NewExporter((command.NewFactory(env.NewRepository())), export.NewFileManager())
-	assert.Error(t, e.ExportOutputDir("ENV_KEY", srcDir+"/file1", dstDir, nil))
+	e := export.NewExporter(command.NewFactory(env.NewRepository()), export.NewFileManager())
+	assert.Error(t, e.ExportOutputDir("ENV_KEY", srcDir+"/file1", dstDir))
 }
 
 func TestExportOutputDir_GivenMissingSrc_Fails(t *testing.T) {
@@ -221,16 +221,16 @@ func TestExportOutputDir_GivenMissingSrc_Fails(t *testing.T) {
 
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
-	e := export.NewExporter((command.NewFactory(env.NewRepository())), export.NewFileManager())
-	assert.Error(t, e.ExportOutputDir("ENV_KEY", dstDir+"/file1", dstDir, nil))
+	e := export.NewExporter(command.NewFactory(env.NewRepository()), export.NewFileManager())
+	assert.Error(t, e.ExportOutputDir("ENV_KEY", dstDir+"/file1", dstDir))
 }
 
 func TestExportStringToFileOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 	envmanStorePath := export.SetupEnvman(t)
 
-	e := export.NewExporter((command.NewFactory(env.NewRepository())), export.NewFileManager())
-	require.NoError(t, e.ExportStringToFileOutput("ENV_KEY", "content", tmpDir+"/file.txt", nil))
+	e := export.NewExporter(command.NewFactory(env.NewRepository()), export.NewFileManager())
+	require.NoError(t, e.ExportStringToFileOutput("ENV_KEY", "content", tmpDir+"/file.txt"))
 	export.RequireEnvmanContainsValueForKey(t, "ENV_KEY", tmpDir+"/file.txt", false, envmanStorePath)
 
 	assert.NoError(t, internaltesting.NewFileChecker(tmpDir+"/file.txt").IsFile().Check())
@@ -251,8 +251,8 @@ line 5
 
 `
 
-	e := export.NewExporter((command.NewFactory(env.NewRepository())), export.NewFileManager())
-	lines, err := e.ExportStringToFileOutputAndReturnLastNLines("ENV_KEY", content, tmpDir+"/file.txt", 4, nil)
+	e := export.NewExporter(command.NewFactory(env.NewRepository()), export.NewFileManager())
+	lines, err := e.ExportStringToFileOutputAndReturnLastNLines("ENV_KEY", content, tmpDir+"/file.txt", 4)
 	require.NoError(t, err)
 	export.RequireEnvmanContainsValueForKey(t, "ENV_KEY", tmpDir+"/file.txt", false, envmanStorePath)
 
@@ -272,7 +272,7 @@ func TestExportOutputDir_GivenLStatSrcFails_Fails(t *testing.T) {
 	dstDir := filepath.Join(tmpDir, "dst-dir")
 
 	fileManager.EXPECT().Lstat(srcDir).Return(nil, fmt.Errorf("test"))
-	assert.ErrorContains(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir, nil), "test")
+	assert.ErrorContains(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir), "test")
 }
 
 func TestExportOutputDir_GivenMatchingSrcAndDst_SkipsCopy(t *testing.T) {
@@ -285,7 +285,7 @@ func TestExportOutputDir_GivenMatchingSrcAndDst_SkipsCopy(t *testing.T) {
 	srcDir := export.CreateSrcDirWithFiles(t, tmpDir, []string{"file1", "file2", "file3"})
 
 	fileManager.EXPECT().Lstat(srcDir).Return(os.Stat(srcDir))
-	assert.NoError(t, sut.ExportOutputDir("ENV_KEY", srcDir, srcDir, nil), "test")
+	assert.NoError(t, sut.ExportOutputDir("ENV_KEY", srcDir, srcDir), "test")
 	export.RequireEnvmanContainsValueForKey(t, "ENV_KEY", srcDir, false, envmanStorePath)
 }
 
@@ -302,7 +302,7 @@ func TestExportOutputDir_GivenFileManagerCopyFails_Fails(t *testing.T) {
 	fileManager.EXPECT().Lstat(srcDir).Return(os.Lstat(srcDir))
 	fileManager.EXPECT().CopyDir(srcDir, dstDir, mock.Anything).Return(fmt.Errorf("test"))
 
-	assert.ErrorContains(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir, nil), "test")
+	assert.ErrorContains(t, sut.ExportOutputDir("ENV_KEY", srcDir, dstDir), "test")
 }
 
 func TestExportStringToFileOutput_GivenWriteBytesFails_WillFail(t *testing.T) {
@@ -314,5 +314,5 @@ func TestExportStringToFileOutput_GivenWriteBytesFails_WillFail(t *testing.T) {
 
 	fileManager.EXPECT().WriteBytes(tmpDir+"/file.txt", []byte("content")).Return(fmt.Errorf("test"))
 
-	require.ErrorContains(t, sut.ExportStringToFileOutput("ENV_KEY", "content", tmpDir+"/file.txt", nil), "test")
+	require.ErrorContains(t, sut.ExportStringToFileOutput("ENV_KEY", "content", tmpDir+"/file.txt"), "test")
 }
