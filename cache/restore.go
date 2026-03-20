@@ -97,7 +97,7 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 		if errors.Is(err, network.ErrCacheNotFound) {
 			r.logger.Donef("No cache entry found for the provided key")
 			tracker.logRestoreResult(false, "", config.Keys)
-			exporter := export.NewExporter(r.cmdFactory)
+			exporter := export.NewExporter(r.cmdFactory, export.NewFileManager())
 			return exporter.ExportOutput(cacheHitEnvVar, "false")
 		}
 		return fmt.Errorf("download failed: %w", err)
@@ -230,7 +230,7 @@ func (r *restorer) exposeCacheHit(result downloadResult, evaluatedKeys []string)
 		return nil
 	}
 
-	exporter := export.NewExporter(r.cmdFactory)
+	exporter := export.NewExporter(r.cmdFactory, export.NewFileManager())
 	var cacheHitValue string
 	if result.matchedKey == evaluatedKeys[0] {
 		cacheHitValue = "exact"
