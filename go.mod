@@ -4,14 +4,13 @@ go 1.21
 
 require (
 	github.com/bitrise-io/go-utils v1.0.13
-	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.33
+	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.34
 	github.com/bitrise-io/got v0.0.0-20240902113940-25f6469d1456
 	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/docker/go-units v0.4.0
 	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/klauspost/compress v1.17.8
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/sys v0.22.0
 )
 
 require (

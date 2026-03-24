@@ -6,14 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bitrise-io/go-steputils/v2/internal"
-	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/stretchr/testify/require"
 )
 
 // ---------
 // Bridging test file between export and export_test packages for helpers.
-// This enables export_test.go and file_manager_test.go to be gray box tests rather than white box.
+// This enables export_test.go to be a gray box test rather than white box.
 // ---------
 
 func CreateSrcDirWithFiles(t *testing.T, baseDir string, fileNames []string) string {
@@ -64,10 +62,3 @@ func SetupEnvman(t *testing.T) string {
 	return tmpEnvStorePth
 }
 
-// NewProxyFileManager creates a FileManager with customs proxy internals, useful for testing.
-func NewProxyFileManager(osProxy internal.OsProxy) FileManager {
-	return &fileManager{
-		wrapped: fileutil.NewFileManager(),
-		osProxy: osProxy,
-	}
-}
