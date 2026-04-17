@@ -21,8 +21,6 @@ workflows:
     - go-test: { }
 
   test_integration:
-    before_run:
-    - _generate_cache_api_token
     steps:
     - script:
         title: Integration tests
