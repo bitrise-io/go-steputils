@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/bitrise-io/go-utils/v2/command"
 )
@@ -108,7 +109,7 @@ func (m *manager) InstallGlobalDependencyCommand(dependency, version string) ([]
 		// already installed under a different package name, so remove the
 		// alternative before adding the requested one.
 		ionicNames := []string{"ionic", "@ionic/cli"}
-		if i := indexOf(dependency, ionicNames); i != -1 {
+		if i := slices.Index(ionicNames, dependency); i != -1 {
 			other := ionicNames[1-i]
 			cmds = append(cmds, InstallCommand{
 				Command:     m.RemoveCommand(Global, other),
@@ -157,11 +158,3 @@ func toolSubcommand(tool Tool, mc managerCommand) string {
 	return "add"
 }
 
-func indexOf(s string, ss []string) int {
-	for i, v := range ss {
-		if v == s {
-			return i
-		}
-	}
-	return -1
-}
