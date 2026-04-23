@@ -14,6 +14,7 @@ import (
 // Tool identifies a JS package manager.
 type Tool string
 
+// Supported JS package manager tools.
 const (
 	Npm  Tool = "npm"
 	Yarn Tool = "yarn"
@@ -22,6 +23,7 @@ const (
 // CommandScope describes whether a package manager command applies globally or locally.
 type CommandScope string
 
+// Supported command scopes.
 const (
 	Local  CommandScope = "local"
 	Global CommandScope = "global"
@@ -74,16 +76,23 @@ func DetectTool(packageJSONDir string) (Tool, error) {
 	}
 }
 
+// AddCommand returns the command that installs the given packages in the
+// requested scope.
 func (m *manager) AddCommand(scope CommandScope, pkgs ...string) command.Command {
 	args := commandArgs(m.tool, addCommand, scope, pkgs...)
 	return m.factory.Create(args[0], args[1:], nil)
 }
 
+// RemoveCommand returns the command that removes the given packages in the
+// requested scope.
 func (m *manager) RemoveCommand(scope CommandScope, pkgs ...string) command.Command {
 	args := commandArgs(m.tool, removeCommand, scope, pkgs...)
 	return m.factory.Create(args[0], args[1:], nil)
 }
 
+// InstallGlobalDependencyCommand returns the sequence of commands that
+// removes any existing local copy and adds the dependency globally at the
+// requested version.
 func (m *manager) InstallGlobalDependencyCommand(dependency, version string) ([]InstallCommand, error) {
 	if dependency == "" {
 		return nil, errors.New("dependency name unspecified")
