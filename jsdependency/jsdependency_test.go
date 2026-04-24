@@ -95,8 +95,7 @@ func TestInstallGlobalDependencyCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewManager(factory, tt.tool)
-			got, err := m.InstallGlobalDependencyCommand(tt.dependency, tt.version)
+			got, err := InstallGlobalDependencyCommand(factory, tt.tool, tt.dependency, tt.version)
 			require.NoError(t, err)
 			require.Len(t, got, len(tt.wantPrinted))
 			for i, w := range tt.wantPrinted {
@@ -108,7 +107,7 @@ func TestInstallGlobalDependencyCommand(t *testing.T) {
 }
 
 func TestInstallGlobalDependencyCommand_emptyDependency(t *testing.T) {
-	m := NewManager(command.NewFactory(env.NewRepository()), Npm)
-	_, err := m.InstallGlobalDependencyCommand("", "latest")
+	factory := command.NewFactory(env.NewRepository())
+	_, err := InstallGlobalDependencyCommand(factory, Npm, "", "latest")
 	require.Error(t, err)
 }

@@ -45,24 +45,6 @@ type InstallCommand struct {
 	IgnoreError bool
 }
 
-// Manager builds npm/yarn commands for a given package manager.
-type Manager interface {
-	AddCommand(scope CommandScope, pkgs ...string) command.Command
-	RemoveCommand(scope CommandScope, pkgs ...string) command.Command
-	InstallGlobalDependencyCommand(dependency, version string) ([]InstallCommand, error)
-}
-
-type manager struct {
-	tool    Tool
-	factory command.Factory
-}
-
-// NewManager returns a Manager that creates commands for the given JS
-// package manager tool using the provided command.Factory.
-func NewManager(factory command.Factory, tool Tool) Manager {
-	return &manager{tool: tool, factory: factory}
-}
-
 // DetectTool reports which JS package manager to use by checking for a
 // yarn.lock file next to package.json. Falls back to Npm when absent.
 func DetectTool(packageJSONDir string) (Tool, error) {
@@ -78,33 +60,33 @@ func DetectTool(packageJSONDir string) (Tool, error) {
 }
 
 // AddCommand returns the command that installs the given packages in the
-// requested scope.
-func (m *manager) AddCommand(scope CommandScope, pkgs ...string) command.Command {
-	args := commandArgs(m.tool, addCommand, scope, pkgs...)
-	return m.factory.Create(args[0], args[1:], nil)
+// requested scope for the given tool, built via factory.
+func AddCommand(factory command.Factory, tool Tool, scope CommandScope, pkgs ...string) command.Command {
+	args := commandArgs(tool, addCommand, scope, pkgs...)
+	return factory.Create(args[0], args[1:], nil)
 }
 
 // RemoveCommand returns the command that removes the given packages in the
-// requested scope.
-func (m *manager) RemoveCommand(scope CommandScope, pkgs ...string) command.Command {
-	args := commandArgs(m.tool, removeCommand, scope, pkgs...)
-	return m.factory.Create(args[0], args[1:], nil)
+// requested scope for the given tool, built via factory.
+func RemoveCommand(factory command.Factory, tool Tool, scope CommandScope, pkgs ...string) command.Command {
+	args := commandArgs(tool, removeCommand, scope, pkgs...)
+	return factory.Create(args[0], args[1:], nil)
 }
 
 // InstallGlobalDependencyCommand returns the sequence of commands that
 // removes any existing local copy and adds the dependency globally at the
 // requested version.
-func (m *manager) InstallGlobalDependencyCommand(dependency, version string) ([]InstallCommand, error) {
+func InstallGlobalDependencyCommand(factory command.Factory, tool Tool, dependency, version string) ([]InstallCommand, error) {
 	if dependency == "" {
 		return nil, errors.New("dependency name unspecified")
 	}
 
 	cmds := []InstallCommand{{
-		Command:     m.RemoveCommand(Local, dependency),
-		IgnoreError: m.tool == Yarn,
+		Command:     RemoveCommand(factory, tool, Local, dependency),
+		IgnoreError: tool == Yarn,
 	}}
 
-	if m.tool == Yarn {
+	if tool == Yarn {
 		// Yarn does not link a binary (e.g. ionic) if the same binary is
 		// already installed under a different package name, so remove the
 		// alternative before adding the requested one.
@@ -112,14 +94,14 @@ func (m *manager) InstallGlobalDependencyCommand(dependency, version string) ([]
 		if i := slices.Index(ionicNames, dependency); i != -1 {
 			other := ionicNames[1-i]
 			cmds = append(cmds, InstallCommand{
-				Command:     m.RemoveCommand(Global, other),
+				Command:     RemoveCommand(factory, tool, Global, other),
 				IgnoreError: true,
 			})
 		}
 	}
 
 	cmds = append(cmds, InstallCommand{
-		Command:     m.AddCommand(Global, dependency+"@"+version),
+		Command:     AddCommand(factory, tool, Global, dependency+"@"+version),
 		IgnoreError: false,
 	})
 
