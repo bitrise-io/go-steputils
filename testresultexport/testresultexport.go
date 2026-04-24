@@ -26,26 +26,25 @@ type TestInfo struct {
 	Name string `json:"test-name" yaml:"test-name"`
 }
 
-// Exporter exports test result directories into a deploy-dir layout that
-// Bitrise can pick up.
-type Exporter interface {
-	ExportTest(name, testResultPath string) error
-}
-
-type exporter struct {
+// Exporter writes test result directories into a deploy-dir layout that
+// Bitrise can pick up. Callers that want to mock test-result export should
+// define a minimal interface at the call site (typically one method:
+// ExportTest(name, testResultPath string) error) and depend on that
+// instead of this concrete type.
+type Exporter struct {
 	exportPath  string
 	fileManager fileutil.FileManager
 }
 
 // NewExporter returns an Exporter that writes under exportPath using the
 // given FileManager for file operations.
-func NewExporter(exportPath string, fileManager fileutil.FileManager) Exporter {
-	return &exporter{exportPath: exportPath, fileManager: fileManager}
+func NewExporter(exportPath string, fileManager fileutil.FileManager) *Exporter {
+	return &Exporter{exportPath: exportPath, fileManager: fileManager}
 }
 
 // ExportTest copies the test result directory at testResultPath into
 // <exportPath>/<name>/ and writes a sidecar test-info.json describing it.
-func (e *exporter) ExportTest(name, testResultPath string) error {
+func (e *Exporter) ExportTest(name, testResultPath string) error {
 	exportDir := filepath.Join(e.exportPath, name)
 
 	if err := os.MkdirAll(exportDir, os.ModePerm); err != nil {
