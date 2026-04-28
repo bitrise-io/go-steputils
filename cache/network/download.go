@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/bitrise-io/go-steputils/v2/cache/network/chunkdownloader"
-	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-io/go-utils/v2/log"
+	"github.com/bitrise-io/go-utils/v2/retry"
 	"github.com/bitrise-io/go-utils/v2/retryhttp"
 	"github.com/hashicorp/go-retryablehttp"
 )
