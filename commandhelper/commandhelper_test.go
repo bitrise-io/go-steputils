@@ -42,8 +42,8 @@ func Test_RunAndExportOutputWithReturningLastNLines(t *testing.T) {
 	}{
 		{name: "zero lines requested", args: []string{"testing"}, numberOfLines: 0, wantOutput: ""},
 		{name: "single line", args: []string{"testing"}, numberOfLines: 1, wantOutput: "testing"},
-		{name: "last of many", args: []string{"testing\ntesting"}, numberOfLines: 1, wantOutput: "testing"},
-		{name: "all lines", args: []string{"testing\ntesting"}, numberOfLines: 2, wantOutput: "testing\ntesting"},
+		{name: "last of many", args: []string{"my very\nelaborate\ntesting"}, numberOfLines: 1, wantOutput: "testing"},
+		{name: "all lines", args: []string{"my very\nelaborate\ntesting"}, numberOfLines: 3, wantOutput: "my very\nelaborate\ntesting"},
 	}
 
 	for _, sc := range scenarios {
