@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"testing"
@@ -8,6 +10,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_ProcessRestoreConfig(t *testing.T) {
@@ -158,6 +161,26 @@ func Test_evaluateKeys(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_removeDownloadedArchive(t *testing.T) {
+	r := &restorer{logger: log.NewLogger()}
+
+	t.Run("removes the archive's temp dir", func(t *testing.T) {
+		dir, err := os.MkdirTemp("", "restore-cache")
+		require.NoError(t, err)
+		archivePath := filepath.Join(dir, "cache-20260101-000000.tzst")
+		require.NoError(t, os.WriteFile(archivePath, []byte("dummy"), 0o644))
+
+		r.removeDownloadedArchive(archivePath)
+
+		_, err = os.Stat(dir)
+		assert.True(t, os.IsNotExist(err), "temp dir should be removed")
+	})
+
+	t.Run("empty path is a no-op", func(t *testing.T) {
+		assert.NotPanics(t, func() { r.removeDownloadedArchive("") })
+	})
 }
 
 func Test_exposeCacheHit(t *testing.T) {
