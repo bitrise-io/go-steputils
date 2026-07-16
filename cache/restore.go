@@ -102,6 +102,10 @@ func (r *restorer) Restore(input RestoreCacheInput) error {
 		}
 		return fmt.Errorf("download failed: %w", err)
 	}
+
+	// On many stacks the temp dir is a tmpfs, so a leftover archive holds RAM for the whole build.
+	defer r.removeDownloadedArchive(result.filePath)
+
 	if result.matchedKey == config.Keys[0] {
 		r.logger.Printf("Exact hit for first key")
 	} else {
@@ -223,6 +227,16 @@ func (r *restorer) download(ctx context.Context, config restoreCacheConfig) (dow
 	r.logger.Debugf("Archive downloaded to %s", downloadPath)
 
 	return downloadResult{filePath: downloadPath, matchedKey: matchedKey}, nil
+}
+
+func (r *restorer) removeDownloadedArchive(archivePath string) {
+	if archivePath == "" {
+		return
+	}
+	dir := filepath.Dir(archivePath)
+	if err := os.RemoveAll(dir); err != nil {
+		r.logger.Warnf("Failed to clean up temporary cache archive %s: %s", dir, err)
+	}
 }
 
 func (r *restorer) exposeCacheHit(result downloadResult, evaluatedKeys []string) error {
