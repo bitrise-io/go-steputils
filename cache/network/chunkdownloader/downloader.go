@@ -10,26 +10,18 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/got"
 )
-
-// Logger is a minimal logging interface satisfied by *zap.SugaredLogger,
-// go-utils/v2/log.Logger, and most structured loggers out of the box.
-type Logger interface {
-	Infof(format string, v ...interface{})
-	Warnf(format string, v ...interface{})
-	Debugf(format string, v ...interface{})
-	Errorf(format string, v ...interface{})
-}
 
 // Downloader handles parallel chunked downloads with retry and hung detection.
 type Downloader struct {
 	config Config
-	logger Logger
+	logger log.Logger
 }
 
 // New creates a new Downloader with the given configuration and logger.
-func New(config Config, logger Logger) *Downloader {
+func New(config Config, logger log.Logger) *Downloader {
 	return &Downloader{
 		config: config,
 		logger: logger,
@@ -53,6 +45,8 @@ func (d *Downloader) DownloadFile(ctx context.Context, url, dest string) error {
 
 	dl := got.NewDownload(ctx, url, dest)
 	dl.Client = client
+	// got dereferences dl.Logger without a nil check, so it must be non-nil.
+	dl.Logger = d.logger
 	dl.Concurrency = d.config.Concurrency
 	dl.MaxRetryPerChunk = d.config.MaxRetryPerChunk
 	dl.ChunkRetryThreshold = d.config.ChunkRetryThreshold
