@@ -11,7 +11,4 @@ recursive: false
 require-template-schema-exists: true
 template: testify
 template-schema: "{{.Template}}.schema.json"
-packages:
-  github.com/bitrise-io/go-steputils/v2/export:
-    interfaces:
-      FileManager:
+packages: {}
