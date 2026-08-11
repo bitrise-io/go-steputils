@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/bitrise-io/go-utils/v2/command"
+	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/bitrise-io/go-utils/ziputil"
 )
@@ -18,11 +19,11 @@ const (
 // Exporter ...
 type Exporter struct {
 	cmdFactory  command.Factory
-	fileManager FileManager
+	fileManager fileutil.FileManager
 }
 
 // NewExporter ...
-func NewExporter(cmdFactory command.Factory, fm FileManager) Exporter {
+func NewExporter(cmdFactory command.Factory, fm fileutil.FileManager) Exporter {
 	return Exporter{
 		cmdFactory:  cmdFactory,
 		fileManager: fm,
@@ -70,7 +71,7 @@ func (e *Exporter) ExportOutputFile(key, sourcePath, destinationPath string) err
 	}
 
 	if absSourcePath != absDestinationPath {
-		if err = e.fileManager.CopyFile(absSourcePath, absDestinationPath, &CopyOptions{Overwrite: true}); err != nil {
+		if err = e.fileManager.CopyFile(absSourcePath, absDestinationPath, &fileutil.CopyOptions{Overwrite: true}); err != nil {
 			return err
 		}
 	}
@@ -144,7 +145,7 @@ func (e *Exporter) ExportOutputDir(envKey, srcDir, dstDir string) error {
 		return e.ExportOutput(envKey, dstDir)
 	}
 
-	if err := e.fileManager.CopyDir(srcDir, dstDir, &CopyOptions{Overwrite: true}); err != nil {
+	if err := e.fileManager.CopyDir(srcDir, dstDir, &fileutil.CopyOptions{Overwrite: true}); err != nil {
 		return err
 	}
 
