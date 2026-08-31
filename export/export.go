@@ -32,6 +32,11 @@ func NewExporter(cmdFactory command.Factory, fm fileutil.FileManager, zm *ziputi
 	}
 }
 
+// NewDefaultExporter returns an Exporter with the default file and zip managers.
+func NewDefaultExporter(cmdFactory command.Factory) Exporter {
+	return NewExporter(cmdFactory, fileutil.NewFileManager(), ziputil.NewZipManager(pathutil.NewPathChecker()))
+}
+
 // ExportOutput is used for exposing values for other steps.
 // Regular env vars are isolated between steps, so instead of calling `os.Setenv()`, use this to explicitly expose
 // a value for subsequent steps.
