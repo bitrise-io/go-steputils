@@ -3,8 +3,7 @@ module github.com/bitrise-io/go-steputils/v2
 go 1.21
 
 require (
-	github.com/bitrise-io/go-utils v1.0.13
-	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.34
+	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.39
 	github.com/bitrise-io/got v0.0.0-20260223134234-6d4aa9f90a75
 	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/docker/go-units v0.4.0
@@ -14,6 +13,7 @@ require (
 )
 
 require (
+	github.com/bitrise-io/go-utils v1.0.13 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gofrs/uuid/v5 v5.2.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect

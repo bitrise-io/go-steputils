@@ -7,7 +7,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/bitrise-io/go-utils/v2/pathutil"
-	"github.com/bitrise-io/go-utils/ziputil"
+	"github.com/bitrise-io/go-utils/v2/ziputil"
 )
 
 const (
@@ -98,11 +98,12 @@ func (e *Exporter) ExportOutputFilesZip(key string, sourcePaths []string, zipPat
 	if err != nil {
 		return err
 	}
+	zipManager := ziputil.NewZipManager(pathutil.NewPathChecker())
 	switch inputType {
 	case filesType:
-		err = ziputil.ZipFiles(sourcePaths, tempZipPath)
+		err = zipManager.ZipFiles(sourcePaths, tempZipPath)
 	case foldersType:
-		err = ziputil.ZipDirs(sourcePaths, tempZipPath)
+		err = zipManager.ZipDirs(sourcePaths, tempZipPath)
 	case mixedFileAndFolderType:
 		return fmt.Errorf("source path list (%s) contains a mix of files and folders", sourcePaths)
 	default:
