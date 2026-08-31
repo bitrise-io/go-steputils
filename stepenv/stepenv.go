@@ -5,13 +5,15 @@ import (
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
+	"github.com/bitrise-io/go-utils/v2/pathutil"
+	"github.com/bitrise-io/go-utils/v2/ziputil"
 )
 
 // NewRepository ...
 func NewRepository(osRepository env.Repository) env.Repository {
 	return defaultRepository{
 		osRepository: osRepository,
-		exporter:     export.NewExporter(command.NewFactory(osRepository), fileutil.NewFileManager()),
+		exporter:     export.NewExporter(command.NewFactory(osRepository), fileutil.NewFileManager(), ziputil.NewZipManager(pathutil.NewPathChecker())),
 	}
 }
 

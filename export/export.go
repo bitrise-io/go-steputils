@@ -20,13 +20,15 @@ const (
 type Exporter struct {
 	cmdFactory  command.Factory
 	fileManager fileutil.FileManager
+	zipManager  *ziputil.ZipManager
 }
 
 // NewExporter ...
-func NewExporter(cmdFactory command.Factory, fm fileutil.FileManager) Exporter {
+func NewExporter(cmdFactory command.Factory, fm fileutil.FileManager, zm *ziputil.ZipManager) Exporter {
 	return Exporter{
 		cmdFactory:  cmdFactory,
 		fileManager: fm,
+		zipManager:  zm,
 	}
 }
 
@@ -98,12 +100,11 @@ func (e *Exporter) ExportOutputFilesZip(key string, sourcePaths []string, zipPat
 	if err != nil {
 		return err
 	}
-	zipManager := ziputil.NewZipManager(pathutil.NewPathChecker())
 	switch inputType {
 	case filesType:
-		err = zipManager.ZipFiles(sourcePaths, tempZipPath)
+		err = e.zipManager.ZipFiles(sourcePaths, tempZipPath)
 	case foldersType:
-		err = zipManager.ZipDirs(sourcePaths, tempZipPath)
+		err = e.zipManager.ZipDirs(sourcePaths, tempZipPath)
 	case mixedFileAndFolderType:
 		return fmt.Errorf("source path list (%s) contains a mix of files and folders", sourcePaths)
 	default:
