@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/bitrise-io/go-utils/v2/command"
 )
@@ -52,3 +53,5 @@ func (c fakeCommand) RunAndReturnTrimmedOutput() (string, error)         { retur
 func (c fakeCommand) RunAndReturnTrimmedCombinedOutput() (string, error) { return "", nil }
 func (c fakeCommand) Start() error                                       { return nil }
 func (c fakeCommand) Wait() error                                        { return nil }
+func (c fakeCommand) Signal(_ os.Signal) error                           { return nil }
+func (c fakeCommand) Kill() error                                        { return nil }

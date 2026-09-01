@@ -4,14 +4,13 @@ import (
 	"github.com/bitrise-io/go-steputils/v2/export"
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
-	"github.com/bitrise-io/go-utils/v2/fileutil"
 )
 
 // NewRepository ...
 func NewRepository(osRepository env.Repository) env.Repository {
 	return defaultRepository{
 		osRepository: osRepository,
-		exporter:     export.NewExporter(command.NewFactory(osRepository), fileutil.NewFileManager()),
+		exporter:     export.NewDefaultExporter(command.NewFactory(osRepository)),
 	}
 }
 

@@ -10,7 +10,6 @@ import (
 
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
-	"github.com/bitrise-io/go-utils/v2/fileutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +32,7 @@ func setupEnvman(t *testing.T) {
 
 func Test_RunAndExportOutputWithReturningLastNLines(t *testing.T) {
 	factory := command.NewFactory(env.NewRepository())
-	e := export.NewExporter(factory, fileutil.NewFileManager())
+	e := export.NewDefaultExporter(factory)
 
 	scenarios := []struct {
 		name          string
