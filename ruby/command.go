@@ -73,6 +73,10 @@ func (f commandFactory) CreateGemInstall(gem, version string, enablePrerelease, 
 	cmd := f.Create("gem", a, opts)
 	cmds := []command.Command{cmd}
 
+	// MiseRuby needs no equivalent: under mise's default PATH activation the gem binstubs land in
+	// the ruby install dir that is already on the PATH. It is only under the opt-in shim
+	// activation that a `mise reshim` would be needed, and there the mise binary is not guaranteed
+	// to be on the PATH either.
 	if f.installType == RbenvRuby {
 		cmd := f.Create("rbenv", []string{"rehash"}, nil)
 		cmds = append(cmds, cmd)

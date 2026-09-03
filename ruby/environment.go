@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/bitrise-io/go-utils/v2/command"
@@ -14,11 +15,16 @@ import (
 	"github.com/bitrise-io/go-utils/v2/pathutil"
 )
 
-const (
-	systemRubyPth  = "/usr/bin/ruby"
-	brewRubyPth    = "/usr/local/bin/ruby"
-	brewRubyPthAlt = "/usr/local/opt/ruby/bin/ruby"
-)
+const systemRubyPth = "/usr/bin/ruby"
+
+// brewRubyPths are the ruby executable paths of a Homebrew install, covering both the Intel
+// (/usr/local) and the Apple Silicon (/opt/homebrew) Homebrew prefixes.
+var brewRubyPths = []string{
+	"/usr/local/bin/ruby",
+	"/usr/local/opt/ruby/bin/ruby",
+	"/opt/homebrew/bin/ruby",
+	"/opt/homebrew/opt/ruby/bin/ruby",
+}
 
 // InstallType ...
 type InstallType int8
@@ -36,6 +42,8 @@ const (
 	RbenvRuby
 	// ASDFRuby ...
 	ASDFRuby
+	// MiseRuby means that ruby is managed by mise (https://mise.jdx.dev).
+	MiseRuby
 )
 
 // ErrRubyNotFound is returned when there is no ruby executable in the PATH.
@@ -82,12 +90,15 @@ func rubyInstallType(cmdLocator env.CommandLocator) (InstallType, error) {
 	}
 
 	installType := Unknown
+	// The checks below inspect the ruby path itself and are exact. The rvm, asdf and rbenv checks
+	// after them probe for a version manager binary and are looser, so they have to stay last: rvm
+	// in particular matches on binary presence alone, and would shadow anything placed after it.
 	if pth == systemRubyPth {
 		installType = SystemRuby
-	} else if pth == brewRubyPth {
+	} else if slices.Contains(brewRubyPths, pth) {
 		installType = BrewRuby
-	} else if pth == brewRubyPthAlt {
-		installType = BrewRuby
+	} else if isMiseRubyPth(pth) {
+		installType = MiseRuby
 	} else if _, err := cmdLocator.LookPath("rvm"); err == nil {
 		installType = RVMRuby
 	} else if _, err := cmdLocator.LookPath("asdf"); err == nil && strings.Contains(pth, ".asdf/shims/ruby") {
@@ -97,6 +108,20 @@ func rubyInstallType(cmdLocator env.CommandLocator) (InstallType, error) {
 	}
 
 	return installType, nil
+}
+
+// isMiseRubyPth reports whether pth points into a mise managed ruby install.
+//
+// mise exposes a tool either directly, by prepending <data dir>/installs/<tool>/<version>/bin to
+// the PATH (the default), or through <data dir>/shims (opt-in via `mise activate --shims`). The
+// data dir is $MISE_DATA_DIR, $XDG_DATA_HOME/mise or ~/.local/share/mise, all of which end in a
+// "mise" path segment.
+//
+// The check deliberately does not look for the mise binary in the PATH: a mise provisioned ruby
+// can be on the PATH without mise itself. A data dir renamed via $MISE_DATA_DIR is not recognised
+// and falls back to Unknown, which is a warning rather than a failure.
+func isMiseRubyPth(pth string) bool {
+	return strings.Contains(pth, "/mise/installs/") || strings.Contains(pth, "/mise/shims/")
 }
 
 // IsGemInstalled returns true if the specified gem version is installed
