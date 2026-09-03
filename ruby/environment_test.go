@@ -247,6 +247,18 @@ func Test_RubyInstallTypeUnknown(t *testing.T) {
 	require.Equal(t, installType, Unknown)
 }
 
+func Test_RubyInstallTypeUnknownWithRubyInPath(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("/Users/vagrant/.local/share/mise/shims/ruby", nil)
+	mockCommandLocator.On("LookPath", "rbenv").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "rvm").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "asdf").Return("", fmt.Errorf("exit status 1"))
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, Unknown)
+}
+
 func Test_RubyInstallTypeSystemRuby(t *testing.T) {
 	mockCommandLocator := new(mocks.CommandLocator)
 	mockCommandLocator.On("LookPath", "ruby").Return(systemRubyPth, nil)
