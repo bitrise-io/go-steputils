@@ -249,7 +249,34 @@ func Test_RubyInstallTypeUnknown(t *testing.T) {
 
 func Test_RubyInstallTypeUnknownWithRubyInPath(t *testing.T) {
 	mockCommandLocator := new(mocks.CommandLocator)
-	mockCommandLocator.On("LookPath", "ruby").Return("/Users/vagrant/.local/share/mise/shims/ruby", nil)
+	mockCommandLocator.On("LookPath", "ruby").Return("/opt/custom/ruby/bin/ruby", nil)
+	mockCommandLocator.On("LookPath", "rbenv").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "rvm").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "asdf").Return("", fmt.Errorf("exit status 1"))
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, Unknown)
+}
+
+// Test_RubyInstallTypeMiseTakesPrecedenceOverRVM guards the ordering of the checks in
+// rubyInstallType: rvm matches on binary presence alone, so moving the mise check after it would
+// silently misdetect every mise managed ruby on a machine that also has rvm installed.
+func Test_RubyInstallTypeMiseTakesPrecedenceOverRVM(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("/Users/vagrant/.local/share/mise/installs/ruby/3.4.5/bin/ruby", nil)
+	mockCommandLocator.On("LookPath", "rvm").Return("/usr/local/bin/rvm", nil)
+
+	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+	installType := m.RubyInstallType()
+	require.Equal(t, installType, MiseRuby)
+}
+
+// Test_RubyInstallTypeUnknownForMiseLookalikePath pins the segment boundaries of the mise path
+// fragments: a directory merely ending in "mise" must not be mistaken for the mise data dir.
+func Test_RubyInstallTypeUnknownForMiseLookalikePath(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("/Users/vagrant/promise/installs/ruby/bin/ruby", nil)
 	mockCommandLocator.On("LookPath", "rbenv").Return("", fmt.Errorf("exit status 1"))
 	mockCommandLocator.On("LookPath", "rvm").Return("", fmt.Errorf("exit status 1"))
 	mockCommandLocator.On("LookPath", "asdf").Return("", fmt.Errorf("exit status 1"))
@@ -269,21 +296,56 @@ func Test_RubyInstallTypeSystemRuby(t *testing.T) {
 }
 
 func Test_RubyInstallTypeBrewRuby(t *testing.T) {
-	mockCommandLocator := new(mocks.CommandLocator)
-	mockCommandLocator.On("LookPath", "ruby").Return(brewRubyPth, nil)
+	// Both the Intel (/usr/local) and the Apple Silicon (/opt/homebrew) Homebrew prefixes.
+	pths := []string{
+		"/usr/local/bin/ruby",
+		"/usr/local/opt/ruby/bin/ruby",
+		"/opt/homebrew/bin/ruby",
+		"/opt/homebrew/opt/ruby/bin/ruby",
+	}
+	for _, pth := range pths {
+		t.Run(pth, func(t *testing.T) {
+			mockCommandLocator := new(mocks.CommandLocator)
+			mockCommandLocator.On("LookPath", "ruby").Return(pth, nil)
 
-	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
-	installType := m.RubyInstallType()
-	require.Equal(t, installType, BrewRuby)
+			m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+			installType := m.RubyInstallType()
+			require.Equal(t, installType, BrewRuby)
+		})
+	}
 }
 
-func Test_RubyInstallTypeBrewRubyAlt(t *testing.T) {
-	mockCommandLocator := new(mocks.CommandLocator)
-	mockCommandLocator.On("LookPath", "ruby").Return(brewRubyPthAlt, nil)
+func Test_RubyInstallTypeMise(t *testing.T) {
+	tests := []struct {
+		name string
+		pth  string
+	}{
+		{
+			// The default: mise prepends the tool install dir to the PATH.
+			name: "PATH activation",
+			pth:  "/Users/vagrant/.local/share/mise/installs/ruby/3.4.5/bin/ruby",
+		},
+		{
+			// Opt-in via `mise activate --shims`.
+			name: "shims",
+			pth:  "/Users/vagrant/.local/share/mise/shims/ruby",
+		},
+		{
+			name: "custom XDG_DATA_HOME",
+			pth:  "/opt/xdg/mise/installs/ruby/3.4.5/bin/ruby",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// No rvm/asdf/rbenv stubs: the path check short-circuits before any of those lookups.
+			mockCommandLocator := new(mocks.CommandLocator)
+			mockCommandLocator.On("LookPath", "ruby").Return(tt.pth, nil)
 
-	m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
-	installType := m.RubyInstallType()
-	require.Equal(t, installType, BrewRuby)
+			m := NewEnvironment(new(mocks.CommandFactory), mockCommandLocator, log.NewLogger())
+			installType := m.RubyInstallType()
+			require.Equal(t, installType, MiseRuby)
+		})
+	}
 }
 
 func Test_RubyInstallTypeRVM(t *testing.T) {
