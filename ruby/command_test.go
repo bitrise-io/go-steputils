@@ -1,11 +1,15 @@
 package ruby
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
+	"github.com/bitrise-io/go-steputils/v2/ruby/mocks"
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
+	utilmocks "github.com/bitrise-io/go-utils/v2/mocks"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -148,4 +152,51 @@ func TestFactory_Create(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_NewCommandFactory_WhenRubyNotInPath_ThenReturnsErrRubyNotFound(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("", fmt.Errorf("exit status 1"))
+
+	factory, err := NewCommandFactory(command.NewFactory(env.NewRepository()), mockCommandLocator, new(utilmocks.Logger))
+
+	require.ErrorIs(t, err, ErrRubyNotFound)
+	require.Nil(t, factory)
+}
+
+func Test_NewCommandFactory_WhenInstallTypeIsUnknown_ThenWarnsAndReturnsUsableFactory(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return("/Users/vagrant/.local/share/mise/shims/ruby", nil)
+	mockCommandLocator.On("LookPath", "rbenv").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "rvm").Return("", fmt.Errorf("exit status 1"))
+	mockCommandLocator.On("LookPath", "asdf").Return("", fmt.Errorf("exit status 1"))
+
+	mockLogger := new(utilmocks.Logger)
+	mockLogger.On("Warnf", mock.Anything).Return()
+
+	factory, err := NewCommandFactory(command.NewFactory(env.NewRepository()), mockCommandLocator, mockLogger)
+
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+	mockLogger.AssertCalled(t, "Warnf", mock.Anything)
+
+	// An unrecognised install type has to behave as a plain passthrough.
+	cmd := factory.Create("gem", []string{"install", "bitrise"}, nil)
+	require.Equal(t, `gem "install" "bitrise"`, cmd.PrintableCommandArgs())
+}
+
+func Test_NewCommandFactory_WhenInstallTypeIsKnown_ThenReturnsFactoryWithoutWarning(t *testing.T) {
+	mockCommandLocator := new(mocks.CommandLocator)
+	mockCommandLocator.On("LookPath", "ruby").Return(systemRubyPth, nil)
+
+	mockLogger := new(utilmocks.Logger)
+
+	factory, err := NewCommandFactory(command.NewFactory(env.NewRepository()), mockCommandLocator, mockLogger)
+
+	require.NoError(t, err)
+	require.NotNil(t, factory)
+	mockLogger.AssertNotCalled(t, "Warnf", mock.Anything)
+
+	cmd := factory.Create("gem", []string{"install", "bitrise"}, nil)
+	require.Equal(t, `sudo "gem" "install" "bitrise"`, cmd.PrintableCommandArgs())
 }
