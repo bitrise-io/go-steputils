@@ -200,3 +200,218 @@ func Test_NewCommandFactory_WhenInstallTypeIsKnown_ThenReturnsFactoryWithoutWarn
 	cmd := factory.Create("gem", []string{"install", "bitrise"}, nil)
 	require.Equal(t, `sudo "gem" "install" "bitrise"`, cmd.PrintableCommandArgs())
 }
+
+func Test_bundleCommandArgs(t *testing.T) {
+	tests := []struct {
+		title          string
+		args           []string
+		bundlerVersion string
+		want           []string
+	}{
+		{
+			title: "no bundler version",
+			args:  []string{"install"},
+			want:  []string{"install"},
+		},
+		{
+			title:          "bundler version is passed as a gem version selector",
+			args:           []string{"install"},
+			bundlerVersion: "2.4.12",
+			want:           []string{"_2.4.12_", "install"},
+		},
+		{
+			title:          "the selector comes before the subcommand and its arguments",
+			args:           []string{"exec", "fastlane", "deliver"},
+			bundlerVersion: "2.4.12",
+			want:           []string{"_2.4.12_", "exec", "fastlane", "deliver"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			require.Equal(t, tt.want, bundleCommandArgs(tt.args, tt.bundlerVersion))
+		})
+	}
+}
+
+func TestFactory_CreateBundleInstall(t *testing.T) {
+	tests := []struct {
+		title          string
+		installType    InstallType
+		bundlerVersion string
+		want           string
+	}{
+		{
+			title:       "no bundler version",
+			installType: RbenvRuby,
+			want:        `bundle "install" "--jobs" "20" "--retry" "5"`,
+		},
+		{
+			title:          "with a bundler version",
+			installType:    RbenvRuby,
+			bundlerVersion: "2.4.12",
+			want:           `bundle "_2.4.12_" "install" "--jobs" "20" "--retry" "5"`,
+		},
+		{
+			title:          "a system Ruby needs sudo, even with a bundler version in the way",
+			installType:    SystemRuby,
+			bundlerVersion: "2.4.12",
+			want:           `sudo "bundle" "_2.4.12_" "install" "--jobs" "20" "--retry" "5"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			factory := commandFactory{cmdFactory: command.NewFactory(env.NewRepository()), installType: tt.installType}
+
+			cmd := factory.CreateBundleInstall(tt.bundlerVersion, nil)
+
+			require.Equal(t, tt.want, cmd.PrintableCommandArgs())
+		})
+	}
+}
+
+func TestFactory_CreateBundleExec(t *testing.T) {
+	tests := []struct {
+		title          string
+		installType    InstallType
+		bundlerVersion string
+		want           string
+	}{
+		{
+			title:       "no bundler version",
+			installType: RbenvRuby,
+			want:        `bundle "exec" "fastlane" "deliver"`,
+		},
+		{
+			title:          "with a bundler version",
+			installType:    RbenvRuby,
+			bundlerVersion: "2.4.12",
+			want:           `bundle "_2.4.12_" "exec" "fastlane" "deliver"`,
+		},
+		{
+			// Only `bundle install` and `bundle update` write to the gem directory, so exec is not
+			// elevated even on a system Ruby.
+			title:       "a system Ruby does not need sudo to exec",
+			installType: SystemRuby,
+			want:        `bundle "exec" "fastlane" "deliver"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			factory := commandFactory{cmdFactory: command.NewFactory(env.NewRepository()), installType: tt.installType}
+
+			cmd := factory.CreateBundleExec("fastlane", []string{"deliver"}, tt.bundlerVersion, nil)
+
+			require.Equal(t, tt.want, cmd.PrintableCommandArgs())
+		})
+	}
+}
+
+func TestFactory_CreateGemInstall(t *testing.T) {
+	tests := []struct {
+		title            string
+		installType      InstallType
+		version          string
+		enablePrerelease bool
+		force            bool
+		want             []string
+	}{
+		{
+			title:       "an unrecognised install type gets the gem command alone",
+			installType: Unknown,
+			want:        []string{`gem "install" "fastlane" "--no-document"`},
+		},
+		{
+			title:       "a system Ruby needs sudo",
+			installType: SystemRuby,
+			want:        []string{`sudo "gem" "install" "fastlane" "--no-document"`},
+		},
+		{
+			// The shims of these two have to be regenerated, or the newly installed gem's
+			// executable is not on the PATH.
+			title:       "rbenv is rehashed afterwards",
+			installType: RbenvRuby,
+			want: []string{
+				`gem "install" "fastlane" "--no-document"`,
+				`rbenv "rehash"`,
+			},
+		},
+		{
+			title:       "asdf is reshimmed afterwards",
+			installType: ASDFRuby,
+			want: []string{
+				`gem "install" "fastlane" "--no-document"`,
+				`asdf "reshim" "ruby"`,
+			},
+		},
+		{
+			title:            "version, prerelease and force are all passed on",
+			installType:      Unknown,
+			version:          "2.149.1",
+			enablePrerelease: true,
+			force:            true,
+			want:             []string{`gem "install" "fastlane" "--no-document" "--prerelease" "-v" "2.149.1" "--force"`},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			factory := commandFactory{cmdFactory: command.NewFactory(env.NewRepository()), installType: tt.installType}
+
+			cmds := factory.CreateGemInstall("fastlane", tt.version, tt.enablePrerelease, tt.force, nil)
+
+			got := make([]string, 0, len(cmds))
+			for _, cmd := range cmds {
+				got = append(got, cmd.PrintableCommandArgs())
+			}
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestFactory_CreateGemUpdate(t *testing.T) {
+	tests := []struct {
+		title       string
+		installType InstallType
+		want        []string
+	}{
+		{
+			title:       "an unrecognised install type gets the gem command alone",
+			installType: Unknown,
+			want:        []string{`gem "update" "fastlane" "--no-document"`},
+		},
+		{
+			// sudo is only added for `gem install` and `gem uninstall`.
+			title:       "a system Ruby does not need sudo to update",
+			installType: SystemRuby,
+			want:        []string{`gem "update" "fastlane" "--no-document"`},
+		},
+		{
+			title:       "rbenv is rehashed afterwards",
+			installType: RbenvRuby,
+			want: []string{
+				`gem "update" "fastlane" "--no-document"`,
+				`rbenv "rehash"`,
+			},
+		},
+		{
+			title:       "asdf is reshimmed afterwards",
+			installType: ASDFRuby,
+			want: []string{
+				`gem "update" "fastlane" "--no-document"`,
+				`asdf "reshim" "ruby"`,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			factory := commandFactory{cmdFactory: command.NewFactory(env.NewRepository()), installType: tt.installType}
+
+			cmds := factory.CreateGemUpdate("fastlane", nil)
+
+			got := make([]string, 0, len(cmds))
+			for _, cmd := range cmds {
+				got = append(got, cmd.PrintableCommandArgs())
+			}
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
