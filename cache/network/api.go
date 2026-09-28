@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/bitrise-io/go-utils/v2/log"
+	"github.com/bitrise-io/go-utils/v2/retryhttp"
 	"github.com/hashicorp/go-retryablehttp"
 )
 
@@ -36,7 +37,8 @@ type prepareMultipartUploadResponse struct {
 // uploadSkipHeader tells the server this client understands the upload skip response.
 const uploadSkipHeader = "X-Bitrise-Cache-Upload-Skip"
 
-// ErrUploadSkipped matches (via errors.Is) an UploadSkippedError anywhere in an error chain.
+// ErrUploadSkipped matches (via errors.Is) an UploadSkippedError anywhere in an error chain. It is only
+// returned when UploadParams.AllowServerSkip is set; callers opting in must treat it as success.
 var ErrUploadSkipped = errors.New("upload skipped by the cache server")
 
 // UploadSkippedError is returned by Upload when the server reports the archive doesn't need uploading,
@@ -99,7 +101,7 @@ func newAPIClient(client *retryablehttp.Client, baseURL string, accessToken stri
 	}
 }
 
-func (c apiClient) prepareMultipartUpload(requestBody prepareUploadRequest) (prepareMultipartUploadResponse, error) {
+func (c apiClient) prepareMultipartUpload(requestBody prepareUploadRequest, allowServerSkip bool) (prepareMultipartUploadResponse, error) {
 	url := fmt.Sprintf("%s/multipart-upload", c.baseURL)
 
 	body, err := json.Marshal(requestBody)
@@ -113,7 +115,9 @@ func (c apiClient) prepareMultipartUpload(requestBody prepareUploadRequest) (pre
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 	req.Header.Set("Content-type", "application/json")
-	req.Header.Set(uploadSkipHeader, "1")
+	if allowServerSkip {
+		req.Header.Set(uploadSkipHeader, "1")
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -242,6 +246,30 @@ func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 	}
 
 	return response, nil
+}
+
+// newUploadHTTPClient is the retrying client for uploads; see withoutUploadSkipHeaderOnRetry.
+func newUploadHTTPClient(logger log.Logger) *retryablehttp.Client {
+	client := retryhttp.NewClient(logger)
+	client.PrepareRetry = withoutUploadSkipHeaderOnRetry(client.PrepareRetry)
+
+	return client
+}
+
+// withoutUploadSkipHeaderOnRetry drops the skip header from retries: the server may have created the
+// upload before the first response was lost, and a retry would then be told to skip its own upload.
+func withoutUploadSkipHeaderOnRetry(next retryablehttp.PrepareRetry) retryablehttp.PrepareRetry {
+	return func(req *http.Request) error {
+		if req.Header.Get(uploadSkipHeader) != "" {
+			req.Header = req.Header.Clone() // retries share the header map with the previous attempt
+			req.Header.Del(uploadSkipHeader)
+		}
+		if next != nil {
+			return next(req)
+		}
+
+		return nil
+	}
 }
 
 // decodeUploadSkipped turns a 200 response into an UploadSkippedError; any other 200 body is an error.

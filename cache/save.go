@@ -62,6 +62,8 @@ type saver struct {
 	pathModifier pathutil.PathModifier
 	pathChecker  pathutil.PathChecker
 	uploader     network.Uploader
+	// newTracker is a test seam; nil means newStepTracker.
+	newTracker func(stepID string) stepTracker
 }
 
 // NewSaver creates a new cache saver instance. `uploader` can be nil, unless you want to provide a custom `Uploader` implementation.
@@ -100,7 +102,7 @@ func (s *saver) Save(input SaveCacheInput) error {
 	}
 	s.logger.TDebugf("Config created")
 
-	tracker := newStepTracker(input.StepId, s.envRepo, s.logger)
+	tracker := s.stepTracker(input.StepId)
 	defer tracker.wait()
 	s.logger.TDebugf("Tracker created")
 
@@ -175,6 +177,14 @@ func (s *saver) Save(input SaveCacheInput) error {
 	s.logger.TDebugf("Archive uploaded")
 
 	return nil
+}
+
+func (s *saver) stepTracker(stepID string) stepTracker {
+	if s.newTracker != nil {
+		return s.newTracker(stepID)
+	}
+
+	return newStepTracker(stepID, s.envRepo, s.logger)
 }
 
 func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
@@ -317,6 +327,7 @@ func (s *saver) upload(archivePath string, archiveSize int64, archiveChecksum st
 		ArchiveChecksum: archiveChecksum,
 		ArchiveSize:     archiveSize,
 		CacheKey:        config.Key,
+		AllowServerSkip: true, // Save handles the skip, see serverSkipReason
 	}
 	return s.uploader.Upload(context.Background(), params, s.logger)
 }

@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/bitrise-io/go-utils/v2/log"
-	"github.com/bitrise-io/go-utils/v2/retryhttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,9 +68,9 @@ func Test_prepareMultipartUpload(t *testing.T) {
 			defer server.Close()
 
 			logger := log.NewLogger()
-			client := newAPIClient(retryhttp.NewClient(logger), server.URL, "token", logger)
+			client := newAPIClient(newUploadHTTPClient(logger), server.URL, "token", logger)
 
-			got, err := client.prepareMultipartUpload(prepareUploadRequest{CacheKey: "key", ArchiveSizeInBytes: 10})
+			got, err := client.prepareMultipartUpload(prepareUploadRequest{CacheKey: "key", ArchiveSizeInBytes: 10}, true)
 
 			assert.Equal(t, "1", gotSkipHeader)
 			switch {
@@ -102,13 +102,54 @@ func Test_Upload_serverSkip(t *testing.T) {
 	defer server.Close()
 
 	err := DefaultUploader{}.Upload(context.Background(), UploadParams{
-		APIBaseURL:  server.URL,
-		Token:       "token",
-		ArchivePath: "/does/not/exist.tzst", // never opened on skip
-		ArchiveSize: 10,
-		CacheKey:    "key",
+		APIBaseURL:      server.URL,
+		Token:           "token",
+		ArchivePath:     "/does/not/exist.tzst", // never opened on skip
+		ArchiveSize:     10,
+		CacheKey:        "key",
+		AllowServerSkip: true,
 	}, log.NewLogger())
 
 	require.ErrorIs(t, err, ErrUploadSkipped)
 	assert.False(t, acknowledged, "a skipped upload must not be acknowledged")
+}
+
+func Test_prepareMultipartUpload_skipHeader(t *testing.T) {
+	newServer := func(statuses ...int) (*httptest.Server, *[]string) {
+		var headers []string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			headers = append(headers, r.Header.Get(uploadSkipHeader))
+			w.WriteHeader(statuses[len(headers)-1])
+			_, _ = w.Write([]byte(`{"id":"upload-id"}`))
+		}))
+
+		return server, &headers
+	}
+	newClient := func(url string) apiClient {
+		logger := log.NewLogger()
+		httpClient := newUploadHTTPClient(logger)
+		httpClient.RetryWaitMin, httpClient.RetryWaitMax = time.Millisecond, time.Millisecond
+
+		return newAPIClient(httpClient, url, "token", logger)
+	}
+
+	t.Run("not sent unless the caller opts in", func(t *testing.T) {
+		server, headers := newServer(http.StatusCreated)
+		defer server.Close()
+
+		_, err := newClient(server.URL).prepareMultipartUpload(prepareUploadRequest{CacheKey: "key"}, false)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{""}, *headers)
+	})
+
+	t.Run("sent on the first attempt only", func(t *testing.T) {
+		server, headers := newServer(http.StatusBadGateway, http.StatusCreated)
+		defer server.Close()
+
+		_, err := newClient(server.URL).prepareMultipartUpload(prepareUploadRequest{CacheKey: "key"}, true)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"1", ""}, *headers, "a retry must not ask for a skip it could get against its own upload")
+	})
 }
