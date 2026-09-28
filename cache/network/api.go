@@ -16,6 +16,10 @@ import (
 const maxKeyLength = 512
 const maxKeyCount = 8
 
+// datacenterHeader tells the cache service which DC the build VM runs in, for DC-aware placement.
+const datacenterHeader = "X-Bitrise-Datacenter"
+const datacenterEnvKey = "BITRISE_DEN_VM_DATACENTER"
+
 type prepareUploadRequest struct {
 	CacheKey           string `json:"cache_key"`
 	ArchiveFileName    string `json:"archive_filename"`
@@ -57,6 +61,7 @@ type apiClient struct {
 	httpClient  *retryablehttp.Client
 	baseURL     string
 	accessToken string
+	datacenter  string
 	logger      log.Logger
 }
 
@@ -65,7 +70,15 @@ func newAPIClient(client *retryablehttp.Client, baseURL string, accessToken stri
 		httpClient:  client,
 		baseURL:     baseURL,
 		accessToken: accessToken,
+		datacenter:  strings.TrimSpace(os.Getenv(datacenterEnvKey)),
 		logger:      logger,
+	}
+}
+
+func (c apiClient) setCommonHeaders(req *retryablehttp.Request) {
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	if c.datacenter != "" {
+		req.Header.Set(datacenterHeader, c.datacenter)
 	}
 }
 
@@ -81,7 +94,7 @@ func (c apiClient) prepareMultipartUpload(requestBody prepareUploadRequest) (pre
 	if err != nil {
 		return prepareMultipartUploadResponse{}, err
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	c.setCommonHeaders(req)
 	req.Header.Set("Content-type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
@@ -141,7 +154,7 @@ func (c apiClient) acknowledgeMultipartUpload(uploadID string, successful bool, 
 	if err != nil {
 		return acknowledgeResponse{}, err
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	c.setCommonHeaders(req)
 	req.Header.Set("Content-type", "application/json")
 	if buildSlug := os.Getenv("BITRISE_BUILD_SLUG"); buildSlug != "" {
 		req.Header.Set("X-Build-Slug", buildSlug)
@@ -181,7 +194,7 @@ func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 	if err != nil {
 		return restoreResponse{}, err
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	c.setCommonHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
