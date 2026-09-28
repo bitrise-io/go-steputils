@@ -61,7 +61,6 @@ type apiClient struct {
 	httpClient  *retryablehttp.Client
 	baseURL     string
 	accessToken string
-	datacenter  string
 	logger      log.Logger
 }
 
@@ -70,15 +69,15 @@ func newAPIClient(client *retryablehttp.Client, baseURL string, accessToken stri
 		httpClient:  client,
 		baseURL:     baseURL,
 		accessToken: accessToken,
-		datacenter:  strings.TrimSpace(os.Getenv(datacenterEnvKey)),
 		logger:      logger,
 	}
 }
 
 func (c apiClient) setCommonHeaders(req *retryablehttp.Request) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
-	if c.datacenter != "" {
-		req.Header.Set(datacenterHeader, c.datacenter)
+	// Read per request, like BITRISE_BUILD_SLUG.
+	if dc := strings.TrimSpace(os.Getenv(datacenterEnvKey)); dc != "" {
+		req.Header.Set(datacenterHeader, dc)
 	}
 }
 
