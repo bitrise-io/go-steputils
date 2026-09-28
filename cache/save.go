@@ -146,10 +146,10 @@ func (s *saver) Save(input SaveCacheInput) error {
 	s.logger.TDebugf("Archive cheksum computed")
 
 	canSkipUpload, reason := s.canSkipUpload(config.Key, archiveChecksum)
-	tracker.logSkipUploadResult(canSkipUpload, reason)
 	s.logger.TDebugf("Determined upload skipping eligibility")
 	s.logger.Println()
 	if canSkipUpload {
+		tracker.logSkipUploadResult(canSkipUpload, reason)
 		s.logger.Donef("Cache upload can be skipped, reason: %s", reason.description())
 		return nil
 	}
@@ -159,6 +159,13 @@ func (s *saver) Save(input SaveCacheInput) error {
 	s.logger.Infof("Uploading archive...")
 	uploadStartTime := time.Now()
 	err = s.upload(archivePath, fileInfo.Size(), archiveChecksum, config)
+	// Logged after the upload so a server-side skip replaces, rather than duplicates, the client-side result.
+	if serverReason, skipped := serverSkipReason(err); skipped {
+		tracker.logSkipUploadResult(true, serverReason)
+		s.logger.Donef("Skipping upload: %s", serverReason.description())
+		return nil
+	}
+	tracker.logSkipUploadResult(false, reason)
 	if err != nil {
 		return fmt.Errorf("cache upload failed: %w", err)
 	}

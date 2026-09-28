@@ -2,6 +2,7 @@ package network
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,6 +31,35 @@ type prepareMultipartUploadResponse struct {
 	ChunkCount         int64                       `json:"chunk_count"`
 	LastChunkSizeBytes int64                       `json:"last_chunk_size_bytes"`
 	URLs               []prepareMultipartUploadURL `json:"urls"`
+}
+
+// uploadSkipHeader tells the server this client understands the upload skip response.
+const uploadSkipHeader = "X-Bitrise-Cache-Upload-Skip"
+
+// ErrUploadSkipped matches (via errors.Is) an UploadSkippedError anywhere in an error chain.
+var ErrUploadSkipped = errors.New("upload skipped by the cache server")
+
+// UploadSkippedError is returned by Upload when the server reports the archive doesn't need uploading,
+// because another build is uploading or just uploaded the identical key. Nothing was uploaded or acknowledged.
+type UploadSkippedError struct {
+	Reason     string
+	ExistingID string
+}
+
+// Error implements error.
+func (e UploadSkippedError) Error() string {
+	return fmt.Sprintf("%s: %s (existing upload %s)", ErrUploadSkipped, e.Reason, e.ExistingID)
+}
+
+// Is makes errors.Is(err, ErrUploadSkipped) match.
+func (e UploadSkippedError) Is(target error) bool {
+	return target == ErrUploadSkipped
+}
+
+type uploadSkippedResponse struct {
+	Skipped    bool   `json:"skipped"`
+	Reason     string `json:"reason"`
+	ExistingID string `json:"existing_id"`
 }
 
 type prepareMultipartUploadURL struct {
@@ -83,6 +113,7 @@ func (c apiClient) prepareMultipartUpload(requestBody prepareUploadRequest) (pre
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 	req.Header.Set("Content-type", "application/json")
+	req.Header.Set(uploadSkipHeader, "1")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -95,6 +126,9 @@ func (c apiClient) prepareMultipartUpload(requestBody prepareUploadRequest) (pre
 		}
 	}(resp.Body)
 
+	if resp.StatusCode == http.StatusOK {
+		return prepareMultipartUploadResponse{}, decodeUploadSkipped(resp)
+	}
 	if resp.StatusCode != http.StatusCreated {
 		return prepareMultipartUploadResponse{}, unwrapError(resp)
 	}
@@ -208,6 +242,21 @@ func (c apiClient) restore(cacheKeys []string) (restoreResponse, error) {
 	}
 
 	return response, nil
+}
+
+// decodeUploadSkipped turns a 200 response into an UploadSkippedError; any other 200 body is an error.
+func decodeUploadSkipped(resp *http.Response) error {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var skipped uploadSkippedResponse
+	if err := json.Unmarshal(body, &skipped); err != nil || !skipped.Skipped {
+		return fmt.Errorf("unexpected HTTP %d response: %s", resp.StatusCode, body)
+	}
+
+	return UploadSkippedError{Reason: skipped.Reason, ExistingID: skipped.ExistingID}
 }
 
 func unwrapError(resp *http.Response) error {

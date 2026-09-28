@@ -1,7 +1,11 @@
 package cache
 
 import (
+	"errors"
+	"fmt"
 	"testing"
+
+	"github.com/bitrise-io/go-steputils/v2/cache/network"
 
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/pathutil"
@@ -170,6 +174,46 @@ func Test_canSkipUpload(t *testing.T) {
 			canSkipUpload, reason := s.canSkipUpload(tt.args.newCacheKey, tt.args.newCacheChecksum)
 			assert.Equalf(t, tt.want, canSkipUpload, "canSkipUpload(%v, %v)", tt.args.newCacheKey, tt.args.newCacheChecksum)
 			assert.Equalf(t, tt.wantReason.String(), reason.String(), "canSkipUpload(%v, %v)", tt.args.newCacheKey, tt.args.newCacheChecksum)
+		})
+	}
+}
+
+func Test_serverSkipReason(t *testing.T) {
+	tests := []struct {
+		name        string
+		err         error
+		wantSkipped bool
+		wantReason  skipReason
+	}{
+		{name: "nil error", err: nil},
+		{name: "other error", err: errors.New("HTTP 500")},
+		{
+			name:        "in progress",
+			err:         fmt.Errorf("upload with multipart: %w", network.UploadSkippedError{Reason: "identical_key_upload_in_progress"}),
+			wantSkipped: true,
+			wantReason:  reasonServerIdenticalKeyUploadInProgress,
+		},
+		{
+			name:        "recently uploaded",
+			err:         fmt.Errorf("upload with multipart: %w", network.UploadSkippedError{Reason: "identical_key_recently_uploaded"}),
+			wantSkipped: true,
+			wantReason:  reasonServerIdenticalKeyRecentlyUploaded,
+		},
+		{
+			name:        "unknown server reason",
+			err:         network.UploadSkippedError{Reason: "something_new"},
+			wantSkipped: true,
+			wantReason:  reasonServerSkipped,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason, skipped := serverSkipReason(tt.err)
+
+			assert.Equal(t, tt.wantSkipped, skipped)
+			if tt.wantSkipped {
+				assert.Equal(t, tt.wantReason, reason)
+			}
 		})
 	}
 }
