@@ -1,6 +1,8 @@
 package testattachment
 
 import (
+	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -128,7 +130,7 @@ func TestSkipExported(t *testing.T) {
 	writeFile(t, filepath.Join(deployDir, "step_1/UI tests/com.example.LoginTest__wrongPassword__1.png"), "content")
 
 	candidates := []Candidate{{Path: unchanged}, {Path: changed}, {Path: notExported}}
-	kept, skipped, err := SkipExported(deployDir, candidates)
+	kept, skipped, err := skipExported(deployDir, candidates)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{changed, notExported}, candidatePaths(kept))
@@ -139,7 +141,7 @@ func TestSkipExported_missingDeployDir(t *testing.T) {
 	candidates := []Candidate{{Path: filepath.Join(t.TempDir(), "x")}}
 	writeFile(t, candidates[0].Path, "content")
 
-	kept, skipped, err := SkipExported(filepath.Join(t.TempDir(), "missing"), candidates)
+	kept, skipped, err := skipExported(filepath.Join(t.TempDir(), "missing"), candidates)
 	require.NoError(t, err)
 
 	assert.Equal(t, candidates, kept)
@@ -162,7 +164,7 @@ func TestCopyToReport(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, copied.ModTime().Equal(mtime))
 
-	kept, skipped, err := SkipExported(reportDir, candidates)
+	kept, skipped, err := skipExported(reportDir, candidates)
 	require.NoError(t, err)
 	assert.Empty(t, kept)
 	assert.Equal(t, map[string]error{src: ErrAlreadyExported}, skippedReasons(skipped))
@@ -190,17 +192,106 @@ func TestCollect_basePathInsideDeployDir(t *testing.T) {
 
 	result, err := collector.Collect(root, deployDir, NewIndex(loginReport))
 	require.NoError(t, err)
-	require.Equal(t, []string{path}, candidatePaths(result.Candidates))
 
-	kept, skipped, err := SkipExported(deployDir, result.Candidates)
-	require.NoError(t, err)
-	assert.Empty(t, kept)
-	assert.Equal(t, map[string]error{path: ErrAlreadyExported}, skippedReasons(skipped))
+	assert.Empty(t, result.Candidates)
+	assert.Equal(t, map[string]error{path: ErrAlreadyExported}, skippedReasons(result.Skipped))
 
-	require.NoError(t, collector.CopyToReport(reportDir, result.Candidates))
+	require.NoError(t, collector.CopyToReport(reportDir, []Candidate{{Path: path}}))
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, "content", string(content))
+}
+
+func TestCollect_secondRunInDifferentFolder(t *testing.T) {
+	requireGit(t)
+	root := t.TempDir()
+	runGit(t, root, "init", "-q")
+	deployDir := filepath.Join(t.TempDir(), "deploy")
+	collector := newTestCollector()
+	idx := NewIndex(loginReport)
+
+	first := filepath.Join(root, "out/run1/com.example.LoginTest__emptyState__1.png")
+	writeFile(t, first, "first run")
+	result, err := collector.Collect(root, deployDir, idx)
+	require.NoError(t, err)
+	reportDir := filepath.Join(deployDir, "step_2", "Run 1")
+	require.NoError(t, os.MkdirAll(reportDir, 0o755))
+	require.NoError(t, collector.CopyToReport(reportDir, result.Candidates))
+
+	second := filepath.Join(root, "out/run2/com.example.LoginTest__emptyState__1.png")
+	writeFile(t, second, "second run")
+	result, err = collector.Collect(root, deployDir, idx)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{second}, candidatePaths(result.Candidates))
+	assert.Equal(t, map[string]error{first: ErrAlreadyExported}, skippedReasons(result.Skipped))
+}
+
+func TestCollect_manyCandidates(t *testing.T) {
+	requireGit(t)
+	root := t.TempDir()
+	runGit(t, root, "init", "-q")
+
+	report := reportOf()
+	for i := 0; i < 10_000; i++ {
+		name := fmt.Sprintf("givenAVeryDescriptiveState%dWhenSomethingHappensThenSomethingIsShown", i)
+		report.TestSuites[0].TestCases = append(report.TestSuites[0].TestCases, testCase("com.example.feature.SomeScreenTest", name))
+		writeFile(t, filepath.Join(root, "app/build/outputs/screenshots", Key("com.example.feature.SomeScreenTest", name)+"__1.png"), "x")
+	}
+	committed := filepath.Join(root, "app/src/test/snapshots/com.example.feature.SomeScreenTest__givenAVeryDescriptiveState0WhenSomethingHappensThenSomethingIsShown__reference.png")
+	writeFile(t, committed, "reference")
+	runGit(t, root, "add", "app/src")
+	runGit(t, root, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "-m", "reference images")
+
+	result, err := newTestCollector().Collect(root, filepath.Join(t.TempDir(), "deploy"), NewIndex(report))
+	require.NoError(t, err)
+
+	require.NoError(t, result.GitCheckErr)
+	assert.Len(t, result.Candidates, 10_000)
+	assert.Equal(t, map[string]error{committed: ErrTrackedByGit}, skippedReasons(result.Skipped))
+}
+
+func TestCollect_gitErrorDoesNotListFiles(t *testing.T) {
+	requireGit(t)
+	root := t.TempDir()
+	if err := exec.Command("git", "-C", root, "rev-parse").Run(); err == nil {
+		t.Skip("the temp dir is inside a git repository")
+	}
+	path := filepath.Join(root, "com.example.LoginTest__emptyState__1.png")
+	writeFile(t, path, "content")
+
+	result, err := newTestCollector().Collect(root, filepath.Join(t.TempDir(), "deploy"), NewIndex(loginReport))
+	require.NoError(t, err)
+
+	require.Error(t, result.GitCheckErr)
+	assert.NotContains(t, result.GitCheckErr.Error(), filepath.Base(path))
+}
+
+func TestCollect_unreadableFolder(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read any folder")
+	}
+	root := t.TempDir()
+	readable := filepath.Join(root, "build/com.example.LoginTest__emptyState__1.png")
+	writeFile(t, readable, "content")
+	locked := filepath.Join(root, "locked")
+	require.NoError(t, os.MkdirAll(locked, 0o755))
+	require.NoError(t, os.Chmod(locked, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+	result, err := newTestCollector().Collect(root, filepath.Join(t.TempDir(), "deploy"), NewIndex(loginReport))
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{readable}, candidatePaths(result.Candidates))
+	require.Len(t, result.Skipped, 1)
+	assert.Equal(t, locked, result.Skipped[0].Path)
+	assert.ErrorIs(t, result.Skipped[0].Reason, fs.ErrPermission)
+}
+
+func TestCollect_missingRoot(t *testing.T) {
+	_, err := newTestCollector().Collect(filepath.Join(t.TempDir(), "missing"), filepath.Join(t.TempDir(), "deploy"), NewIndex(loginReport))
+
+	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
 
 func newTestCollector() Collector {

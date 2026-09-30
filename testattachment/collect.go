@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -42,7 +43,8 @@ type Candidate struct {
 	Match Match
 }
 
-// Skipped is a file that follows the naming convention but is not attached, with the reason.
+// Skipped is a file that follows the naming convention but is not attached, or a folder that could
+// not be read, with the reason.
 type Skipped struct {
 	Path   string
 	Reason error
@@ -69,14 +71,21 @@ func NewCollector(cmdFactory command.Factory, fileManager fileutil.FileManager) 
 }
 
 // Collect walks root and returns the files that belong to a test case of idx. Dependency folders,
-// deployDir (where earlier steps exported their files), files tracked by git and file names found
-// more than once are left out.
+// deployDir (where earlier steps exported their files), unreadable folders, files tracked by git,
+// files an earlier step already exported unchanged and file names found more than once are left out.
 func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, error) {
 	var result CollectResult
 	var matched []Candidate
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			if path == root {
+				return err
+			}
+			result.Skipped = append(result.Skipped, Skipped{Path: path, Reason: err})
+			if d != nil && d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if d.IsDir() {
 			if path != root && (isSkippedDir(path) || filepath.Clean(path) == filepath.Clean(deployDir)) {
@@ -100,8 +109,8 @@ func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, er
 		return CollectResult{}, fmt.Errorf("walk %s: %w", root, err)
 	}
 
-	// Tracked files go first: a committed reference image usually has the same name as the fresh
-	// screenshot, and must not knock it out as a duplicate.
+	// Duplicates are checked last: a committed reference image, or the file a previous run left
+	// behind, usually has the same name as the fresh one and must not knock it out.
 	untracked := matched
 	tracked, err := c.trackedFiles(root, matched)
 	if err != nil {
@@ -117,8 +126,14 @@ func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, er
 		}
 	}
 
+	fresh, skipped, err := skipExported(deployDir, untracked)
+	if err != nil {
+		return CollectResult{}, err
+	}
+	result.Skipped = append(result.Skipped, skipped...)
+
 	byName := map[string][]Candidate{}
-	for _, candidate := range untracked {
+	for _, candidate := range fresh {
 		name := filepath.Base(candidate.Path)
 		byName[name] = append(byName[name], candidate)
 	}
@@ -143,18 +158,28 @@ func isSkippedDir(path string) bool {
 	return name == "bundle" && filepath.Base(filepath.Dir(path)) == "vendor"
 }
 
-// trackedFiles returns the candidate paths that git tracks, in a single git call.
-func (c Collector) trackedFiles(root string, candidates []Candidate) (map[string]bool, error) {
-	if len(candidates) == 0 {
-		return nil, nil
-	}
+// gitBatchSize keeps each git ls-files call well below the OS limit on command line length.
+const gitBatchSize = 500
 
+// trackedFiles returns the candidate paths that git tracks.
+func (c Collector) trackedFiles(root string, candidates []Candidate) (map[string]bool, error) {
+	tracked := map[string]bool{}
+	for start := 0; start < len(candidates); start += gitBatchSize {
+		end := min(start+gitBatchSize, len(candidates))
+		if err := c.addTrackedFiles(root, candidates[start:end], tracked); err != nil {
+			return nil, err
+		}
+	}
+	return tracked, nil
+}
+
+func (c Collector) addTrackedFiles(root string, candidates []Candidate, tracked map[string]bool) error {
 	args := []string{"ls-files", "-z", "--"}
 	relToPath := map[string]string{}
 	for _, candidate := range candidates {
 		rel, err := filepath.Rel(root, candidate.Path)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		rel = filepath.ToSlash(rel)
 		relToPath[rel] = candidate.Path
@@ -163,22 +188,33 @@ func (c Collector) trackedFiles(root string, candidates []Candidate) (map[string
 
 	out, err := c.cmdFactory.Create("git", args, &command.Opts{Dir: root}).RunAndReturnTrimmedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("git ls-files: %w", err)
+		return gitError(err)
 	}
 
-	tracked := map[string]bool{}
 	for _, rel := range strings.Split(out, "\x00") {
 		if path, ok := relToPath[rel]; ok {
 			tracked[path] = true
 		}
 	}
-	return tracked, nil
+	return nil
 }
 
-// SkipExported leaves out the candidates that an earlier step already exported into deployDir:
+// gitError drops the command line from the error: with hundreds of paths it would flood the log.
+func gitError(err error) error {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return fmt.Errorf("git ls-files: %s: %w", strings.TrimSpace(string(exitErr.Stderr)), exitErr)
+	}
+	if cause := errors.Unwrap(err); cause != nil {
+		return fmt.Errorf("git ls-files: %w", cause)
+	}
+	return fmt.Errorf("git ls-files: %w", err)
+}
+
+// skipExported leaves out the candidates that an earlier step already exported into deployDir:
 // a file with the same name, size and modification time. CopyToReport keeps the modification
 // time, which is what makes an unchanged file recognisable.
-func SkipExported(deployDir string, candidates []Candidate) ([]Candidate, []Skipped, error) {
+func skipExported(deployDir string, candidates []Candidate) ([]Candidate, []Skipped, error) {
 	exported := map[string][]fs.FileInfo{}
 	err := filepath.WalkDir(deployDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
