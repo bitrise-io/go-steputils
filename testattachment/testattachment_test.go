@@ -9,14 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testCase(className, name string) testreport.TestCase {
-	return testreport.TestCase{ClassName: className, Name: name}
-}
-
-func reportOf(testCases ...testreport.TestCase) *testreport.TestReport {
-	return &testreport.TestReport{TestSuites: []testreport.TestSuite{{Name: "suite", TestCases: testCases}}}
-}
-
 func TestKey(t *testing.T) {
 	assert.Equal(t, "com.example.LoginTest__emptyState", Key("com.example.LoginTest", "emptyState"))
 	assert.Equal(t, "a_b__c_d_e_f_g_h_i_j", Key(`a"b`, `c*d/e:f<g>h?i\j`))
@@ -122,6 +114,40 @@ func TestNewIndex_nestedSuites(t *testing.T) {
 	assert.Same(t, &report.TestSuites[0].TestSuites[0].TestCases[0], match.TestCase)
 }
 
+func TestMatch_sameTestInTwoSuitesIsAmbiguous(t *testing.T) {
+	idx := NewIndex(twoSuites(
+		[]testreport.TestCase{testCase("C", "test")},
+		[]testreport.TestCase{testCase("C", "test")},
+	))
+
+	_, err := idx.Match("C__test__1.png")
+	require.ErrorIs(t, err, ErrAmbiguousTest)
+
+	_, err = idx.Match("C__test__run2__1.png")
+	require.ErrorIs(t, err, ErrAmbiguousTest)
+}
+
+func TestMatch_runsAreCountedWithinASuite(t *testing.T) {
+	report := twoSuites(
+		[]testreport.TestCase{testCase("C", "flaky"), testCase("C", "flaky")},
+		[]testreport.TestCase{testCase("C", "other")},
+	)
+	idx := NewIndex(report)
+
+	match, err := idx.Match("C__flaky__run2__1.png")
+	require.NoError(t, err)
+	assert.Same(t, &report.TestSuites[0].TestCases[1], match.TestCase)
+}
+
+func TestMatch_uncleanedFileNameMatches(t *testing.T) {
+	report := reportOf(testCase("C", "a:b"))
+	idx := NewIndex(report)
+
+	match, err := idx.Match("C__a:b__1.png")
+	require.NoError(t, err)
+	assert.Same(t, &report.TestSuites[0].TestCases[0], match.TestCase)
+}
+
 func BenchmarkMatch(b *testing.B) {
 	testCases := make([]testreport.TestCase, 50_000)
 	for i := range testCases {
@@ -143,4 +169,19 @@ func BenchmarkMatch(b *testing.B) {
 			}
 		}
 	}
+}
+
+func testCase(className, name string) testreport.TestCase {
+	return testreport.TestCase{ClassName: className, Name: name}
+}
+
+func reportOf(testCases ...testreport.TestCase) *testreport.TestReport {
+	return &testreport.TestReport{TestSuites: []testreport.TestSuite{{Name: "suite", TestCases: testCases}}}
+}
+
+func twoSuites(first, second []testreport.TestCase) *testreport.TestReport {
+	return &testreport.TestReport{TestSuites: []testreport.TestSuite{
+		{Name: "suiteA", TestCases: first},
+		{Name: "suiteB", TestCases: second},
+	}}
 }

@@ -35,7 +35,8 @@ var (
 	ErrUnknownRun = errors.New("test case has no such run")
 )
 
-// Android's /sdcard rejects these characters in file names, so they are replaced on both sides.
+// Android's /sdcard doesn't allow these characters in file names. They become "_" on both the
+// test case side and the file name side, so either spelling matches.
 var sanitizer = strings.NewReplacer(
 	`"`, "_", "*", "_", "/", "_", ":", "_", "<", "_",
 	">", "_", "?", "_", `\`, "_", "|", "_",
@@ -60,7 +61,9 @@ type testID struct {
 }
 
 type entry struct {
-	id          testID
+	id    testID
+	suite *testreport.TestSuite
+	// occurrences are counted within one suite, the same way the Tests tab merges reruns.
 	occurrences []*testreport.TestCase
 }
 
@@ -92,8 +95,8 @@ func (idx Index) addSuite(suite *testreport.TestSuite) {
 		existing, ok := idx.entries[key]
 		switch {
 		case !ok:
-			idx.entries[key] = &entry{id: id, occurrences: []*testreport.TestCase{testCase}}
-		case existing.id != id:
+			idx.entries[key] = &entry{id: id, suite: suite, occurrences: []*testreport.TestCase{testCase}}
+		case existing.id != id, existing.suite != suite:
 			idx.ambiguous[key] = true
 		default:
 			existing.occurrences = append(existing.occurrences, testCase)
@@ -104,7 +107,8 @@ func (idx Index) addSuite(suite *testreport.TestSuite) {
 	}
 }
 
-// Ambiguous returns the keys that more than one distinct test case maps to, sorted.
+// Ambiguous returns the keys that more than one distinct test case, or the same test case in more
+// than one suite, maps to, sorted.
 func (idx Index) Ambiguous() []string {
 	keys := make([]string, 0, len(idx.ambiguous))
 	for key := range idx.ambiguous {
@@ -131,7 +135,7 @@ func (idx Index) Match(fileName string) (Match, error) {
 	if label == "" {
 		return Match{}, ErrMissingLabel
 	}
-	key := stem[:sep]
+	key := sanitizer.Replace(stem[:sep])
 
 	// A test whose own name ends in "__run<k>" wins over the run suffix.
 	if match, found, err := idx.lookup(key, 0, label); found {
