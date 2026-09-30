@@ -11,26 +11,53 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExportTest_writesTestInfoAndCopiesDir(t *testing.T) {
-	srcDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "result.xml"), []byte("<testsuite/>"), 0644))
+func TestExportTest_file(t *testing.T) {
+	xmlPath := filepath.Join(t.TempDir(), "junit.xml")
+	writeFile(t, xmlPath, "<testsuites/>")
 
 	exportRoot := t.TempDir()
 	e := testresultexport.NewExporter(exportRoot, fileutil.NewFileManager())
 
-	require.NoError(t, e.ExportTest("suite-a", srcDir))
+	require.NoError(t, e.ExportTest("Unit tests", xmlPath))
 
-	destDir := filepath.Join(exportRoot, "suite-a")
+	requireTestInfo(t, filepath.Join(exportRoot, "Unit tests"), "Unit tests")
+	requireFile(t, filepath.Join(exportRoot, "Unit tests", "junit.xml"), "<testsuites/>")
+}
 
-	infoBytes, err := os.ReadFile(filepath.Join(destDir, testresultexport.ResultDescriptorFileName))
-	require.NoError(t, err)
-	var info testresultexport.TestInfo
-	require.NoError(t, json.Unmarshal(infoBytes, &info))
-	require.Equal(t, "suite-a", info.Name)
+func TestExportTest_bundleKeepsItsFolder(t *testing.T) {
+	bundle := filepath.Join(t.TempDir(), "UITests.xcresult")
+	writeFile(t, filepath.Join(bundle, "Info.plist"), "plist")
+	writeFile(t, filepath.Join(bundle, "Data", "data.0"), "data")
 
-	copied, err := os.ReadFile(filepath.Join(destDir, "result.xml"))
-	require.NoError(t, err)
-	require.Equal(t, "<testsuite/>", string(copied))
+	exportRoot := t.TempDir()
+	e := testresultexport.NewExporter(exportRoot, fileutil.NewFileManager())
+
+	require.NoError(t, e.ExportTest("UI tests", bundle))
+
+	requireTestInfo(t, filepath.Join(exportRoot, "UI tests"), "UI tests")
+	requireFile(t, filepath.Join(exportRoot, "UI tests", "UITests.xcresult", "Info.plist"), "plist")
+	requireFile(t, filepath.Join(exportRoot, "UI tests", "UITests.xcresult", "Data", "data.0"), "data")
+}
+
+func TestExportTest_overwritesPreviousExport(t *testing.T) {
+	xmlPath := filepath.Join(t.TempDir(), "junit.xml")
+	exportRoot := t.TempDir()
+	e := testresultexport.NewExporter(exportRoot, fileutil.NewFileManager())
+
+	writeFile(t, xmlPath, "first")
+	require.NoError(t, e.ExportTest("tests", xmlPath))
+	writeFile(t, xmlPath, "second")
+	require.NoError(t, e.ExportTest("tests", xmlPath))
+
+	requireFile(t, filepath.Join(exportRoot, "tests", "junit.xml"), "second")
+}
+
+func TestExportTest_missingTestResult(t *testing.T) {
+	e := testresultexport.NewExporter(t.TempDir(), fileutil.NewFileManager())
+
+	err := e.ExportTest("tests", filepath.Join(t.TempDir(), "missing.xml"))
+
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestExportTest_mkdirFails(t *testing.T) {
@@ -47,4 +74,26 @@ func TestExportTest_mkdirFails(t *testing.T) {
 
 func TestResultDescriptorFileName(t *testing.T) {
 	require.Equal(t, "test-info.json", testresultexport.ResultDescriptorFileName)
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+}
+
+func requireFile(t *testing.T, path, want string) {
+	t.Helper()
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, want, string(got))
+}
+
+func requireTestInfo(t *testing.T, exportDir, wantName string) {
+	t.Helper()
+	infoBytes, err := os.ReadFile(filepath.Join(exportDir, testresultexport.ResultDescriptorFileName))
+	require.NoError(t, err)
+	var info testresultexport.TestInfo
+	require.NoError(t, json.Unmarshal(infoBytes, &info))
+	require.Equal(t, wantName, info.Name)
 }
