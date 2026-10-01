@@ -43,8 +43,8 @@ type Candidate struct {
 	Match Match
 }
 
-// Skipped is a file that follows the naming convention but is not attached, or a folder that could
-// not be read, with the reason.
+// Skipped is a file that follows the naming convention but is not attached, a folder that could
+// not be read, or a file that could not be copied, with the reason.
 type Skipped struct {
 	Path   string
 	Reason error
@@ -263,8 +263,9 @@ func isExported(info fs.FileInfo, exported []fs.FileInfo) bool {
 }
 
 // CopyToReport copies the candidates into reportDir under their own name, keeping their
-// modification time.
-func (c Collector) CopyToReport(reportDir string, candidates []Candidate) error {
+// modification time. A failed copy does not stop the others, it is returned in the result.
+func (c Collector) CopyToReport(reportDir string, candidates []Candidate) []Skipped {
+	var failed []Skipped
 	for _, candidate := range candidates {
 		dst := filepath.Join(reportDir, filepath.Base(candidate.Path))
 		// Copying a file onto itself would truncate it. Possible when base_path is inside the deploy dir.
@@ -272,10 +273,10 @@ func (c Collector) CopyToReport(reportDir string, candidates []Candidate) error 
 			continue
 		}
 		if err := c.fileManager.CopyFile(candidate.Path, dst, &fileutil.CopyOptions{Overwrite: true}); err != nil {
-			return fmt.Errorf("copy %s to %s: %w", candidate.Path, reportDir, err)
+			failed = append(failed, Skipped{Path: candidate.Path, Reason: fmt.Errorf("copy to %s: %w", reportDir, err)})
 		}
 	}
-	return nil
+	return failed
 }
 
 func sortedKeys(m map[string][]Candidate) []string {

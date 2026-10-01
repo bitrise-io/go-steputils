@@ -158,7 +158,7 @@ func TestCopyToReport(t *testing.T) {
 	require.NoError(t, os.Chtimes(src, mtime, mtime))
 
 	candidates := []Candidate{{Path: src}}
-	require.NoError(t, newTestCollector().CopyToReport(reportDir, candidates))
+	require.Empty(t, newTestCollector().CopyToReport(reportDir, candidates))
 
 	copied, err := os.Stat(filepath.Join(reportDir, "com.example.LoginTest__emptyState__1.png"))
 	require.NoError(t, err)
@@ -175,11 +175,28 @@ func TestCopyToReport_fileAlreadyInReportDir(t *testing.T) {
 	path := filepath.Join(reportDir, "com.example.LoginTest__emptyState__1.png")
 	writeFile(t, path, "content")
 
-	require.NoError(t, newTestCollector().CopyToReport(reportDir, []Candidate{{Path: path}}))
+	require.Empty(t, newTestCollector().CopyToReport(reportDir, []Candidate{{Path: path}}))
 
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, "content", string(content))
+}
+
+func TestCopyToReport_continuesAfterFailedCopy(t *testing.T) {
+	dir := t.TempDir()
+	reportDir := filepath.Join(dir, "report")
+	require.NoError(t, os.MkdirAll(reportDir, 0o755))
+	missing := filepath.Join(dir, "build/com.example.LoginTest__emptyState__1.png")
+	present := filepath.Join(dir, "build/com.example.LoginTest__wrongPassword__1.png")
+	writeFile(t, present, "content")
+
+	failed := newTestCollector().CopyToReport(reportDir, []Candidate{{Path: missing}, {Path: present}})
+
+	require.Len(t, failed, 1)
+	assert.Equal(t, missing, failed[0].Path)
+	assert.ErrorIs(t, failed[0].Reason, fs.ErrNotExist)
+	_, err := os.Stat(filepath.Join(reportDir, "com.example.LoginTest__wrongPassword__1.png"))
+	assert.NoError(t, err)
 }
 
 func TestCollect_basePathInsideDeployDir(t *testing.T) {
@@ -196,7 +213,7 @@ func TestCollect_basePathInsideDeployDir(t *testing.T) {
 	assert.Empty(t, result.Candidates)
 	assert.Equal(t, map[string]error{path: ErrAlreadyExported}, skippedReasons(result.Skipped))
 
-	require.NoError(t, collector.CopyToReport(reportDir, []Candidate{{Path: path}}))
+	require.Empty(t, collector.CopyToReport(reportDir, []Candidate{{Path: path}}))
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, "content", string(content))
@@ -216,7 +233,7 @@ func TestCollect_secondRunInDifferentFolder(t *testing.T) {
 	require.NoError(t, err)
 	reportDir := filepath.Join(deployDir, "step_2", "Run 1")
 	require.NoError(t, os.MkdirAll(reportDir, 0o755))
-	require.NoError(t, collector.CopyToReport(reportDir, result.Candidates))
+	require.Empty(t, collector.CopyToReport(reportDir, result.Candidates))
 
 	second := filepath.Join(root, "out/run2/com.example.LoginTest__emptyState__1.png")
 	writeFile(t, second, "second run")
