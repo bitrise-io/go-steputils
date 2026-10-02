@@ -169,23 +169,24 @@ func TestSkipExported(t *testing.T) {
 	require.NoError(t, os.Chtimes(filepath.Join(deployDir, "step_1/UI tests/com.example.LoginTest__emptyState__1.png"), mtime, mtime))
 	writeFile(t, filepath.Join(deployDir, "step_1/UI tests/com.example.LoginTest__wrongPassword__1.png"), "content")
 
-	candidates := []Candidate{{Path: unchanged}, {Path: changed}, {Path: notExported}}
-	kept, skipped, err := skipExported(deployDir, candidates)
+	candidates := []Candidate{candidateAt(t, unchanged), candidateAt(t, changed), candidateAt(t, notExported)}
+	kept, exported, err := skipExported(deployDir, candidates)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{changed, notExported}, candidatePaths(kept))
-	assert.Equal(t, map[string]error{unchanged: ErrAlreadyExported}, skippedReasons(skipped))
+	assert.Equal(t, []string{unchanged}, candidatePaths(exported))
 }
 
 func TestSkipExported_missingDeployDir(t *testing.T) {
-	candidates := []Candidate{{Path: filepath.Join(t.TempDir(), "x")}}
-	writeFile(t, candidates[0].Path, "content")
+	path := filepath.Join(t.TempDir(), "x")
+	writeFile(t, path, "content")
+	candidates := []Candidate{candidateAt(t, path)}
 
-	kept, skipped, err := skipExported(filepath.Join(t.TempDir(), "missing"), candidates)
+	kept, exported, err := skipExported(filepath.Join(t.TempDir(), "missing"), candidates)
 	require.NoError(t, err)
 
 	assert.Equal(t, candidates, kept)
-	assert.Empty(t, skipped)
+	assert.Empty(t, exported)
 }
 
 func TestCopyToReport(t *testing.T) {
@@ -197,17 +198,17 @@ func TestCopyToReport(t *testing.T) {
 	mtime := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
 	require.NoError(t, os.Chtimes(src, mtime, mtime))
 
-	candidates := []Candidate{{Path: src}}
+	candidates := []Candidate{candidateAt(t, src)}
 	require.Empty(t, newTestCollector().CopyToReport(reportDir, candidates))
 
 	copied, err := os.Stat(filepath.Join(reportDir, "com.example.LoginTest__emptyState__1.png"))
 	require.NoError(t, err)
 	assert.True(t, copied.ModTime().Equal(mtime))
 
-	kept, skipped, err := skipExported(reportDir, candidates)
+	kept, exported, err := skipExported(reportDir, candidates)
 	require.NoError(t, err)
 	assert.Empty(t, kept)
-	assert.Equal(t, map[string]error{src: ErrAlreadyExported}, skippedReasons(skipped))
+	assert.Equal(t, []string{src}, candidatePaths(exported))
 }
 
 func TestCopyToReport_fileAlreadyInReportDir(t *testing.T) {
@@ -349,6 +350,13 @@ func TestCollect_missingRoot(t *testing.T) {
 	_, err := newTestCollector().Collect(filepath.Join(t.TempDir(), "missing"), filepath.Join(t.TempDir(), "deploy"), NewIndex(loginReport))
 
 	assert.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+func candidateAt(t *testing.T, path string) Candidate {
+	t.Helper()
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	return Candidate{Path: path, info: info}
 }
 
 func newTestCollector() Collector {
