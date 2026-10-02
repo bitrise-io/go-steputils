@@ -21,7 +21,8 @@ var (
 	ErrDuplicateName = errors.New("more than one file has this name")
 	// ErrAlreadyExported is returned for a file that an earlier step already exported unchanged.
 	ErrAlreadyExported = errors.New("file was already exported by an earlier step")
-	// ErrDuplicateCopy is returned for a file that has the same name and size as another collected file.
+	// ErrDuplicateCopy is returned for a file that has the same name and size as another collected file,
+	// or as a file an earlier step already exported.
 	ErrDuplicateCopy = errors.New("copy of another file with the same name and size")
 )
 
