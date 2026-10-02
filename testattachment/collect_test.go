@@ -39,7 +39,7 @@ func TestCollect(t *testing.T) {
 	writeFile(t, inRoot("com.example.LoginTest__otherTest__1.png"), "d")
 	writeFile(t, inRoot("debug.log"), "e")
 	writeFile(t, inRoot("a/com.example.LoginTest__emptyState__dup.png"), "f")
-	writeFile(t, inRoot("b/com.example.LoginTest__emptyState__dup.png"), "g")
+	writeFile(t, inRoot("b/com.example.LoginTest__emptyState__dup.png"), "gg")
 
 	result, err := newTestCollector().Collect(root, deployDir, NewIndex(loginReport))
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestCollect(t *testing.T) {
 	}, skippedReasons(result.Skipped))
 }
 
-func TestCollect_keepsOneOfIdenticalCopies(t *testing.T) {
+func TestCollect_keepsOneOfSameSizeCopies(t *testing.T) {
 	root := t.TempDir()
 	intermediate := filepath.Join(root, "intermediates/roborazzi/com.example.LoginTest__emptyState__1.png")
 	output := filepath.Join(root, "outputs/roborazzi/com.example.LoginTest__emptyState__1.png")
@@ -67,7 +67,7 @@ func TestCollect_keepsOneOfIdenticalCopies(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{intermediate}, candidatePaths(result.Candidates))
-	assert.Equal(t, map[string]error{output: ErrIdenticalCopy}, skippedReasons(result.Skipped))
+	assert.Equal(t, map[string]error{output: ErrDuplicateCopy}, skippedReasons(result.Skipped))
 }
 
 func TestCollect_skipsFilesTrackedByGit(t *testing.T) {

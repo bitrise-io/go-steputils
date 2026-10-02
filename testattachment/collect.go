@@ -1,11 +1,8 @@
 package testattachment
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -24,8 +21,8 @@ var (
 	ErrDuplicateName = errors.New("more than one file has this name")
 	// ErrAlreadyExported is returned for a file that an earlier step already exported unchanged.
 	ErrAlreadyExported = errors.New("file was already exported by an earlier step")
-	// ErrIdenticalCopy is returned for a file that has the same name and content as another collected file.
-	ErrIdenticalCopy = errors.New("identical copy of another file with this name")
+	// ErrDuplicateCopy is returned for a file that has the same name and size as another collected file.
+	ErrDuplicateCopy = errors.New("copy of another file with the same name and size")
 )
 
 // Skipping these only saves time: they hold dependencies, never test output.
@@ -78,7 +75,7 @@ func NewCollector(cmdFactory command.Factory, fileManager fileutil.FileManager) 
 // Collect walks root and returns the files that belong to a test case of idx. Dependency folders,
 // deployDir (where earlier steps exported their files), unreadable folders, files tracked by git,
 // files an earlier step already exported unchanged and file names found more than once are left out.
-// Of identical copies with the same name, only the first by path is kept.
+// Of files with the same name and size, only the first by path is kept.
 func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, error) {
 	var result CollectResult
 	var matched []Candidate
@@ -150,8 +147,9 @@ func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, er
 			continue
 		}
 		// Some tools write the same file to two places (Roborazzi copies its screenshots from
-		// build/intermediates to build/outputs), so identical copies are not ambiguous.
-		if !identicalFiles(found) {
+		// build/intermediates to build/outputs). Contents are not compared: when every screenshot is
+		// duplicated, reading them all would add to the build time users pay for.
+		if !sameSize(found) {
 			for _, candidate := range found {
 				result.Skipped = append(result.Skipped, Skipped{Path: candidate.Path, Reason: ErrDuplicateName})
 			}
@@ -160,15 +158,14 @@ func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, er
 		sort.Slice(found, func(i, j int) bool { return found[i].Path < found[j].Path })
 		result.Candidates = append(result.Candidates, found[0])
 		for _, candidate := range found[1:] {
-			result.Skipped = append(result.Skipped, Skipped{Path: candidate.Path, Reason: ErrIdenticalCopy})
+			result.Skipped = append(result.Skipped, Skipped{Path: candidate.Path, Reason: ErrDuplicateCopy})
 		}
 	}
 	return result, nil
 }
 
-// identicalFiles reports whether the candidates have the same content. Sizes are compared first, so
-// files are only read when they could be identical. A file that cannot be read counts as different.
-func identicalFiles(candidates []Candidate) bool {
+// sameSize reports whether the candidates have the same size. A file that cannot be read counts as different.
+func sameSize(candidates []Candidate) bool {
 	var size int64
 	for i, candidate := range candidates {
 		info, err := os.Stat(candidate.Path)
@@ -181,34 +178,7 @@ func identicalFiles(candidates []Candidate) bool {
 			return false
 		}
 	}
-
-	var first []byte
-	for i, candidate := range candidates {
-		checksum, err := checksumOfFile(candidate.Path)
-		if err != nil {
-			return false
-		}
-		if i == 0 {
-			first = checksum
-		} else if !bytes.Equal(checksum, first) {
-			return false
-		}
-	}
 	return true
-}
-
-func checksumOfFile(path string) ([]byte, error) {
-	hash := sha256.New()
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close() //nolint:errcheck
-
-	if _, err := io.Copy(hash, file); err != nil {
-		return nil, err
-	}
-	return hash.Sum(nil), nil
 }
 
 func isSkippedDir(path string) bool {
