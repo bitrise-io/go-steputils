@@ -146,9 +146,6 @@ func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, er
 			result.Candidates = append(result.Candidates, found[0])
 			continue
 		}
-		// Some tools write the same file to two places (Roborazzi copies its screenshots from
-		// build/intermediates to build/outputs). Contents are not compared: when every screenshot is
-		// duplicated, reading them all would add to the build time users pay for.
 		if !sameSize(found) {
 			for _, candidate := range found {
 				result.Skipped = append(result.Skipped, Skipped{Path: candidate.Path, Reason: ErrDuplicateName})
@@ -164,7 +161,6 @@ func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, er
 	return result, nil
 }
 
-// sameSize reports whether the candidates have the same size. A file that cannot be read counts as different.
 func sameSize(candidates []Candidate) bool {
 	var size int64
 	for i, candidate := range candidates {
