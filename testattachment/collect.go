@@ -134,6 +134,8 @@ func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, er
 		return CollectResult{}, err
 	}
 	result.Skipped = append(result.Skipped, skipped...)
+	fresh, copies := withoutCopiesOfExported(fresh, skipped)
+	result.Skipped = append(result.Skipped, copies...)
 
 	byName := map[string][]Candidate{}
 	for _, candidate := range fresh {
@@ -159,6 +161,37 @@ func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, er
 		}
 	}
 	return result, nil
+}
+
+func withoutCopiesOfExported(fresh []Candidate, exported []Skipped) ([]Candidate, []Skipped) {
+	exportedSizes := map[string]map[int64]bool{}
+	for _, file := range exported {
+		info, err := os.Stat(file.Path)
+		if err != nil {
+			continue
+		}
+		name := filepath.Base(file.Path)
+		if exportedSizes[name] == nil {
+			exportedSizes[name] = map[int64]bool{}
+		}
+		exportedSizes[name][info.Size()] = true
+	}
+	if len(exportedSizes) == 0 {
+		return fresh, nil
+	}
+
+	var kept []Candidate
+	var copies []Skipped
+	for _, candidate := range fresh {
+		if sizes := exportedSizes[filepath.Base(candidate.Path)]; sizes != nil {
+			if info, err := os.Stat(candidate.Path); err == nil && sizes[info.Size()] {
+				copies = append(copies, Skipped{Path: candidate.Path, Reason: ErrDuplicateCopy})
+				continue
+			}
+		}
+		kept = append(kept, candidate)
+	}
+	return kept, copies
 }
 
 func sameSize(candidates []Candidate) bool {

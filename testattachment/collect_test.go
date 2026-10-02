@@ -70,6 +70,32 @@ func TestCollect_keepsOneOfSameSizeCopies(t *testing.T) {
 	assert.Equal(t, map[string]error{output: ErrDuplicateCopy}, skippedReasons(result.Skipped))
 }
 
+func TestCollect_copyOfExportedFileInSecondRun(t *testing.T) {
+	root := t.TempDir()
+	deployDir := filepath.Join(t.TempDir(), "deploy")
+	collector := newTestCollector()
+	idx := NewIndex(loginReport)
+	intermediate := filepath.Join(root, "intermediates/roborazzi/com.example.LoginTest__emptyState__1.png")
+	output := filepath.Join(root, "outputs/roborazzi/com.example.LoginTest__emptyState__1.png")
+	writeFile(t, intermediate, "screenshot")
+	writeFile(t, output, "screenshot")
+	written := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, os.Chtimes(intermediate, written, written))
+	require.NoError(t, os.Chtimes(output, written.Add(time.Second), written.Add(time.Second)))
+
+	result, err := collector.Collect(root, deployDir, idx)
+	require.NoError(t, err)
+	reportDir := filepath.Join(deployDir, "step_1", "Screenshots")
+	require.NoError(t, os.MkdirAll(reportDir, 0o755))
+	require.Empty(t, collector.CopyToReport(reportDir, result.Candidates))
+
+	result, err = collector.Collect(root, deployDir, idx)
+	require.NoError(t, err)
+
+	assert.Empty(t, result.Candidates)
+	assert.Equal(t, map[string]error{intermediate: ErrAlreadyExported, output: ErrDuplicateCopy}, skippedReasons(result.Skipped))
+}
+
 func TestCollect_skipsFilesTrackedByGit(t *testing.T) {
 	requireGit(t)
 	root := t.TempDir()
