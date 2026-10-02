@@ -56,6 +56,20 @@ func TestCollect(t *testing.T) {
 	}, skippedReasons(result.Skipped))
 }
 
+func TestCollect_keepsOneOfIdenticalCopies(t *testing.T) {
+	root := t.TempDir()
+	intermediate := filepath.Join(root, "intermediates/roborazzi/com.example.LoginTest__emptyState__1.png")
+	output := filepath.Join(root, "outputs/roborazzi/com.example.LoginTest__emptyState__1.png")
+	writeFile(t, intermediate, "screenshot")
+	writeFile(t, output, "screenshot")
+
+	result, err := newTestCollector().Collect(root, filepath.Join(t.TempDir(), "deploy"), NewIndex(loginReport))
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{intermediate}, candidatePaths(result.Candidates))
+	assert.Equal(t, map[string]error{output: ErrIdenticalCopy}, skippedReasons(result.Skipped))
+}
+
 func TestCollect_skipsFilesTrackedByGit(t *testing.T) {
 	requireGit(t)
 	root := t.TempDir()
