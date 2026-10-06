@@ -39,6 +39,21 @@ func TestExportTest_bundleKeepsItsFolder(t *testing.T) {
 	requireFile(t, filepath.Join(exportRoot, "UI tests", "UITests.xcresult", "Data", "data.0"), "data")
 }
 
+func TestExportTest_trailingSlashExportsTheFolderContents(t *testing.T) {
+	resultsDir := filepath.Join(t.TempDir(), "testDebugUnitTest")
+	writeFile(t, filepath.Join(resultsDir, "TEST-A.xml"), "a")
+	writeFile(t, filepath.Join(resultsDir, "TEST-B.xml"), "b")
+
+	exportRoot := t.TempDir()
+	e := testresultexport.NewExporter(exportRoot, fileutil.NewFileManager())
+
+	require.NoError(t, e.ExportTest("Unit tests", resultsDir+string(filepath.Separator)))
+
+	requireTestInfo(t, filepath.Join(exportRoot, "Unit tests"), "Unit tests")
+	requireFile(t, filepath.Join(exportRoot, "Unit tests", "TEST-A.xml"), "a")
+	requireFile(t, filepath.Join(exportRoot, "Unit tests", "TEST-B.xml"), "b")
+}
+
 func TestExportTest_overwritesPreviousExport(t *testing.T) {
 	xmlPath := filepath.Join(t.TempDir(), "junit.xml")
 	exportRoot := t.TempDir()
