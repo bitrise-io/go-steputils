@@ -152,6 +152,87 @@ func TestCollect_outsideGitRepository(t *testing.T) {
 	assert.Equal(t, []string{path}, candidatePaths(result.Candidates))
 }
 
+func TestCollectModifiedBetween(t *testing.T) {
+	requireGit(t)
+	root := t.TempDir()
+	runGit(t, root, "init", "-q")
+	start := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	end := start.Add(time.Minute)
+	writeAt := func(rel, content string, modTime time.Time) string {
+		path := filepath.Join(root, rel)
+		writeFile(t, path, content)
+		require.NoError(t, os.Chtimes(path, modTime, modTime))
+		return path
+	}
+
+	atStart := writeAt("app/build/outputs/roborazzi/com.example.LoginTest__emptyState__1.png", "a", start)
+	atEnd := writeAt("app/build/outputs/roborazzi/com.example.LoginTest__wrongPassword__1.png", "b", end)
+	beforeRun := writeAt("app/build/outputs/roborazzi/com.example.LoginTest__emptyState__2.png", "c", start.Add(-time.Second))
+	afterRun := writeAt("app/build/outputs/roborazzi/com.example.LoginTest__emptyState__3.png", "d", end.Add(time.Second))
+
+	result, err := newTestCollector().CollectModifiedBetween(root, start, end, NewIndex(loginReport))
+	require.NoError(t, err)
+
+	require.NoError(t, result.GitCheckErr)
+	assert.Equal(t, []string{atStart, atEnd}, candidatePaths(result.Candidates))
+	assert.Equal(t, map[string]error{
+		beforeRun: ErrOutsideTestRun,
+		afterRun:  ErrOutsideTestRun,
+	}, skippedReasons(result.Skipped))
+}
+
+func TestCollectModifiedBetween_staleFileDoesNotHideFreshOne(t *testing.T) {
+	root := t.TempDir()
+	start := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	end := start.Add(time.Minute)
+	stale := filepath.Join(root, "screenshots/com.example.LoginTest__emptyState__1.png")
+	fresh := filepath.Join(root, "app/build/outputs/roborazzi/com.example.LoginTest__emptyState__1.png")
+	writeFile(t, stale, "previous run")
+	writeFile(t, fresh, "this run")
+	require.NoError(t, os.Chtimes(stale, start.Add(-time.Hour), start.Add(-time.Hour)))
+	require.NoError(t, os.Chtimes(fresh, start.Add(time.Second), start.Add(time.Second)))
+
+	result, err := newTestCollector().CollectModifiedBetween(root, start, end, NewIndex(loginReport))
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{fresh}, candidatePaths(result.Candidates))
+	assert.Equal(t, map[string]error{stale: ErrOutsideTestRun}, skippedReasons(result.Skipped))
+}
+
+func TestCollectModifiedBetween_skipsFilesTrackedByGitAndDuplicates(t *testing.T) {
+	requireGit(t)
+	root := t.TempDir()
+	committed := filepath.Join(root, "app/src/test/snapshots/com.example.LoginTest__wrongPassword__1.png")
+	writeFile(t, committed, "reference")
+	runGit(t, root, "init", "-q")
+	runGit(t, root, "add", "app/src")
+	runGit(t, root, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-q", "-m", "reference images")
+
+	start := time.Now().Add(-time.Minute)
+	intermediate := filepath.Join(root, "app/build/intermediates/roborazzi/com.example.LoginTest__emptyState__1.png")
+	output := filepath.Join(root, "app/build/outputs/roborazzi/com.example.LoginTest__emptyState__1.png")
+	first := filepath.Join(root, "a/com.example.LoginTest__emptyState__dup.png")
+	second := filepath.Join(root, "b/com.example.LoginTest__emptyState__dup.png")
+	writeFile(t, intermediate, "screenshot")
+	writeFile(t, output, "screenshot")
+	writeFile(t, first, "f")
+	writeFile(t, second, "gg")
+	now := time.Now()
+	require.NoError(t, os.Chtimes(committed, now, now))
+
+	result, err := newTestCollector().CollectModifiedBetween(root, start, time.Now().Add(time.Minute), NewIndex(loginReport))
+	require.NoError(t, err)
+
+	require.NoError(t, result.GitCheckErr)
+	assert.Equal(t, []string{intermediate}, candidatePaths(result.Candidates))
+	assert.Equal(t, map[string]error{
+		committed: ErrTrackedByGit,
+		output:    ErrDuplicateCopy,
+		first:     ErrDuplicateName,
+		second:    ErrDuplicateName,
+	}, skippedReasons(result.Skipped))
+}
+
 func TestSkipExported(t *testing.T) {
 	dir := t.TempDir()
 	deployDir := filepath.Join(dir, "deploy")

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
@@ -24,6 +25,8 @@ var (
 	// ErrDuplicateCopy is returned for a file that has the same name and size as another collected file,
 	// or as a file an earlier step already exported.
 	ErrDuplicateCopy = errors.New("copy of another file with the same name and size")
+	// ErrOutsideTestRun is returned for a file that was not modified during the test run.
+	ErrOutsideTestRun = errors.New("file was not modified during the test run")
 )
 
 // Skipping these only saves time: they hold dependencies, never test output.
@@ -79,6 +82,52 @@ func NewCollector(cmdFactory command.Factory, fileManager fileutil.FileManager) 
 // files an earlier step already exported unchanged and file names found more than once are left out.
 // Of files with the same name and size, only the first by path is kept.
 func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, error) {
+	result, matched, err := walk(root, deployDir, idx)
+	if err != nil {
+		return CollectResult{}, err
+	}
+
+	// Duplicates are checked last: a committed reference image, or the file a previous run left
+	// behind, usually has the same name as the fresh one and must not knock it out.
+	untracked := c.withoutTracked(root, matched, &result)
+
+	fresh, exported, err := skipExported(deployDir, untracked)
+	if err != nil {
+		return CollectResult{}, err
+	}
+	for _, candidate := range exported {
+		result.Skipped = append(result.Skipped, Skipped{Path: candidate.Path, Reason: ErrAlreadyExported})
+	}
+	fresh, copies := withoutCopiesOfExported(fresh, exported)
+	result.Skipped = append(result.Skipped, copies...)
+
+	result.addUniqueNames(fresh)
+	return result, nil
+}
+
+// CollectModifiedBetween is Collect for steps that run the tests themselves: instead of leaving out
+// what earlier steps exported, it keeps only the files modified between start and end.
+func (c Collector) CollectModifiedBetween(root string, start, end time.Time, idx Index) (CollectResult, error) {
+	result, matched, err := walk(root, "", idx)
+	if err != nil {
+		return CollectResult{}, err
+	}
+
+	var inTestRun []Candidate
+	for _, candidate := range matched {
+		modTime := candidate.info.ModTime()
+		if modTime.Before(start) || modTime.After(end) {
+			result.Skipped = append(result.Skipped, Skipped{Path: candidate.Path, Reason: ErrOutsideTestRun})
+			continue
+		}
+		inTestRun = append(inTestRun, candidate)
+	}
+
+	result.addUniqueNames(c.withoutTracked(root, inTestRun, &result))
+	return result, nil
+}
+
+func walk(root, deployDir string, idx Index) (CollectResult, []Candidate, error) {
 	var result CollectResult
 	var matched []Candidate
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -116,38 +165,31 @@ func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, er
 		return nil
 	})
 	if err != nil {
-		return CollectResult{}, fmt.Errorf("walk %s: %w", root, err)
+		return CollectResult{}, nil, fmt.Errorf("walk %s: %w", root, err)
 	}
+	return result, matched, nil
+}
 
-	// Duplicates are checked last: a committed reference image, or the file a previous run left
-	// behind, usually has the same name as the fresh one and must not knock it out.
-	untracked := matched
-	tracked, err := c.trackedFiles(root, matched)
+func (c Collector) withoutTracked(root string, candidates []Candidate, result *CollectResult) []Candidate {
+	tracked, err := c.trackedFiles(root, candidates)
 	if err != nil {
 		result.GitCheckErr = err
-	} else {
-		untracked = nil
-		for _, candidate := range matched {
-			if tracked[candidate.Path] {
-				result.Skipped = append(result.Skipped, Skipped{Path: candidate.Path, Reason: ErrTrackedByGit})
-				continue
-			}
-			untracked = append(untracked, candidate)
+		return candidates
+	}
+	var untracked []Candidate
+	for _, candidate := range candidates {
+		if tracked[candidate.Path] {
+			result.Skipped = append(result.Skipped, Skipped{Path: candidate.Path, Reason: ErrTrackedByGit})
+			continue
 		}
+		untracked = append(untracked, candidate)
 	}
+	return untracked
+}
 
-	fresh, exported, err := skipExported(deployDir, untracked)
-	if err != nil {
-		return CollectResult{}, err
-	}
-	for _, candidate := range exported {
-		result.Skipped = append(result.Skipped, Skipped{Path: candidate.Path, Reason: ErrAlreadyExported})
-	}
-	fresh, copies := withoutCopiesOfExported(fresh, exported)
-	result.Skipped = append(result.Skipped, copies...)
-
+func (result *CollectResult) addUniqueNames(candidates []Candidate) {
 	byName := map[string][]Candidate{}
-	for _, candidate := range fresh {
+	for _, candidate := range candidates {
 		name := filepath.Base(candidate.Path)
 		byName[name] = append(byName[name], candidate)
 	}
@@ -169,7 +211,6 @@ func (c Collector) Collect(root, deployDir string, idx Index) (CollectResult, er
 			result.Skipped = append(result.Skipped, Skipped{Path: candidate.Path, Reason: ErrDuplicateCopy})
 		}
 	}
-	return result, nil
 }
 
 func withoutCopiesOfExported(fresh, exported []Candidate) ([]Candidate, []Skipped) {
