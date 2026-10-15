@@ -205,6 +205,24 @@ func Test_serverSkipReason(t *testing.T) {
 			wantSkipped: true,
 			wantReason:  reasonServerSkipped,
 		},
+		{
+			name:        "wrapped pointer form",
+			err:         fmt.Errorf("custom uploader: %w", &network.UploadSkippedError{Reason: "identical_key_recently_uploaded"}),
+			wantSkipped: true,
+			wantReason:  reasonServerIdenticalKeyRecentlyUploaded,
+		},
+		{
+			name:        "bare sentinel",
+			err:         network.ErrUploadSkipped,
+			wantSkipped: true,
+			wantReason:  reasonServerSkipped,
+		},
+		{
+			name:        "wrapped sentinel",
+			err:         fmt.Errorf("custom uploader: %w", network.ErrUploadSkipped),
+			wantSkipped: true,
+			wantReason:  reasonServerSkipped,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

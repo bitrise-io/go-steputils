@@ -115,14 +115,25 @@ func (s *saver) canSkipUpload(newCacheKey, newCacheChecksum string) (bool, skipR
 	return false, reasonNewArchiveChecksumMismatch
 }
 
-// serverSkipReason reports whether err is the server telling us to skip the upload, and why.
+// serverSkipReason reports whether err is the server telling us to skip the upload, and why. Like the
+// network package documents, any error matching ErrUploadSkipped is a skip; the reason comes from an
+// UploadSkippedError (value or pointer) when there is one.
 func serverSkipReason(err error) (skipReason, bool) {
-	var skipped network.UploadSkippedError
-	if !errors.As(err, &skipped) {
+	if !errors.Is(err, network.ErrUploadSkipped) {
 		return 0, false
 	}
 
-	switch skipped.Reason {
+	var reason string
+	var skipped network.UploadSkippedError
+	var skippedPtr *network.UploadSkippedError
+	switch {
+	case errors.As(err, &skipped):
+		reason = skipped.Reason
+	case errors.As(err, &skippedPtr):
+		reason = skippedPtr.Reason
+	}
+
+	switch reason {
 	case reasonServerIdenticalKeyUploadInProgress.String():
 		return reasonServerIdenticalKeyUploadInProgress, true
 	case reasonServerIdenticalKeyRecentlyUploaded.String():
