@@ -101,7 +101,7 @@ func Test_Save_serverUploadSkip(t *testing.T) {
 			s := NewSaver(envRepo, logger, pathutil.NewPathProvider(), pathutil.NewPathModifier(), pathutil.NewPathChecker(), uploader)
 			s.newTracker = func(string) stepTracker { return stepTracker{tracker: tracker, logger: logger} }
 
-			err := s.Save(SaveCacheInput{StepId: "save-cache", Key: "cache-key", Paths: []string{"testdata/dummy_file.txt"}})
+			err := s.Save(SaveCacheInput{StepId: "save-cache", Key: "cache-key", IsKeyUnique: true, Paths: []string{"testdata/dummy_file.txt"}})
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -109,13 +109,47 @@ func Test_Save_serverUploadSkip(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Len(t, uploader.params, 1)
-			assert.True(t, uploader.params[0].AllowServerSkip, "Save handles server skips, so it must opt in")
+			assert.True(t, uploader.params[0].AllowServerSkip, "Save handles server skips, so a unique key opts in")
 
 			skipEvents := tracker.named("step_save_cache_upload_skipped")
 			require.Len(t, skipEvents, 1, "exactly one upload-skip result per save")
 			assert.Equal(t, tt.wantSkipped, skipEvents[0].properties["is_upload_skipped"])
 			assert.Equal(t, tt.wantReason, skipEvents[0].properties["reason"])
 			assert.Len(t, tracker.named("step_save_cache_archive_uploaded"), tt.wantUploadEvt)
+		})
+	}
+}
+
+// The server keeps the first of two identical-key uploads, so only keys that identify their content opt in.
+func Test_Save_serverUploadSkipOnlyForContentKeys(t *testing.T) {
+	tests := []struct {
+		name        string
+		key         string
+		isKeyUnique bool
+		want        bool
+	}{
+		{name: "unique key", key: "cache-key", isKeyUnique: true, want: true},
+		{name: "checksum key", key: `cache-key-{{ checksum "testdata/dummy_file.txt" }}`, want: true},
+		{name: "branch key", key: "cache-key-{{ .Branch }}", want: false},
+		{name: "static key", key: "cache-key", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			envRepo := fakeEnvRepo{envVars: map[string]string{
+				"BITRISEIO_ABCS_API_URL":                  "https://cache.example",
+				"BITRISEIO_BITRISE_SERVICES_ACCESS_TOKEN": "token",
+				"BITRISE_GIT_BRANCH":                      "main",
+			}}
+			uploader := &fakeUploader{}
+			logger := log.NewLogger()
+			s := NewSaver(envRepo, logger, pathutil.NewPathProvider(), pathutil.NewPathModifier(), pathutil.NewPathChecker(), uploader)
+			s.newTracker = func(string) stepTracker { return stepTracker{tracker: &fakeTracker{}, logger: logger} }
+
+			err := s.Save(SaveCacheInput{StepId: "save-cache", Key: tt.key, IsKeyUnique: tt.isKeyUnique, Paths: []string{"testdata/dummy_file.txt"}})
+
+			require.NoError(t, err)
+			require.Len(t, uploader.params, 1)
+			assert.Equal(t, tt.want, uploader.params[0].AllowServerSkip)
 		})
 	}
 }

@@ -53,6 +53,9 @@ type saveCacheConfig struct {
 	CustomTarArgs    []string
 	APIBaseURL       stepconf.Secret
 	APIAccessToken   stepconf.Secret
+	// AllowServerSkip asks the server to skip uploading a key another build is uploading or just uploaded.
+	// The first upload then wins, which is only right when the key identifies the content.
+	AllowServerSkip bool
 }
 
 type saver struct {
@@ -232,6 +235,7 @@ func (s *saver) createConfig(input SaveCacheInput) (saveCacheConfig, error) {
 		CustomTarArgs:    input.CustomTarArgs,
 		APIBaseURL:       stepconf.Secret(apiBaseURL),
 		APIAccessToken:   stepconf.Secret(apiAccessToken),
+		AllowServerSkip:  input.IsKeyUnique || keytemplate.UsesChecksum(input.Key),
 	}, nil
 }
 
@@ -327,7 +331,10 @@ func (s *saver) upload(archivePath string, archiveSize int64, archiveChecksum st
 		ArchiveChecksum: archiveChecksum,
 		ArchiveSize:     archiveSize,
 		CacheKey:        config.Key,
-		AllowServerSkip: true, // Save handles the skip, see serverSkipReason
+		AllowServerSkip: config.AllowServerSkip, // Save handles the skip, see serverSkipReason
+	}
+	if !config.AllowServerSkip {
+		s.logger.Debugf("Not asking the server to skip an identical upload: the key is not unique and has no checksum")
 	}
 	return s.uploader.Upload(context.Background(), params, s.logger)
 }
