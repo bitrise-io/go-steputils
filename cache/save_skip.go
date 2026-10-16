@@ -1,7 +1,10 @@
 package cache
 
 import (
+	"errors"
 	"strings"
+
+	"github.com/bitrise-io/go-steputils/v2/cache/network"
 )
 
 type skipReason int
@@ -14,6 +17,9 @@ const (
 	reasonNoRestoreThisKey
 	reasonNewArchiveChecksumMatch
 	reasonNewArchiveChecksumMismatch
+	reasonServerIdenticalKeyUploadInProgress
+	reasonServerIdenticalKeyRecentlyUploaded
+	reasonServerSkipped
 )
 
 func (r skipReason) String() string {
@@ -32,6 +38,12 @@ func (r skipReason) String() string {
 		return "new_archive_checksum_match"
 	case reasonNewArchiveChecksumMismatch:
 		return "new_archive_checksum_mismatch"
+	case reasonServerIdenticalKeyUploadInProgress:
+		return "identical_key_upload_in_progress"
+	case reasonServerIdenticalKeyRecentlyUploaded:
+		return "identical_key_recently_uploaded"
+	case reasonServerSkipped:
+		return "server_skipped"
 	default:
 		return "unknown"
 	}
@@ -53,6 +65,12 @@ func (r skipReason) description() string {
 		return "new cache archive is the same as the restored one"
 	case reasonNewArchiveChecksumMismatch:
 		return "new cache archive contains changed files"
+	case reasonServerIdenticalKeyUploadInProgress:
+		return "another build is uploading the same key right now"
+	case reasonServerIdenticalKeyRecentlyUploaded:
+		return "another build just uploaded the same key"
+	case reasonServerSkipped:
+		return "the cache server reported that the upload is not needed"
 	default:
 		return "unrecognized skipReason"
 	}
@@ -95,6 +113,34 @@ func (s *saver) canSkipUpload(newCacheKey, newCacheChecksum string) (bool, skipR
 	}
 
 	return false, reasonNewArchiveChecksumMismatch
+}
+
+// serverSkipReason reports whether err is the server telling us to skip the upload, and why. Like the
+// network package documents, any error matching ErrUploadSkipped is a skip; the reason comes from an
+// UploadSkippedError (value or pointer) when there is one.
+func serverSkipReason(err error) (skipReason, bool) {
+	if !errors.Is(err, network.ErrUploadSkipped) {
+		return 0, false
+	}
+
+	var reason string
+	var skipped network.UploadSkippedError
+	var skippedPtr *network.UploadSkippedError
+	switch {
+	case errors.As(err, &skipped):
+		reason = skipped.Reason
+	case errors.As(err, &skippedPtr):
+		reason = skippedPtr.Reason
+	}
+
+	switch reason {
+	case reasonServerIdenticalKeyUploadInProgress.String():
+		return reasonServerIdenticalKeyUploadInProgress, true
+	case reasonServerIdenticalKeyRecentlyUploaded.String():
+		return reasonServerIdenticalKeyRecentlyUploaded, true
+	default:
+		return reasonServerSkipped, true
+	}
 }
 
 // Returns cache hit information exposed by previous restore cache steps.

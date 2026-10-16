@@ -8,7 +8,6 @@ import (
 
 	"github.com/bitrise-io/go-steputils/v2/cache/network/chunkuploader"
 	"github.com/bitrise-io/go-utils/v2/log"
-	"github.com/bitrise-io/go-utils/v2/retryhttp"
 )
 
 // DefaultUploader ...
@@ -22,16 +21,20 @@ type UploadParams struct {
 	ArchiveChecksum string
 	ArchiveSize     int64
 	CacheKey        string
+	// AllowServerSkip lets the server answer that the upload isn't needed, in which case Upload
+	// returns an UploadSkippedError (errors.Is ErrUploadSkipped) that the caller must treat as success.
+	AllowServerSkip bool
 }
 
-// Upload a cache archive and associate it with the provided cache key
+// Upload a cache archive and associate it with the provided cache key.
+// With params.AllowServerSkip, it may return an UploadSkippedError instead of uploading.
 func (u DefaultUploader) Upload(ctx context.Context, params UploadParams, logger log.Logger) error {
 	validatedKey, err := validateKey(params.CacheKey, logger)
 	if err != nil {
 		return fmt.Errorf("validating cache key: %w", err)
 	}
 
-	client := newAPIClient(retryhttp.NewClient(logger), params.APIBaseURL, params.Token, logger)
+	client := newAPIClient(newUploadHTTPClient(logger), params.APIBaseURL, params.Token, logger)
 
 	concurrency := chunkuploader.DefaultConcurrency()
 	optimalChunkSizeMB := int(chunkuploader.OptimalChunkSizeBytes(params.ArchiveSize, concurrency) / 1024 / 1024)
@@ -57,7 +60,7 @@ func (u DefaultUploader) uploadWithMultipart(ctx context.Context, params UploadP
 		ChunkSizeMB:        chunkSizeMB,
 	}
 
-	multipartResp, err := client.prepareMultipartUpload(prepareUploadRequest)
+	multipartResp, err := client.prepareMultipartUpload(prepareUploadRequest, params.AllowServerSkip)
 	if err != nil {
 		return fmt.Errorf("prepare multipart upload: %w", err)
 	}
