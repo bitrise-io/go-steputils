@@ -34,8 +34,9 @@ type Config struct {
 	StreamIdleTimeout time.Duration
 
 	// StreamHedgeDelay starts a second, racing request for the chunk Read is
-	// blocked on once it has waited this long; the first success wins. It catches
-	// chunks that trickle in too slowly to trip StreamIdleTimeout. 0 means 1s.
+	// blocked on once it has waited this long (or 3x its average wait so far, if
+	// that is longer); the first success wins. It catches chunks that trickle in
+	// too slowly to trip StreamIdleTimeout. 0 means 1s, negative disables hedging.
 	StreamHedgeDelay time.Duration
 }
 
