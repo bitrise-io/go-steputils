@@ -15,10 +15,14 @@ const (
 	// Stays under @actions/cache's 5s socket idle timeout, so a stalled chunk is
 	// retried before a client that reads the stream gives up.
 	defaultStreamIdleTimeout = 2 * time.Second
+	// A chunk that is still trickling in never trips the idle timeout, so the one
+	// Read is blocked on gets a second, racing request after this long.
+	defaultStreamHedgeDelay = time.Second
 )
 
 // Stream reads a remote file in order while fetching chunks ahead in parallel
-// into memory. Memory is bounded by Concurrency x StreamChunkSize.
+// into memory. Memory is bounded by (Concurrency + 1) x StreamChunkSize, the +1
+// being a hedged duplicate of the chunk Read is waiting on.
 // Unlike DownloadFile, nothing is written to disk.
 type Stream struct {
 	// Size is the total size of the remote file.
@@ -27,12 +31,17 @@ type Stream struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	client  *http.Client
+	f       streamFetcher
+	offset  int64
 	results []chan streamResult
-	slots   chan struct{}
-	next    int
-	held    bool
-	cur     []byte
-	err     error
+	// Per-chunk contexts, so the losing attempt of a hedged chunk can be stopped.
+	chunkCtx    []context.Context
+	chunkCancel []context.CancelFunc
+	slots       chan struct{}
+	next        int
+	held        bool
+	cur         []byte
+	err         error
 }
 
 type streamResult struct {
@@ -61,18 +70,24 @@ func (d *Downloader) OpenStream(ctx context.Context, url string) (*Stream, error
 	offset := int64(len(first))
 	n := int((size - offset + f.chunkSize - 1) / f.chunkSize)
 	s := &Stream{
-		Size:    size,
-		ctx:     ctx,
-		cancel:  cancel,
-		client:  f.client,
-		results: make([]chan streamResult, n),
-		slots:   make(chan struct{}, f.concurrency),
-		held:    true,
-		cur:     first,
+		Size:        size,
+		ctx:         ctx,
+		cancel:      cancel,
+		client:      f.client,
+		f:           f,
+		offset:      offset,
+		results:     make([]chan streamResult, n),
+		chunkCtx:    make([]context.Context, n),
+		chunkCancel: make([]context.CancelFunc, n),
+		slots:       make(chan struct{}, f.concurrency),
+		held:        true,
+		cur:         first,
 	}
 	s.slots <- struct{}{} // the first chunk counts against the memory bound too
 	for i := range s.results {
-		s.results[i] = make(chan streamResult, 1)
+		// Room for the original and a hedged attempt, so neither sender blocks.
+		s.results[i] = make(chan streamResult, 2)
+		s.chunkCtx[i], s.chunkCancel[i] = context.WithCancel(ctx)
 	}
 
 	// A slot is released only once its chunk is fully read, which bounds memory.
@@ -83,22 +98,50 @@ func (d *Downloader) OpenStream(ctx context.Context, url string) (*Stream, error
 			case <-ctx.Done():
 				return
 			}
-			go func(i int) {
-				start := offset + int64(i)*f.chunkSize
-				end := min(start+f.chunkSize, size) - 1
-				buf, total, err := f.fetch(ctx, start, end)
-				if err == nil && total != size {
-					err = fmt.Errorf("bytes %d-%d: file size changed from %d to %d mid-stream", start, end, size, total)
-				}
-				if err == nil && int64(len(buf)) != end-start+1 {
-					err = fmt.Errorf("bytes %d-%d: got %d bytes", start, end, len(buf))
-				}
-				s.results[i] <- streamResult{buf, err}
-			}(i)
+			go s.fetchChunk(i)
 		}
 	}()
 
 	return s, nil
+}
+
+// fetchChunk fetches chunk i into its result channel. It runs once per chunk,
+// plus once more if the chunk gets hedged.
+func (s *Stream) fetchChunk(i int) {
+	start := s.offset + int64(i)*s.f.chunkSize
+	end := min(start+s.f.chunkSize, s.Size) - 1
+	buf, total, err := s.f.fetch(s.chunkCtx[i], start, end)
+	if err == nil && total != s.Size {
+		err = fmt.Errorf("bytes %d-%d: file size changed from %d to %d mid-stream", start, end, s.Size, total)
+	}
+	if err == nil && int64(len(buf)) != end-start+1 {
+		err = fmt.Errorf("bytes %d-%d: got %d bytes", start, end, len(buf))
+	}
+	s.results[i] <- streamResult{buf, err}
+}
+
+// await waits for chunk i. If it isn't ready after the hedge delay, a second
+// request for the same range races the first; the first success wins.
+func (s *Stream) await(i int) (streamResult, error) {
+	pending := 1
+	hedge := time.NewTimer(s.f.hedgeDelay)
+	defer hedge.Stop()
+	for {
+		select {
+		case res := <-s.results[i]:
+			pending--
+			// On error, the other attempt may still succeed.
+			if res.err == nil || pending == 0 {
+				return res, nil
+			}
+		case <-hedge.C:
+			s.f.d.logger.Warnf("Chunk %d not ready after %s, hedging with a second request", i, s.f.hedgeDelay)
+			pending++
+			go s.fetchChunk(i)
+		case <-s.ctx.Done():
+			return streamResult{}, s.ctx.Err()
+		}
+	}
 }
 
 // Read implements io.Reader.
@@ -114,14 +157,13 @@ func (s *Stream) Read(p []byte) (int, error) {
 		if s.next == len(s.results) {
 			return 0, io.EOF
 		}
-		var res streamResult
-		select {
-		case res = <-s.results[s.next]:
-		case <-s.ctx.Done():
-			// Chunks after a cancel may never be scheduled, so don't wait for them.
-			s.err = s.ctx.Err()
+		// Chunks after a cancel may never be scheduled, so await doesn't wait for them.
+		res, err := s.await(s.next)
+		if err != nil {
+			s.err = err
 			return 0, s.err
 		}
+		s.chunkCancel[s.next]() // stops the losing attempt of a hedged chunk
 		s.next++
 		if res.err != nil {
 			s.err = res.err
@@ -149,6 +191,7 @@ type streamFetcher struct {
 	concurrency int
 	tries       int
 	idle        time.Duration
+	hedgeDelay  time.Duration
 }
 
 func (d *Downloader) streamFetcher(url string) streamFetcher {
@@ -160,6 +203,7 @@ func (d *Downloader) streamFetcher(url string) streamFetcher {
 		concurrency: int(d.config.Concurrency),
 		tries:       1 + max(d.config.MaxRetryPerChunk, 0),
 		idle:        d.config.StreamIdleTimeout,
+		hedgeDelay:  d.config.StreamHedgeDelay,
 	}
 	if f.chunkSize <= 0 {
 		f.chunkSize = defaultStreamChunkSize
@@ -169,6 +213,9 @@ func (d *Downloader) streamFetcher(url string) streamFetcher {
 	}
 	if f.idle <= 0 {
 		f.idle = defaultStreamIdleTimeout
+	}
+	if f.hedgeDelay <= 0 {
+		f.hedgeDelay = defaultStreamHedgeDelay
 	}
 	if f.client == nil {
 		// A private client: tuning got.DefaultClient in place would race with

@@ -22,6 +22,7 @@ func smallStreamDownloader() *Downloader {
 		MaxRetryPerChunk:  2,
 		StreamChunkSize:   1000,
 		StreamIdleTimeout: 100 * time.Millisecond,
+		StreamHedgeDelay:  300 * time.Millisecond,
 	}, log.NewLogger())
 }
 
@@ -87,6 +88,46 @@ func TestOpenStream_retriesStalledChunk(t *testing.T) {
 	got, err := io.ReadAll(s)
 	require.NoError(t, err)
 	require.Equal(t, data, got)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 2, requests["bytes=3000-3999"])
+}
+
+// A chunk that trickles in never trips the idle timeout; the hedged request must win.
+func TestOpenStream_hedgesTricklingChunk(t *testing.T) {
+	data := randomData(5_500)
+	var mu sync.Mutex
+	requests := map[string]int{}
+	url := rangeServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
+		mu.Lock()
+		requests[r.Header.Get("Range")]++
+		trickle := r.Header.Get("Range") == "bytes=3000-3999" && requests["bytes=3000-3999"] == 1
+		mu.Unlock()
+		if !trickle {
+			return false
+		}
+		w.Header().Set("Content-Range", "bytes 3000-3999/5500")
+		w.Header().Set("Content-Length", "1000")
+		w.WriteHeader(http.StatusPartialContent)
+		for _, b := range data[3000:4000] { // 1 byte per 50ms: 50s for the chunk
+			select {
+			case <-r.Context().Done(): // the losing attempt is cancelled
+				return true
+			case <-time.After(50 * time.Millisecond):
+			}
+			_, _ = w.Write([]byte{b})
+			w.(http.Flusher).Flush()
+		}
+		return true
+	})
+
+	start := time.Now()
+	s, err := openStream(t, url)
+	require.NoError(t, err)
+	got, err := io.ReadAll(s)
+	require.NoError(t, err)
+	require.Equal(t, data, got)
+	require.Less(t, time.Since(start), 5*time.Second)
 	mu.Lock()
 	defer mu.Unlock()
 	require.Equal(t, 2, requests["bytes=3000-3999"])

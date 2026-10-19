@@ -32,6 +32,11 @@ type Config struct {
 	// StreamIdleTimeout cancels and retries an OpenStream chunk attempt that
 	// receives no bytes for this long. 0 means 2s.
 	StreamIdleTimeout time.Duration
+
+	// StreamHedgeDelay starts a second, racing request for the chunk Read is
+	// blocked on once it has waited this long; the first success wins. It catches
+	// chunks that trickle in too slowly to trip StreamIdleTimeout. 0 means 1s.
+	StreamHedgeDelay time.Duration
 }
 
 // DefaultConfig returns the default configuration.
