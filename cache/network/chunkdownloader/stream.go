@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -15,24 +16,50 @@ const (
 	// Stays under @actions/cache's 5s socket idle timeout, so a stalled chunk is
 	// retried before a client that reads the stream gives up.
 	defaultStreamIdleTimeout = 2 * time.Second
+	// A chunk that is still trickling in never trips the idle timeout, so the one
+	// Read is blocked on gets a second, racing request after this long.
+	defaultStreamHedgeDelay = time.Second
+	// A hedge fires only when Read waits this many times longer than its average
+	// wait, so a healthy but bandwidth-limited download isn't hedged on every chunk.
+	hedgeWaitFactor = 3
+	// ...but never later than this: the hedge still has to fetch a whole chunk
+	// inside a downstream client's ~5s idle budget.
+	maxHedgeTrigger = 2 * time.Second
+	// Sanity bound on the size a server reports, since chunk bookkeeping is
+	// allocated upfront.
+	maxStreamSize = 1 << 40
+)
+
+var (
+	errIdleTimeout     = errors.New("no bytes received within the idle timeout")
+	errRetryableStatus = errors.New("retryable status")
 )
 
 // Stream reads a remote file in order while fetching chunks ahead in parallel
-// into memory. Memory is bounded by Concurrency x StreamChunkSize.
+// into memory. Memory is bounded by (Concurrency + 1) x StreamChunkSize, the +1
+// being a hedged duplicate of the chunk Read is waiting on.
 // Unlike DownloadFile, nothing is written to disk.
 type Stream struct {
 	// Size is the total size of the remote file.
 	Size int64
 
-	ctx     context.Context
-	cancel  context.CancelFunc
-	client  *http.Client
+	ctx    context.Context
+	cancel context.CancelFunc
+	f      streamFetcher
+	offset int64
+	// ETag of the first response; later chunks are requested with If-Match, so a
+	// file replaced mid-stream (even with the same size) fails instead of mixing.
+	etag    string
 	results []chan streamResult
-	slots   chan struct{}
-	next    int
-	held    bool
-	cur     []byte
-	err     error
+	// Per-chunk contexts, so the losing attempt of a hedged chunk can be stopped.
+	chunkCtx    []context.Context
+	chunkCancel []context.CancelFunc
+	slots       chan struct{}
+	next        int
+	held        bool
+	cur         []byte
+	err         error
+	avgWait     time.Duration
 }
 
 type streamResult struct {
@@ -47,32 +74,50 @@ func (e permanentError) Unwrap() error { return e.error }
 
 // OpenStream fetches the first chunk of url and starts fetching the rest in the
 // background. An error here means no byte has been read yet, and Size is known
-// once it returns. The caller must Close the stream.
+// once it returns. The first chunk is retried but not hedged: a caller that has
+// not sent anything downstream yet has no idle timer running. The caller must
+// Close the stream.
 func (d *Downloader) OpenStream(ctx context.Context, url string) (*Stream, error) {
 	f := d.streamFetcher(url)
 	ctx, cancel := context.WithCancel(ctx)
 
-	first, size, err := f.fetch(ctx, 0, f.chunkSize-1)
+	first, size, etag, err := f.fetch(ctx, 0, f.chunkSize-1, "")
+	if strings.HasPrefix(etag, "W/") {
+		// If-Match compares strongly, so a weak ETag (e.g. from an nginx in the
+		// path) would 412 every later chunk. Fall back to the size check.
+		etag = ""
+	}
+	if err == nil && size > maxStreamSize {
+		err = fmt.Errorf("reported file size %d exceeds %d", size, int64(maxStreamSize))
+	}
 	if err != nil {
 		cancel()
+		f.closeIdle()
 		return nil, err
 	}
 
 	offset := int64(len(first))
 	n := int((size - offset + f.chunkSize - 1) / f.chunkSize)
 	s := &Stream{
-		Size:    size,
-		ctx:     ctx,
-		cancel:  cancel,
-		client:  f.client,
-		results: make([]chan streamResult, n),
-		slots:   make(chan struct{}, f.concurrency),
-		held:    true,
-		cur:     first,
+		Size:        size,
+		ctx:         ctx,
+		cancel:      cancel,
+		f:           f,
+		offset:      offset,
+		etag:        etag,
+		results:     make([]chan streamResult, n),
+		chunkCtx:    make([]context.Context, n),
+		chunkCancel: make([]context.CancelFunc, n),
+		slots:       make(chan struct{}, f.concurrency),
+		held:        true,
+		cur:         first,
 	}
 	s.slots <- struct{}{} // the first chunk counts against the memory bound too
 	for i := range s.results {
-		s.results[i] = make(chan streamResult, 1)
+		// Room for the original and a hedged attempt, so neither sender blocks.
+		s.results[i] = make(chan streamResult, 2)
+		// Created upfront: a hedge can start before the scheduler reaches chunk i.
+		s.chunkCtx[i], s.chunkCancel[i] = context.WithCancel(ctx)
 	}
 
 	// A slot is released only once its chunk is fully read, which bounds memory.
@@ -83,22 +128,89 @@ func (d *Downloader) OpenStream(ctx context.Context, url string) (*Stream, error
 			case <-ctx.Done():
 				return
 			}
-			go func(i int) {
-				start := offset + int64(i)*f.chunkSize
-				end := min(start+f.chunkSize, size) - 1
-				buf, total, err := f.fetch(ctx, start, end)
-				if err == nil && total != size {
-					err = fmt.Errorf("bytes %d-%d: file size changed from %d to %d mid-stream", start, end, size, total)
-				}
-				if err == nil && int64(len(buf)) != end-start+1 {
-					err = fmt.Errorf("bytes %d-%d: got %d bytes", start, end, len(buf))
-				}
-				s.results[i] <- streamResult{buf, err}
-			}(i)
+			go s.fetchChunk(i)
 		}
 	}()
 
 	return s, nil
+}
+
+func (s *Stream) chunkRange(i int) (int64, int64) {
+	start := s.offset + int64(i)*s.f.chunkSize
+	return start, min(start+s.f.chunkSize, s.Size) - 1
+}
+
+// fetchChunk fetches chunk i into its result channel. It runs once per chunk,
+// plus once more if the chunk gets hedged.
+func (s *Stream) fetchChunk(i int) {
+	start, end := s.chunkRange(i)
+	buf, total, _, err := s.f.fetch(s.chunkCtx[i], start, end, s.etag)
+	if err == nil && total != s.Size {
+		err = fmt.Errorf("bytes %d-%d: file size changed from %d to %d mid-stream", start, end, s.Size, total)
+	}
+	if err == nil && int64(len(buf)) != end-start+1 {
+		err = fmt.Errorf("bytes %d-%d: got %d bytes", start, end, len(buf))
+	}
+	s.results[i] <- streamResult{buf, err}
+}
+
+// await waits for chunk i. Once the wait is well above the usual one, a second
+// request for the same range races the first; the first success wins.
+func (s *Stream) await(i int) (streamResult, error) {
+	var hedgeC <-chan time.Time
+	trigger := s.hedgeTrigger()
+	if s.f.hedgeDelay > 0 {
+		hedge := time.NewTimer(trigger)
+		defer hedge.Stop()
+		hedgeC = hedge.C
+	}
+	started := time.Now()
+	pending := 1
+	var firstErr error
+	for {
+		select {
+		case res := <-s.results[i]:
+			pending--
+			if res.err != nil && pending > 0 {
+				firstErr = res.err // the other attempt may still succeed
+				continue
+			}
+			if res.err != nil && firstErr != nil {
+				res.err = firstErr
+			}
+			if pending > 0 {
+				// Drop the loser's result once it lands, or its buffer would stay
+				// in the channel for the stream's lifetime.
+				go func(ch chan streamResult) { <-ch }(s.results[i])
+			}
+			// Counted as at most the trigger, so a cluster of slow chunks can't push
+			// the next trigger up with it.
+			s.recordWait(min(time.Since(started), trigger))
+			return res, nil
+		case <-hedgeC:
+			start, end := s.chunkRange(i)
+			s.f.d.logger.Warnf("Chunk bytes %d-%d not ready after %s, hedging with a second request",
+				start, end, time.Since(started).Round(time.Millisecond))
+			pending++
+			go s.fetchChunk(i)
+		case <-s.ctx.Done():
+			return streamResult{}, s.ctx.Err()
+		}
+	}
+}
+
+// hedgeTrigger is how long Read waits on a chunk before hedging it.
+func (s *Stream) hedgeTrigger() time.Duration {
+	return min(max(s.f.hedgeDelay, hedgeWaitFactor*s.avgWait), max(s.f.hedgeDelay, maxHedgeTrigger))
+}
+
+// recordWait keeps an exponential moving average of how long Read waits per chunk.
+func (s *Stream) recordWait(d time.Duration) {
+	if s.avgWait == 0 {
+		s.avgWait = d
+		return
+	}
+	s.avgWait = (4*s.avgWait + d) / 5
 }
 
 // Read implements io.Reader.
@@ -114,17 +226,17 @@ func (s *Stream) Read(p []byte) (int, error) {
 		if s.next == len(s.results) {
 			return 0, io.EOF
 		}
-		var res streamResult
-		select {
-		case res = <-s.results[s.next]:
-		case <-s.ctx.Done():
-			// Chunks after a cancel may never be scheduled, so don't wait for them.
-			s.err = s.ctx.Err()
+		// Chunks after a cancel may never be scheduled, so await doesn't wait for them.
+		res, err := s.await(s.next)
+		if err != nil {
+			s.err = err
 			return 0, s.err
 		}
+		s.chunkCancel[s.next]() // stops the losing attempt of a hedged chunk
 		s.next++
 		if res.err != nil {
 			s.err = res.err
+			s.cancel() // nothing after a failed chunk will be read
 			return 0, s.err
 		}
 		s.cur, s.held = res.buf, true
@@ -137,18 +249,20 @@ func (s *Stream) Read(p []byte) (int, error) {
 // Close stops all in-flight chunk fetches.
 func (s *Stream) Close() error {
 	s.cancel()
-	s.client.CloseIdleConnections()
+	s.f.closeIdle()
 	return nil
 }
 
 type streamFetcher struct {
 	d           *Downloader
 	client      *http.Client
+	ownsClient  bool
 	url         string
 	chunkSize   int64
 	concurrency int
 	tries       int
 	idle        time.Duration
+	hedgeDelay  time.Duration
 }
 
 func (d *Downloader) streamFetcher(url string) streamFetcher {
@@ -160,6 +274,7 @@ func (d *Downloader) streamFetcher(url string) streamFetcher {
 		concurrency: int(d.config.Concurrency),
 		tries:       1 + max(d.config.MaxRetryPerChunk, 0),
 		idle:        d.config.StreamIdleTimeout,
+		hedgeDelay:  d.config.StreamHedgeDelay,
 	}
 	if f.chunkSize <= 0 {
 		f.chunkSize = defaultStreamChunkSize
@@ -170,52 +285,85 @@ func (d *Downloader) streamFetcher(url string) streamFetcher {
 	if f.idle <= 0 {
 		f.idle = defaultStreamIdleTimeout
 	}
+	if f.hedgeDelay == 0 {
+		f.hedgeDelay = defaultStreamHedgeDelay
+	}
 	if f.client == nil {
 		// A private client: tuning got.DefaultClient in place would race with
 		// requests of other downloads sharing it.
 		t := http.DefaultTransport.(*http.Transport).Clone()
 		t.MaxIdleConnsPerHost = f.concurrency
 		f.client = &http.Client{Transport: t}
+		f.ownsClient = true
 		applyTransportTuning(f.client)
 	}
 	return f
 }
 
-// fetch returns bytes [start,end] and the file's total size, retrying failed or stalled attempts.
-func (f streamFetcher) fetch(ctx context.Context, start, end int64) ([]byte, int64, error) {
+// closeIdle releases the private client's idle connections; a caller's client is left alone.
+func (f streamFetcher) closeIdle() {
+	if f.ownsClient {
+		f.client.CloseIdleConnections()
+	}
+}
+
+// fetch returns bytes [start,end], the file's total size and its ETag, retrying
+// failed or stalled attempts. A non-empty ifMatch pins the file version.
+func (f streamFetcher) fetch(ctx context.Context, start, end int64, ifMatch string) ([]byte, int64, string, error) {
 	var err error
 	for attempt := 1; attempt <= f.tries; attempt++ {
 		var buf []byte
 		var size int64
-		if buf, size, err = f.fetchOnce(ctx, start, end); err == nil {
-			return buf, size, nil
+		var etag string
+		if buf, size, etag, err = f.fetchOnce(ctx, start, end, ifMatch); err == nil {
+			return buf, size, etag, nil
 		}
 		if ctx.Err() != nil {
-			return nil, 0, fmt.Errorf("bytes %d-%d: %w", start, end, ctx.Err())
+			return nil, 0, "", fmt.Errorf("bytes %d-%d: %w", start, end, ctx.Err())
 		}
 		var perm permanentError
 		if errors.As(err, &perm) {
-			return nil, 0, fmt.Errorf("bytes %d-%d: %w", start, end, err)
+			return nil, 0, "", fmt.Errorf("bytes %d-%d: %w", start, end, err)
 		}
 		f.d.logger.Warnf("Chunk bytes %d-%d attempt %d/%d failed: %s", start, end, attempt, f.tries, err)
+		if errors.Is(err, errRetryableStatus) && attempt < f.tries {
+			// Short, so a throttled backend gets a breather without eating the
+			// downstream client's idle budget; stall retries stay immediate.
+			select {
+			case <-time.After(min(time.Duration(attempt)*250*time.Millisecond, time.Second)):
+			case <-ctx.Done():
+			}
+		}
 	}
-	return nil, 0, fmt.Errorf("bytes %d-%d after %d tries: %w", start, end, f.tries, err)
+	return nil, 0, "", fmt.Errorf("bytes %d-%d after %d tries: %w", start, end, f.tries, err)
 }
 
-func (f streamFetcher) fetchOnce(ctx context.Context, start, end int64) ([]byte, int64, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	idle := time.AfterFunc(f.idle, cancel)
+func (f streamFetcher) fetchOnce(ctx context.Context, start, end int64, ifMatch string) ([]byte, int64, string, error) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	idle := time.AfterFunc(f.idle, func() { cancel(errIdleTimeout) })
 	defer idle.Stop()
 
+	buf, size, etag, err := f.get(ctx, start, end, ifMatch, idle)
+	if err != nil && errors.Is(context.Cause(ctx), errIdleTimeout) {
+		// Otherwise it surfaces as a bare "context canceled".
+		err = fmt.Errorf("%w (%s): %w", errIdleTimeout, f.idle, err)
+	}
+	return buf, size, etag, err
+}
+
+func (f streamFetcher) get(ctx context.Context, start, end int64, ifMatch string, idle *time.Timer) ([]byte, int64, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.url, nil)
 	if err != nil {
-		return nil, 0, fmt.Errorf("build request: %w", err)
+		return nil, 0, "", fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+	if ifMatch != "" {
+		req.Header.Set("If-Match", ifMatch)
+	}
 	resp, err := f.client.Do(req)
 	if err != nil {
-		return nil, 0, fmt.Errorf("get: %w", err)
+		return nil, 0, "", fmt.Errorf("get: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -224,30 +372,35 @@ func (f streamFetcher) fetchOnce(ctx context.Context, start, end int64) ([]byte,
 	case resp.StatusCode == http.StatusPartialContent:
 		var first, last int64
 		cr := resp.Header.Get("Content-Range")
-		if _, err := fmt.Sscanf(cr, "bytes %d-%d/%d", &first, &last, &size); err != nil ||
-			first != start || last < first || last > end || size <= last {
-			return nil, 0, fmt.Errorf("unexpected Content-Range %q for bytes %d-%d", cr, start, end)
+		if _, err := fmt.Sscanf(cr, "bytes %d-%d/%d", &first, &last, &size); err != nil {
+			// e.g. an unknown total ("bytes 0-999/*"): the same answer every time.
+			return nil, 0, "", permanentError{fmt.Errorf("unparsable Content-Range %q", cr)}
+		}
+		if first != start || last < first || last > end || size <= last {
+			return nil, 0, "", fmt.Errorf("unexpected Content-Range %q for bytes %d-%d", cr, start, end)
 		}
 		want = last - first + 1
 	case resp.StatusCode == http.StatusOK && start == 0:
 		// Range ignored (e.g. an empty file): fine as long as it fits in one chunk.
 		size, want = resp.ContentLength, resp.ContentLength
 		if want < 0 || want > end-start+1 {
-			return nil, 0, fmt.Errorf("range ignored and Content-Length %d does not fit bytes %d-%d", want, start, end)
+			return nil, 0, "", fmt.Errorf("range ignored and Content-Length %d does not fit bytes %d-%d", want, start, end)
 		}
 	case resp.StatusCode == http.StatusRequestedRangeNotSatisfiable && start == 0 &&
 		resp.Header.Get("Content-Range") == "bytes */0":
 		// How S3/GCS-style backends answer a Range request on an empty file.
-		return []byte{}, 0, nil
+		return []byte{}, 0, resp.Header.Get("ETag"), nil
+	case resp.StatusCode == http.StatusPreconditionFailed && ifMatch != "":
+		return nil, 0, "", permanentError{fmt.Errorf("file changed mid-stream (If-Match %s)", ifMatch)}
 	case resp.StatusCode >= 400 && resp.StatusCode < 500 &&
 		resp.StatusCode != http.StatusRequestTimeout && resp.StatusCode != http.StatusTooManyRequests:
 		// e.g. an expired signed URL: retrying can't help.
-		return nil, 0, permanentError{fmt.Errorf("unexpected status %d", resp.StatusCode)}
+		return nil, 0, "", permanentError{fmt.Errorf("unexpected status %d", resp.StatusCode)}
 	default:
-		return nil, 0, fmt.Errorf("unexpected status %d", resp.StatusCode)
+		return nil, 0, "", fmt.Errorf("unexpected status %d: %w", resp.StatusCode, errRetryableStatus)
 	}
 	if resp.ContentLength >= 0 && resp.ContentLength != want {
-		return nil, 0, fmt.Errorf("body length %d does not match %d range bytes", resp.ContentLength, want)
+		return nil, 0, "", fmt.Errorf("body length %d does not match %d range bytes", resp.ContentLength, want)
 	}
 
 	buf := make([]byte, want)
@@ -256,8 +409,8 @@ func (f streamFetcher) fetchOnce(ctx context.Context, start, end int64) ([]byte,
 		n, err := resp.Body.Read(buf[off:])
 		off += n
 		if err != nil && (err != io.EOF || off < len(buf)) {
-			return nil, 0, fmt.Errorf("read body at %d/%d: %w", off, len(buf), err)
+			return nil, 0, "", fmt.Errorf("read body at %d/%d: %w", off, len(buf), err)
 		}
 	}
-	return buf, size, nil
+	return buf, size, resp.Header.Get("ETag"), nil
 }

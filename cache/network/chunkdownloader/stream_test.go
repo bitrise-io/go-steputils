@@ -22,6 +22,7 @@ func smallStreamDownloader() *Downloader {
 		MaxRetryPerChunk:  2,
 		StreamChunkSize:   1000,
 		StreamIdleTimeout: 100 * time.Millisecond,
+		StreamHedgeDelay:  300 * time.Millisecond,
 	}, log.NewLogger())
 }
 
@@ -90,6 +91,245 @@ func TestOpenStream_retriesStalledChunk(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	require.Equal(t, 2, requests["bytes=3000-3999"])
+}
+
+// A chunk that trickles in never trips the idle timeout; the hedged request must win.
+func TestOpenStream_hedgesTricklingChunk(t *testing.T) {
+	data := randomData(5_500)
+	var mu sync.Mutex
+	requests := map[string]int{}
+	url := rangeServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
+		mu.Lock()
+		requests[r.Header.Get("Range")]++
+		trickle := r.Header.Get("Range") == "bytes=3000-3999" && requests["bytes=3000-3999"] == 1
+		mu.Unlock()
+		if !trickle {
+			return false
+		}
+		w.Header().Set("Content-Range", "bytes 3000-3999/5500")
+		w.Header().Set("Content-Length", "1000")
+		w.WriteHeader(http.StatusPartialContent)
+		for _, b := range data[3000:4000] { // 1 byte per 50ms: 50s for the chunk
+			select {
+			case <-r.Context().Done(): // the losing attempt is cancelled
+				return true
+			case <-time.After(50 * time.Millisecond):
+			}
+			_, _ = w.Write([]byte{b})
+			w.(http.Flusher).Flush()
+		}
+		return true
+	})
+
+	start := time.Now()
+	s, err := openStream(t, url)
+	require.NoError(t, err)
+	got, err := io.ReadAll(s)
+	require.NoError(t, err)
+	require.Equal(t, data, got)
+	require.Less(t, time.Since(start), 5*time.Second)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 2, requests["bytes=3000-3999"])
+}
+
+// When both attempts of a hedged chunk land, the loser's buffer must not stay in the channel.
+func TestOpenStream_drainsHedgeLoser(t *testing.T) {
+	data := randomData(5_500)
+	release := make(chan struct{})
+	var once sync.Once
+	var mu sync.Mutex
+	requests := 0
+	url := rangeServer(t, data, func(_ http.ResponseWriter, r *http.Request) bool {
+		if r.Header.Get("Range") != "bytes=3000-3999" {
+			return false
+		}
+		mu.Lock()
+		requests++
+		n := requests
+		mu.Unlock()
+		if n == 1 {
+			<-release // held until the hedge arrives, then both answer at once
+		} else {
+			once.Do(func() { close(release) })
+		}
+		return false
+	})
+
+	// Idle timeout above the hedge delay, so the hedge (not an idle retry) releases the first request.
+	s, err := New(Config{
+		Concurrency:       3,
+		StreamChunkSize:   1000,
+		StreamIdleTimeout: 2 * time.Second,
+		StreamHedgeDelay:  100 * time.Millisecond,
+	}, log.NewLogger()).OpenStream(context.Background(), url)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, s.Close()) })
+	got, err := io.ReadAll(s)
+	require.NoError(t, err)
+	require.Equal(t, data, got)
+	// Give the cancelled loser time to land its result, then it must have been drained.
+	// Chunks after the first: 1000-1999 is index 0, so 3000-3999 is index 2.
+	time.Sleep(300 * time.Millisecond)
+	require.Empty(t, s.results[2])
+}
+
+// A file replaced by one of the same size mid-stream must fail, not be stitched together.
+func TestOpenStream_rejectsSameSizeReplacement(t *testing.T) {
+	v1, v2 := randomData(5_500), randomData(5_500)
+	var mu sync.Mutex
+	replaced := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		data, etag := v1, `"v1"`
+		if replaced {
+			data, etag = v2, `"v2"`
+		}
+		replaced = true // every request after the first sees v2
+		mu.Unlock()
+		w.Header().Set("ETag", etag) // ServeContent answers a mismatched If-Match with 412
+		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(data))
+	}))
+	t.Cleanup(srv.Close)
+
+	s, err := openStream(t, srv.URL)
+	require.NoError(t, err)
+	_, err = io.ReadAll(s)
+	require.ErrorContains(t, err, "file changed mid-stream")
+}
+
+// On a uniformly slow (bandwidth-limited) download, hedging must not fire on every chunk.
+func TestOpenStream_doesNotHedgeUniformlySlowDownload(t *testing.T) {
+	data := randomData(10_007)
+	var mu sync.Mutex
+	requests := 0
+	url := rangeServer(t, data, func(_ http.ResponseWriter, r *http.Request) bool {
+		mu.Lock()
+		requests++
+		mu.Unlock()
+		if r.Header.Get("Range") != "bytes=0-999" {
+			time.Sleep(150 * time.Millisecond) // every chunk is slower than the 100ms hedge delay
+		}
+		return false
+	})
+
+	s, err := New(Config{
+		Concurrency:       1,
+		StreamChunkSize:   1000,
+		StreamIdleTimeout: 2 * time.Second,
+		StreamHedgeDelay:  100 * time.Millisecond,
+	}, log.NewLogger()).OpenStream(context.Background(), url)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, s.Close()) })
+	got, err := io.ReadAll(s)
+	require.NoError(t, err)
+	require.Equal(t, data, got)
+	mu.Lock()
+	defer mu.Unlock()
+	// 11 chunks; only the first awaited one may hedge, before an average exists.
+	require.LessOrEqual(t, requests, 12)
+}
+
+// A cluster of slow chunks must not push the hedge past what a ~5s client budget allows.
+func TestStream_hedgeTriggerIsCapped(t *testing.T) {
+	s := &Stream{f: streamFetcher{hedgeDelay: time.Second}}
+	require.Equal(t, time.Second, s.hedgeTrigger()) // no average yet
+	s.avgWait = 500 * time.Millisecond
+	require.Equal(t, 1500*time.Millisecond, s.hedgeTrigger())
+	s.avgWait = 10 * time.Second
+	require.Equal(t, maxHedgeTrigger, s.hedgeTrigger())
+	// An explicit delay above the cap is honoured.
+	s.f.hedgeDelay = 3 * time.Second
+	require.Equal(t, 3*time.Second, s.hedgeTrigger())
+}
+
+// A weak ETag must not be sent as If-Match: strong comparison would 412 every later chunk.
+func TestOpenStream_weakETagIsNotPinned(t *testing.T) {
+	data := randomData(5_500)
+	url := rangeServer(t, data, func(w http.ResponseWriter, _ *http.Request) bool {
+		w.Header().Set("ETag", `W/"weak"`) // ServeContent answers If-Match: W/... with 412
+		return false
+	})
+
+	s, err := openStream(t, url)
+	require.NoError(t, err)
+	got, err := io.ReadAll(s)
+	require.NoError(t, err)
+	require.Equal(t, data, got)
+}
+
+func TestOpenStream_negativeHedgeDelayDisablesHedging(t *testing.T) {
+	data := randomData(3_500)
+	var mu sync.Mutex
+	requests := 0
+	url := rangeServer(t, data, func(_ http.ResponseWriter, r *http.Request) bool {
+		mu.Lock()
+		requests++
+		mu.Unlock()
+		if r.Header.Get("Range") == "bytes=2000-2999" {
+			time.Sleep(300 * time.Millisecond)
+		}
+		return false
+	})
+
+	s, err := New(Config{
+		Concurrency:       3,
+		StreamChunkSize:   1000,
+		StreamIdleTimeout: 2 * time.Second,
+		StreamHedgeDelay:  -1,
+	}, log.NewLogger()).OpenStream(context.Background(), url)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, s.Close()) })
+	_, err = io.ReadAll(s)
+	require.NoError(t, err)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 4, requests)
+}
+
+func TestOpenStream_unknownTotalIsNotRetried(t *testing.T) {
+	var mu sync.Mutex
+	requests := 0
+	url := rangeServer(t, nil, func(w http.ResponseWriter, _ *http.Request) bool {
+		mu.Lock()
+		requests++
+		mu.Unlock()
+		w.Header().Set("Content-Range", "bytes 0-999/*")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(make([]byte, 1000))
+		return true
+	})
+
+	_, err := openStream(t, url)
+	require.ErrorContains(t, err, "unparsable Content-Range")
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 1, requests)
+}
+
+func TestOpenStream_retryableStatusBacksOff(t *testing.T) {
+	data := randomData(500)
+	var mu sync.Mutex
+	var times []time.Time
+	url := rangeServer(t, data, func(w http.ResponseWriter, _ *http.Request) bool {
+		mu.Lock()
+		times = append(times, time.Now())
+		n := len(times)
+		mu.Unlock()
+		if n < 3 {
+			http.Error(w, "slow down", http.StatusServiceUnavailable)
+			return true
+		}
+		return false
+	})
+
+	_, err := openStream(t, url)
+	require.NoError(t, err)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, times, 3)
+	require.GreaterOrEqual(t, times[1].Sub(times[0]), 200*time.Millisecond) // 250ms, then 500ms
+	require.GreaterOrEqual(t, times[2].Sub(times[1]), 450*time.Millisecond)
 }
 
 func TestOpenStream_failingChunkFailsRead(t *testing.T) {
