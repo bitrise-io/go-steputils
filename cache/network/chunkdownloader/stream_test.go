@@ -133,6 +133,45 @@ func TestOpenStream_hedgesTricklingChunk(t *testing.T) {
 	require.Equal(t, 2, requests["bytes=3000-3999"])
 }
 
+// When both attempts of a hedged chunk land, the loser's buffer must not stay in the channel.
+func TestOpenStream_drainsHedgeLoser(t *testing.T) {
+	data := randomData(5_500)
+	release := make(chan struct{})
+	var once sync.Once
+	var mu sync.Mutex
+	requests := 0
+	url := rangeServer(t, data, func(_ http.ResponseWriter, r *http.Request) bool {
+		if r.Header.Get("Range") != "bytes=3000-3999" {
+			return false
+		}
+		mu.Lock()
+		requests++
+		n := requests
+		mu.Unlock()
+		if n == 1 {
+			<-release // held until the hedge arrives, then both answer at once
+		} else {
+			once.Do(func() { close(release) })
+		}
+		return false
+	})
+
+	// Idle timeout above the hedge delay, so the hedge (not an idle retry) releases the first request.
+	s, err := New(Config{
+		Concurrency:       3,
+		StreamChunkSize:   1000,
+		StreamIdleTimeout: 2 * time.Second,
+		StreamHedgeDelay:  100 * time.Millisecond,
+	}, log.NewLogger()).OpenStream(context.Background(), url)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, s.Close()) })
+	got, err := io.ReadAll(s)
+	require.NoError(t, err)
+	require.Equal(t, data, got)
+	// Chunks after the first: 1000-1999 is index 0, so 3000-3999 is index 2.
+	require.Eventually(t, func() bool { return len(s.results[2]) == 0 }, 2*time.Second, 10*time.Millisecond)
+}
+
 func TestOpenStream_failingChunkFailsRead(t *testing.T) {
 	data := randomData(5_500)
 	url := rangeServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {

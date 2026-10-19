@@ -132,6 +132,11 @@ func (s *Stream) await(i int) (streamResult, error) {
 			pending--
 			// On error, the other attempt may still succeed.
 			if res.err == nil || pending == 0 {
+				if pending > 0 {
+					// Drop the loser's result once it lands, or its buffer would stay
+					// in the channel for the stream's lifetime.
+					go func(ch chan streamResult) { <-ch }(s.results[i])
+				}
 				return res, nil
 			}
 		case <-hedge.C:
