@@ -2,14 +2,11 @@ package chunkdownloader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
-
-	"github.com/bitrise-io/got"
 )
 
 const (
@@ -27,7 +24,9 @@ type Stream struct {
 	// Size is the total size of the remote file.
 	Size int64
 
+	ctx     context.Context
 	cancel  context.CancelFunc
+	client  *http.Client
 	results []chan streamResult
 	slots   chan struct{}
 	next    int
@@ -40,6 +39,11 @@ type streamResult struct {
 	buf []byte
 	err error
 }
+
+// permanentError marks a chunk failure that is not worth retrying.
+type permanentError struct{ error }
+
+func (e permanentError) Unwrap() error { return e.error }
 
 // OpenStream fetches the first chunk of url and starts fetching the rest in the
 // background. An error here means no byte has been read yet, and Size is known
@@ -58,11 +62,15 @@ func (d *Downloader) OpenStream(ctx context.Context, url string) (*Stream, error
 	n := int((size - offset + f.chunkSize - 1) / f.chunkSize)
 	s := &Stream{
 		Size:    size,
+		ctx:     ctx,
 		cancel:  cancel,
+		client:  f.client,
 		results: make([]chan streamResult, n),
 		slots:   make(chan struct{}, f.concurrency),
+		held:    true,
 		cur:     first,
 	}
+	s.slots <- struct{}{} // the first chunk counts against the memory bound too
 	for i := range s.results {
 		s.results[i] = make(chan streamResult, 1)
 	}
@@ -78,7 +86,10 @@ func (d *Downloader) OpenStream(ctx context.Context, url string) (*Stream, error
 			go func(i int) {
 				start := offset + int64(i)*f.chunkSize
 				end := min(start+f.chunkSize, size) - 1
-				buf, _, err := f.fetch(ctx, start, end)
+				buf, total, err := f.fetch(ctx, start, end)
+				if err == nil && total != size {
+					err = fmt.Errorf("bytes %d-%d: file size changed from %d to %d mid-stream", start, end, size, total)
+				}
 				if err == nil && int64(len(buf)) != end-start+1 {
 					err = fmt.Errorf("bytes %d-%d: got %d bytes", start, end, len(buf))
 				}
@@ -103,7 +114,14 @@ func (s *Stream) Read(p []byte) (int, error) {
 		if s.next == len(s.results) {
 			return 0, io.EOF
 		}
-		res := <-s.results[s.next]
+		var res streamResult
+		select {
+		case res = <-s.results[s.next]:
+		case <-s.ctx.Done():
+			// Chunks after a cancel may never be scheduled, so don't wait for them.
+			s.err = s.ctx.Err()
+			return 0, s.err
+		}
 		s.next++
 		if res.err != nil {
 			s.err = res.err
@@ -119,6 +137,7 @@ func (s *Stream) Read(p []byte) (int, error) {
 // Close stops all in-flight chunk fetches.
 func (s *Stream) Close() error {
 	s.cancel()
+	s.client.CloseIdleConnections()
 	return nil
 }
 
@@ -133,15 +152,9 @@ type streamFetcher struct {
 }
 
 func (d *Downloader) streamFetcher(url string) streamFetcher {
-	client := d.config.HTTPClient
-	if client == nil {
-		client = got.DefaultClient
-	}
-	applyTransportTuning(client)
-
 	f := streamFetcher{
 		d:           d,
-		client:      client,
+		client:      d.config.HTTPClient,
 		url:         url,
 		chunkSize:   d.config.StreamChunkSize,
 		concurrency: int(d.config.Concurrency),
@@ -157,6 +170,14 @@ func (d *Downloader) streamFetcher(url string) streamFetcher {
 	if f.idle <= 0 {
 		f.idle = defaultStreamIdleTimeout
 	}
+	if f.client == nil {
+		// A private client: tuning got.DefaultClient in place would race with
+		// requests of other downloads sharing it.
+		t := http.DefaultTransport.(*http.Transport).Clone()
+		t.MaxIdleConnsPerHost = f.concurrency
+		f.client = &http.Client{Transport: t}
+		applyTransportTuning(f.client)
+	}
 	return f
 }
 
@@ -171,6 +192,10 @@ func (f streamFetcher) fetch(ctx context.Context, start, end int64) ([]byte, int
 		}
 		if ctx.Err() != nil {
 			return nil, 0, fmt.Errorf("bytes %d-%d: %w", start, end, ctx.Err())
+		}
+		var perm permanentError
+		if errors.As(err, &perm) {
+			return nil, 0, fmt.Errorf("bytes %d-%d: %w", start, end, err)
 		}
 		f.d.logger.Warnf("Chunk bytes %d-%d attempt %d/%d failed: %s", start, end, attempt, f.tries, err)
 	}
@@ -194,24 +219,38 @@ func (f streamFetcher) fetchOnce(ctx context.Context, start, end int64) ([]byte,
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	var size int64
+	var size, want int64
 	switch {
 	case resp.StatusCode == http.StatusPartialContent:
-		_, total, _ := strings.Cut(resp.Header.Get("Content-Range"), "/")
-		if size, err = strconv.ParseInt(total, 10, 64); err != nil {
-			return nil, 0, fmt.Errorf("bad Content-Range %q", resp.Header.Get("Content-Range"))
+		var first, last int64
+		cr := resp.Header.Get("Content-Range")
+		if _, err := fmt.Sscanf(cr, "bytes %d-%d/%d", &first, &last, &size); err != nil ||
+			first != start || last < first || last > end || size <= last {
+			return nil, 0, fmt.Errorf("unexpected Content-Range %q for bytes %d-%d", cr, start, end)
 		}
+		want = last - first + 1
 	case resp.StatusCode == http.StatusOK && start == 0:
 		// Range ignored (e.g. an empty file): fine as long as it fits in one chunk.
-		size = resp.ContentLength
+		size, want = resp.ContentLength, resp.ContentLength
+		if want < 0 || want > end-start+1 {
+			return nil, 0, fmt.Errorf("range ignored and Content-Length %d does not fit bytes %d-%d", want, start, end)
+		}
+	case resp.StatusCode == http.StatusRequestedRangeNotSatisfiable && start == 0 &&
+		resp.Header.Get("Content-Range") == "bytes */0":
+		// How S3/GCS-style backends answer a Range request on an empty file.
+		return []byte{}, 0, nil
+	case resp.StatusCode >= 400 && resp.StatusCode < 500 &&
+		resp.StatusCode != http.StatusRequestTimeout && resp.StatusCode != http.StatusTooManyRequests:
+		// e.g. an expired signed URL: retrying can't help.
+		return nil, 0, permanentError{fmt.Errorf("unexpected status %d", resp.StatusCode)}
 	default:
 		return nil, 0, fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
-	if resp.ContentLength < 0 || resp.ContentLength > end-start+1 {
-		return nil, 0, fmt.Errorf("unexpected Content-Length %d for bytes %d-%d", resp.ContentLength, start, end)
+	if resp.ContentLength >= 0 && resp.ContentLength != want {
+		return nil, 0, fmt.Errorf("body length %d does not match %d range bytes", resp.ContentLength, want)
 	}
 
-	buf := make([]byte, resp.ContentLength)
+	buf := make([]byte, want)
 	for off := 0; off < len(buf); {
 		idle.Reset(f.idle)
 		n, err := resp.Body.Read(buf[off:])

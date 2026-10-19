@@ -22,7 +22,8 @@ type Config struct {
 	ChunkRetryThreshold time.Duration
 
 	// HTTPClient is the HTTP client used for download requests.
-	// If nil, got's default client is used.
+	// If nil, got's default client is used (OpenStream: a private client with
+	// the env transport tuning applied; a non-nil client is used as is).
 	HTTPClient *http.Client
 
 	// StreamChunkSize is the Range request size for OpenStream. 0 means 16MB.

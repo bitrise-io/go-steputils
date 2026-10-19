@@ -120,6 +120,127 @@ func TestOpenStream_failingFirstChunkFailsOpen(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestOpenStream_cancelWithFullWindowDoesNotHang(t *testing.T) {
+	data := randomData(10_007)
+	url := rangeServer(t, data, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s, err := smallStreamDownloader().OpenStream(ctx, url)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, s.Close()) })
+
+	time.Sleep(100 * time.Millisecond) // let the prefetch window fill
+	cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := io.ReadAll(s)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(2 * time.Second):
+		t.Fatal("Read hung after cancel")
+	}
+}
+
+func TestOpenStream_rejectsWrongContentRange(t *testing.T) {
+	data := randomData(5_500)
+	url := rangeServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.Header.Get("Range") != "bytes=0-999" {
+			return false
+		}
+		w.Header().Set("Content-Range", "bytes 1000-1999/5500")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(data[1000:2000])
+		return true
+	})
+
+	_, err := openStream(t, url)
+	require.Error(t, err)
+}
+
+// unknownLength strips Content-Length and flushes every write, forcing a chunked response.
+type unknownLength struct{ http.ResponseWriter }
+
+func (w unknownLength) WriteHeader(code int) {
+	w.Header().Del("Content-Length")
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w unknownLength) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	w.ResponseWriter.(http.Flusher).Flush()
+	return n, err
+}
+
+func TestOpenStream_chunkedPartialContent(t *testing.T) {
+	data := randomData(5_500)
+	url := rangeServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
+		http.ServeContent(unknownLength{w}, r, "", time.Time{}, bytes.NewReader(data))
+		return true
+	})
+
+	s, err := openStream(t, url)
+	require.NoError(t, err)
+	got, err := io.ReadAll(s)
+	require.NoError(t, err)
+	require.Equal(t, data, got)
+}
+
+func TestOpenStream_emptyFileRangeNotSatisfiable(t *testing.T) {
+	url := rangeServer(t, nil, func(w http.ResponseWriter, _ *http.Request) bool {
+		w.Header().Set("Content-Range", "bytes */0")
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+		return true
+	})
+
+	s, err := openStream(t, url)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), s.Size)
+	got, err := io.ReadAll(s)
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
+func TestOpenStream_clientErrorIsNotRetried(t *testing.T) {
+	var mu sync.Mutex
+	requests := 0
+	url := rangeServer(t, nil, func(w http.ResponseWriter, _ *http.Request) bool {
+		mu.Lock()
+		requests++
+		mu.Unlock()
+		http.Error(w, "expired", http.StatusForbidden)
+		return true
+	})
+
+	_, err := openStream(t, url)
+	require.Error(t, err)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 1, requests)
+}
+
+func TestOpenStream_rejectsSizeChangeMidStream(t *testing.T) {
+	data := randomData(5_500)
+	url := rangeServer(t, data, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.Header.Get("Range") != "bytes=3000-3999" {
+			return false
+		}
+		w.Header().Set("Content-Range", "bytes 3000-3999/9999")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(data[3000:4000])
+		return true
+	})
+
+	s, err := openStream(t, url)
+	require.NoError(t, err)
+	got, err := io.ReadAll(s)
+	require.ErrorContains(t, err, "size changed")
+	require.Equal(t, data[:3000], got)
+}
+
 func TestOpenStream_rangeIgnored(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
