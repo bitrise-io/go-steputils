@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -21,6 +22,9 @@ const (
 	// A hedge fires only when Read waits this many times longer than its average
 	// wait, so a healthy but bandwidth-limited download isn't hedged on every chunk.
 	hedgeWaitFactor = 3
+	// ...but never later than this: the hedge still has to fetch a whole chunk
+	// inside a downstream client's ~5s idle budget.
+	maxHedgeTrigger = 2 * time.Second
 	// Sanity bound on the size a server reports, since chunk bookkeeping is
 	// allocated upfront.
 	maxStreamSize = 1 << 40
@@ -78,6 +82,11 @@ func (d *Downloader) OpenStream(ctx context.Context, url string) (*Stream, error
 	ctx, cancel := context.WithCancel(ctx)
 
 	first, size, etag, err := f.fetch(ctx, 0, f.chunkSize-1, "")
+	if strings.HasPrefix(etag, "W/") {
+		// If-Match compares strongly, so a weak ETag (e.g. from an nginx in the
+		// path) would 412 every later chunk. Fall back to the size check.
+		etag = ""
+	}
 	if err == nil && size > maxStreamSize {
 		err = fmt.Errorf("reported file size %d exceeds %d", size, int64(maxStreamSize))
 	}
@@ -149,8 +158,9 @@ func (s *Stream) fetchChunk(i int) {
 // request for the same range races the first; the first success wins.
 func (s *Stream) await(i int) (streamResult, error) {
 	var hedgeC <-chan time.Time
+	trigger := s.hedgeTrigger()
 	if s.f.hedgeDelay > 0 {
-		hedge := time.NewTimer(max(s.f.hedgeDelay, hedgeWaitFactor*s.avgWait))
+		hedge := time.NewTimer(trigger)
 		defer hedge.Stop()
 		hedgeC = hedge.C
 	}
@@ -173,7 +183,9 @@ func (s *Stream) await(i int) (streamResult, error) {
 				// in the channel for the stream's lifetime.
 				go func(ch chan streamResult) { <-ch }(s.results[i])
 			}
-			s.recordWait(time.Since(started))
+			// Counted as at most the trigger, so a cluster of slow chunks can't push
+			// the next trigger up with it.
+			s.recordWait(min(time.Since(started), trigger))
 			return res, nil
 		case <-hedgeC:
 			start, end := s.chunkRange(i)
@@ -185,6 +197,11 @@ func (s *Stream) await(i int) (streamResult, error) {
 			return streamResult{}, s.ctx.Err()
 		}
 	}
+}
+
+// hedgeTrigger is how long Read waits on a chunk before hedging it.
+func (s *Stream) hedgeTrigger() time.Duration {
+	return min(max(s.f.hedgeDelay, hedgeWaitFactor*s.avgWait), max(s.f.hedgeDelay, maxHedgeTrigger))
 }
 
 // recordWait keeps an exponential moving average of how long Read waits per chunk.

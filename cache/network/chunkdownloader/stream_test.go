@@ -230,6 +230,34 @@ func TestOpenStream_doesNotHedgeUniformlySlowDownload(t *testing.T) {
 	require.LessOrEqual(t, requests, 12)
 }
 
+// A cluster of slow chunks must not push the hedge past what a ~5s client budget allows.
+func TestStream_hedgeTriggerIsCapped(t *testing.T) {
+	s := &Stream{f: streamFetcher{hedgeDelay: time.Second}}
+	require.Equal(t, time.Second, s.hedgeTrigger()) // no average yet
+	s.avgWait = 500 * time.Millisecond
+	require.Equal(t, 1500*time.Millisecond, s.hedgeTrigger())
+	s.avgWait = 10 * time.Second
+	require.Equal(t, maxHedgeTrigger, s.hedgeTrigger())
+	// An explicit delay above the cap is honoured.
+	s.f.hedgeDelay = 3 * time.Second
+	require.Equal(t, 3*time.Second, s.hedgeTrigger())
+}
+
+// A weak ETag must not be sent as If-Match: strong comparison would 412 every later chunk.
+func TestOpenStream_weakETagIsNotPinned(t *testing.T) {
+	data := randomData(5_500)
+	url := rangeServer(t, data, func(w http.ResponseWriter, _ *http.Request) bool {
+		w.Header().Set("ETag", `W/"weak"`) // ServeContent answers If-Match: W/... with 412
+		return false
+	})
+
+	s, err := openStream(t, url)
+	require.NoError(t, err)
+	got, err := io.ReadAll(s)
+	require.NoError(t, err)
+	require.Equal(t, data, got)
+}
+
 func TestOpenStream_negativeHedgeDelayDisablesHedging(t *testing.T) {
 	data := randomData(3_500)
 	var mu sync.Mutex

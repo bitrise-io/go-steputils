@@ -15,6 +15,8 @@ type Config struct {
 
 	// MaxRetryPerChunk controls how many times to interrupt and retry a slow chunk.
 	// If zero, chunk download monitoring is disabled (OpenStream: no retries).
+	// OpenStream backs off briefly between retries of 429/5xx; on the chunk Read
+	// is blocked on, that spends a downstream client's idle budget, so keep it low.
 	MaxRetryPerChunk int
 
 	// ChunkRetryThreshold is the deviation from the moving average
@@ -35,8 +37,9 @@ type Config struct {
 
 	// StreamHedgeDelay starts a second, racing request for the chunk Read is
 	// blocked on once it has waited this long (or 3x its average wait so far, if
-	// that is longer); the first success wins. It catches chunks that trickle in
-	// too slowly to trip StreamIdleTimeout. 0 means 1s, negative disables hedging.
+	// that is longer, capped at 2s); the first success wins. It catches chunks that
+	// trickle in too slowly to trip StreamIdleTimeout. 0 means 1s, negative
+	// disables hedging.
 	StreamHedgeDelay time.Duration
 }
 
