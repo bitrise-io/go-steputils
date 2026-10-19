@@ -10,11 +10,11 @@ import (
 // Config holds configuration for the chunk downloader.
 type Config struct {
 	// Concurrency is the number of parallel chunk downloads.
-	// 0 means auto (got default: min(NumCPU*3, 20), minimum 4).
+	// 0 means auto (got default: min(NumCPU*3, 20), minimum 4; OpenStream: 8).
 	Concurrency uint
 
 	// MaxRetryPerChunk controls how many times to interrupt and retry a slow chunk.
-	// If zero, chunk download monitoring is disabled.
+	// If zero, chunk download monitoring is disabled (OpenStream: no retries).
 	MaxRetryPerChunk int
 
 	// ChunkRetryThreshold is the deviation from the moving average
@@ -24,6 +24,13 @@ type Config struct {
 	// HTTPClient is the HTTP client used for download requests.
 	// If nil, got's default client is used.
 	HTTPClient *http.Client
+
+	// StreamChunkSize is the Range request size for OpenStream. 0 means 16MB.
+	StreamChunkSize int64
+
+	// StreamIdleTimeout cancels and retries an OpenStream chunk attempt that
+	// receives no bytes for this long. 0 means 2s.
+	StreamIdleTimeout time.Duration
 }
 
 // DefaultConfig returns the default configuration.
