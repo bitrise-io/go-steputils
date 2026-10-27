@@ -4,6 +4,7 @@ package chunkdownloader
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"os"
@@ -77,6 +78,16 @@ func applyTransportTuning(client *http.Client) {
 
 	env := os.Getenv("BITRISEIO_DEPENDENCY_CACHE_FORCE_ATTEMPT_HTTP2")
 	transport.ForceAttemptHTTP2 = env == "true" || env == "1"
+	if !transport.ForceAttemptHTTP2 {
+		// A transport cloned from http.DefaultTransport still offers h2 in ALPN; a
+		// server that picks it would answer with HTTP/2 frames this transport can't read.
+		tlsConfig := transport.TLSClientConfig.Clone()
+		if tlsConfig == nil {
+			tlsConfig = &tls.Config{}
+		}
+		tlsConfig.NextProtos = []string{"http/1.1"}
+		transport.TLSClientConfig = tlsConfig
+	}
 
 	env = os.Getenv("BITRISEIO_DEPENDENCY_CACHE_DUALSTACK")
 	dualStack := env == "true" || env == "1"
