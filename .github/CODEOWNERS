@@ -1,4 +1,4 @@
-# Every file in the repo is owned by Mobile Pillar, so all PRs request their review.
+# By default, every file in the repo is owned by Mobile Pillar, so all PRs request their review.
 * @bitrise-io/mobile-pillar-members
 
 # The cache package is owned by the Build Cache team.
