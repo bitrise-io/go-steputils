@@ -41,7 +41,9 @@ func TestDownloadFile_rangeableDownloadDoesNotPanic(t *testing.T) {
 // applyTransportTuning turns HTTP/2 off. A server that picks h2 then answers with
 // HTTP/2 frames, and every request fails with "malformed HTTP response".
 func TestApplyTransportTuning_http2CapableServer(t *testing.T) {
-	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	t.Setenv("BITRISEIO_DEPENDENCY_CACHE_FORCE_ATTEMPT_HTTP2", "")
+
+	server :=httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	}))
 	server.EnableHTTP2 = true
