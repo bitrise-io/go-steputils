@@ -36,3 +36,31 @@ func TestDownloadFile_rangeableDownloadDoesNotPanic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, content, string(got))
 }
+
+// A transport cloned from http.DefaultTransport keeps offering h2 in ALPN after
+// applyTransportTuning turns HTTP/2 off. A server that picks h2 then answers with
+// HTTP/2 frames, and every request fails with "malformed HTTP response".
+func TestApplyTransportTuning_http2CapableServer(t *testing.T) {
+	t.Setenv("BITRISEIO_DEPENDENCY_CACHE_FORCE_ATTEMPT_HTTP2", "")
+
+	server :=httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	server.EnableHTTP2 = true
+	server.StartTLS()
+	defer server.Close()
+
+	// Clone sets the copy's TLSClientConfig up for HTTP/2 (NextProtos with h2); only
+	// trust the test server on top of it.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig.RootCAs = server.Client().Transport.(*http.Transport).TLSClientConfig.RootCAs
+	client := &http.Client{Transport: transport}
+	applyTransportTuning(client)
+
+	resp, err := client.Get(server.URL)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "HTTP/1.1", resp.Proto, "HTTP/2 is off unless forced")
+}
