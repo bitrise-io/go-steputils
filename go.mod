@@ -1,6 +1,6 @@
 module github.com/bitrise-io/go-steputils/v2
 
-go 1.21
+go 1.24
 
 require (
 	github.com/bitrise-io/go-utils/v2 v2.0.0-alpha.39
@@ -8,7 +8,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/docker/go-units v0.4.0
 	github.com/hashicorp/go-retryablehttp v0.7.7
-	github.com/klauspost/compress v1.17.8
+	github.com/klauspost/compress v1.18.7
 	github.com/stretchr/testify v1.9.0
 )
 
