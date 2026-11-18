@@ -3,6 +3,7 @@ package export
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/fileutil"
@@ -56,7 +57,12 @@ func (e *Exporter) ExportOutputNoExpand(key, value string) error {
 // Regular env vars are isolated between steps, so instead of calling `os.Setenv()`, use this to explicitly expose
 // a secret value for subsequent steps.
 func (e *Exporter) ExportSecretOutput(key, value string) error {
-	cmd := e.cmdFactory.Create("envman", []string{"add", "--key", key, "--value", value, "--sensitive"}, nil)
+	// The value goes through stdin instead of --value: command errors embed the full argv,
+	// which would print the secret to the build log when envman fails. It also keeps the
+	// secret out of the process list.
+	cmd := e.cmdFactory.Create("envman", []string{"add", "--key", key, "--sensitive"}, &command.Opts{
+		Stdin: strings.NewReader(value),
+	})
 	return runExport(cmd)
 }
 

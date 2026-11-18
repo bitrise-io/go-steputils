@@ -37,6 +37,17 @@ func TestExportSecretOutput(t *testing.T) {
 	export.RequireEnvmanContainsValueForKey(t, "my_key", "my secret value", true, envmanStorePath)
 }
 
+func TestExportSecretOutput_GivenEnvmanFails_ErrorOmitsValue(t *testing.T) {
+	// envman fails when the envstore file doesn't exist
+	t.Setenv("ENVMAN_ENVSTORE_PATH", filepath.Join(t.TempDir(), "missing.yml"))
+
+	e := export.NewDefaultExporter(command.NewFactory(env.NewRepository()))
+	err := e.ExportSecretOutput("my_key", "my-secret-value")
+
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "my-secret-value")
+}
+
 func TestExportOutputFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
