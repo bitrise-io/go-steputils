@@ -45,7 +45,7 @@ func parse(conf interface{}, envRepository env.Repository) error {
 		value := envRepository.Get(key)
 
 		if err := setField(c.Field(i), value, constraint); err != nil {
-			errs = append(errs, &ParseError{t.Field(i).Name, value, err})
+			errs = append(errs, newParseError(t.Field(i), value, err))
 		}
 	}
 	if len(errs) > 0 {
@@ -59,6 +59,28 @@ func parse(conf interface{}, envRepository env.Repository) error {
 	}
 
 	return nil
+}
+
+// newParseError creates the error of a field that could not be set.
+// For Secret fields neither ParseError.Value nor the error text contains the raw value.
+func newParseError(field reflect.StructField, value string, err error) *ParseError {
+	if isSecret(field.Type) {
+		value = Secret(value).String()
+
+		var rangeErr *rangeError
+		if errors.As(err, &rangeErr) {
+			err = rangeErr.redacted()
+		}
+	}
+	return &ParseError{field.Name, value, err}
+}
+
+// isSecret reports whether t is Secret or *Secret, the two forms of a secret setField can populate.
+func isSecret(t reflect.Type) bool {
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return t == reflect.TypeOf(Secret(""))
 }
 
 // parseTag splits a struct field's env tag into its name and option.
@@ -146,7 +168,7 @@ func validateConstraint(value, constraint string) error {
 		}
 	case regexp.MustCompile(rangeRegex).FindString(constraint):
 		if err := validateRangeFields(value, constraint); err != nil {
-			return err
+			return &rangeError{err: err, constraint: constraint}
 		}
 	case multilineConstraintName:
 		break
