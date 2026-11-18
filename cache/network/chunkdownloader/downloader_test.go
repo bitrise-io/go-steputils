@@ -1,9 +1,11 @@
 package chunkdownloader
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,4 +65,35 @@ func TestApplyTransportTuning_http2CapableServer(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Equal(t, "HTTP/1.1", resp.Proto, "HTTP/2 is off unless forced")
+}
+
+// The URL is presigned, so it must not reach the log or the returned error.
+func TestDownloadFile_keepsURLOutOfLogsAndErrors(t *testing.T) {
+	const signature = "X-Amz-Signature=5ecre7"
+	content := strings.Repeat("bitrise-build-cache-", 30000)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "cache.tzst", time.Time{}, strings.NewReader(content))
+	}))
+	signedURL := srv.URL + "/cache.tzst?" + signature
+
+	var logs bytes.Buffer
+	downloader := New(DefaultConfig(), log.NewLogger(log.WithOutput(&logs), log.WithDebugLog(true)))
+
+	dest := filepath.Join(t.TempDir(), "out.tzst")
+	require.NoError(t, downloader.DownloadFile(context.Background(), signedURL, dest))
+	require.Contains(t, logs.String(), "Downloading file to "+dest)
+
+	srv.Close() // every request fails from here on
+	err := downloader.DownloadFile(context.Background(), signedURL, dest)
+	require.Error(t, err)
+	require.ErrorContains(t, err, `Get "<redacted URL>": `)
+	require.NotContains(t, err.Error(), srv.URL)
+	var urlErr *url.Error
+	require.ErrorAs(t, err, &urlErr, "the cause is still reachable")
+	require.NotContains(t, urlErr.URL, srv.URL)
+
+	require.Contains(t, logs.String(), "Download failed: ")
+	require.NotContains(t, logs.String(), srv.URL)
+	require.NotContains(t, logs.String(), "5ecre7")
 }

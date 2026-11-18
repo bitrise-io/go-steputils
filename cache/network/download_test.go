@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/go-utils/v2/mocks"
@@ -227,7 +229,7 @@ func Test_downloadWithClient_WhenNoChunksError_ThenWillDoFullRetry(t *testing.T)
 	}
 
 	// When
-	gotMatchedKeys, err := downloadWithClient(context.Background(), retryableHTTPClient, downloadParams, logger)
+	gotMatchedKeys, err := downloadWithClient(context.Background(), retryableHTTPClient, retryableHTTPClient, downloadParams, logger)
 	// Then
 	require.NoError(t, err)
 	require.Equal(t, "test-cache-key", gotMatchedKeys)
@@ -268,10 +270,47 @@ func Test_downloadWithClient_WhenCacheKeyNotFound_ThenWillNotRetry(t *testing.T)
 	}
 
 	// When
-	gotMatchedKeys, err := downloadWithClient(context.Background(), retryableHTTPClient, downloadParams, logger)
+	gotMatchedKeys, err := downloadWithClient(context.Background(), retryableHTTPClient, retryableHTTPClient, downloadParams, logger)
 	// Then
 	require.ErrorContains(t, err, "no cache archive found for the provided keys")
 	require.Equal(t, "", gotMatchedKeys)
 
 	require.Equal(t, uint64(1), apiServerCalled.Load(), "no retries were done")
+}
+
+// The archive URL is presigned, and the retrying HTTP client debug-logs the URL
+// of every request. The cache API's own URL holds no secret and stays in the log.
+func TestDownload_keepsPresignedURLOutOfLogs(t *testing.T) {
+	const signature = "X-Amz-Signature=5ecre7"
+	content := strings.Repeat("a", units.MB)
+
+	fileServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, signature, r.URL.RawQuery, "requests must still carry the signature")
+		http.ServeContent(w, r, "archive.tzst", time.Time{}, strings.NewReader(content))
+	}))
+	defer fileServer.Close()
+
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		resp := restoreResponse{URL: fileServer.URL + "/archive.tzst?" + signature, MatchedKey: "key"}
+		require.NoError(t, json.NewEncoder(w).Encode(resp))
+	}))
+	defer apiServer.Close()
+
+	var logs bytes.Buffer
+	logger := log.NewLogger(log.WithOutput(&logs), log.WithDebugLog(true))
+	params := DownloadParams{
+		APIBaseURL:   apiServer.URL,
+		Token:        "token",
+		CacheKeys:    []string{"key"},
+		DownloadPath: filepath.Join(t.TempDir(), "archive.tzst"),
+	}
+
+	matchedKey, err := DefaultDownloader{}.Download(context.Background(), params, logger)
+
+	require.NoError(t, err)
+	require.Equal(t, "key", matchedKey)
+	require.Contains(t, logs.String(), "[DEBUG] GET <redacted URL>", "the client's request log is what is under test")
+	require.NotContains(t, logs.String(), fileServer.URL)
+	require.NotContains(t, logs.String(), "5ecre7")
+	require.Contains(t, logs.String(), "[DEBUG] GET "+apiServer.URL+"/restore?cache_keys=key")
 }

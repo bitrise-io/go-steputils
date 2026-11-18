@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"sync"
 	"testing"
@@ -510,4 +511,25 @@ func TestOpenStream_rangeIgnored(t *testing.T) {
 			require.Equal(t, data, got)
 		})
 	}
+}
+
+func TestOpenStream_keepsURLOutOfLogsAndErrors(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	signedURL := srv.URL + "/cache.tzst?X-Amz-Signature=5ecre7"
+	srv.Close() // connection refused
+
+	var logs bytes.Buffer
+	d := smallStreamDownloader()
+	d.logger = log.NewLogger(log.WithOutput(&logs))
+
+	_, err := d.OpenStream(context.Background(), signedURL)
+	require.Error(t, err)
+	require.ErrorContains(t, err, `Get "<redacted URL>": `)
+	require.NotContains(t, err.Error(), srv.URL)
+	var urlErr *url.Error
+	require.ErrorAs(t, err, &urlErr, "the cause is still reachable")
+	require.NotContains(t, urlErr.URL, srv.URL)
+
+	require.Contains(t, logs.String(), "attempt 1/3 failed")
+	require.NotContains(t, logs.String(), srv.URL)
 }
