@@ -2,10 +2,13 @@ package stepconf
 
 import (
 	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/bitrise-io/go-steputils/v2/stepconf/mocks"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 var invalid = map[string]string{
@@ -396,4 +399,185 @@ func Test_ValidateRangeFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseErrorFormatOfNonSecretFields(t *testing.T) {
+	tests := []struct {
+		name    string
+		conf    interface{}
+		value   string
+		wantErr string
+	}{
+		{
+			name: "value options",
+			conf: &struct {
+				Input string `env:"input,opt[dev,qa]"`
+			}{},
+			value:   "prod",
+			wantErr: "- Input: prod: value is not in value options (opt[dev,qa])\n",
+		},
+		{
+			name: "file",
+			conf: &struct {
+				Input string `env:"input,file"`
+			}{},
+			value:   "/not/exist",
+			wantErr: "- Input: /not/exist: file does not exist\n",
+		},
+		{
+			name: "range, not a number",
+			conf: &struct {
+				Input string `env:"input,range[1..5]"`
+			}{},
+			value:   "abc",
+			wantErr: "- Input: abc: failed to parse value abc: value abc is could not be parsed\n",
+		},
+		{
+			name: "range, out of range",
+			conf: &struct {
+				Input float64 `env:"input,range[1.5..5.5]"`
+			}{},
+			value:   "9.5",
+			wantErr: "- Input: 9.5: value 9.500000 is out of range 1.500000-5.500000\n",
+		},
+		{
+			name: "required",
+			conf: &struct {
+				Input string `env:"input,required"`
+			}{},
+			value:   "",
+			wantErr: "- Input: required variable is not present\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			envGetter := new(mocks.Repository)
+			envGetter.On("Get", "input").Return(tt.value)
+
+			err := parse(tt.conf, envGetter)
+
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestParseErrorOfSecretFieldsIsRedacted(t *testing.T) {
+	existingFile := filepath.Join(t.TempDir(), "s3cr3t-file")
+	require.NoError(t, os.WriteFile(existingFile, nil, 0600))
+
+	tests := []struct {
+		name    string
+		conf    interface{}
+		value   string
+		wantErr string
+	}{
+		{
+			name: "value options",
+			conf: &struct {
+				Token Secret `env:"token,opt[dev,qa]"`
+			}{},
+			value:   "s3cr3t",
+			wantErr: "value is not in value options (opt[dev,qa])",
+		},
+		{
+			name: "value options, pointer",
+			conf: &struct {
+				Token *Secret `env:"token,opt[dev,qa]"`
+			}{},
+			value:   "s3cr3t",
+			wantErr: "value is not in value options (opt[dev,qa])",
+		},
+		{
+			name: "file",
+			conf: &struct {
+				Token Secret `env:"token,file"`
+			}{},
+			value:   "/s3cr3t/not/exist",
+			wantErr: "file does not exist",
+		},
+		{
+			name: "dir, does not exist",
+			conf: &struct {
+				Token Secret `env:"token,dir"`
+			}{},
+			value:   "/s3cr3t/not/exist",
+			wantErr: "file does not exist",
+		},
+		{
+			name: "dir, not a directory",
+			conf: &struct {
+				Token Secret `env:"token,dir"`
+			}{},
+			value:   existingFile,
+			wantErr: "not a directory",
+		},
+		{
+			name: "range, not a number",
+			conf: &struct {
+				Token Secret `env:"token,range[1..5]"`
+			}{},
+			value:   "s3cr3t",
+			wantErr: "value is invalid or out of range (range[1..5])",
+		},
+		{
+			name: "range, out of range",
+			conf: &struct {
+				Token Secret `env:"token,range[1..5]"`
+			}{},
+			value:   "8675309",
+			wantErr: "value is invalid or out of range (range[1..5])",
+		},
+		{
+			name: "range, out of range, pointer",
+			conf: &struct {
+				Token *Secret `env:"token,range[1.5..5.5]"`
+			}{},
+			value:   "8675.309",
+			wantErr: "value is invalid or out of range (range[1.5..5.5])",
+		},
+		{
+			name: "invalid constraint",
+			conf: &struct {
+				Token Secret `env:"token,nosuch"`
+			}{},
+			value:   "s3cr3t",
+			wantErr: "invalid constraint (nosuch)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			envGetter := new(mocks.Repository)
+			envGetter.On("Get", "token").Return(tt.value)
+
+			err := parse(tt.conf, envGetter)
+
+			require.Error(t, err)
+			require.NotContains(t, err.Error(), tt.value)
+			require.Contains(t, err.Error(), "- Token: *****: "+tt.wantErr+"\n")
+
+			// parse flattens the field errors into a string, so check the exported fields separately.
+			field := reflect.TypeOf(tt.conf).Elem().Field(0)
+			_, constraint := parseTag(field.Tag.Get("env"))
+			parseErr := newParseError(field, tt.value, validateConstraint(tt.value, constraint))
+
+			require.Equal(t, "*****", parseErr.Value)
+			require.NotContains(t, parseErr.Err.Error(), tt.value)
+			require.Equal(t, "Token: *****: "+tt.wantErr, parseErr.Error())
+		})
+	}
+}
+
+func TestParseErrorOfEmptySecretField(t *testing.T) {
+	var c struct {
+		Token Secret `env:"token,required"`
+	}
+
+	envGetter := new(mocks.Repository)
+	envGetter.On("Get", "token").Return("")
+
+	err := parse(&c, envGetter)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "- Token: required variable is not present\n")
 }
