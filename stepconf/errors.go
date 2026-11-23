@@ -2,6 +2,7 @@ package stepconf
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -23,4 +24,23 @@ func (e *ParseError) Error() string {
 	}
 	segments = append(segments, e.Err.Error())
 	return strings.Join(segments, ": ")
+}
+
+// rangeError is a failed range constraint. The message of the wrapped error quotes
+// the validated value, so Secret fields report redacted() instead.
+type rangeError struct {
+	err        error
+	constraint string
+}
+
+func (e *rangeError) Error() string {
+	return e.err.Error()
+}
+
+func (e *rangeError) Unwrap() error {
+	return e.err
+}
+
+func (e *rangeError) redacted() error {
+	return fmt.Errorf("value is invalid or out of range (%s)", e.constraint)
 }
