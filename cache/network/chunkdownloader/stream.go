@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/bitrise-io/go-steputils/v2/cache/network/internal/redact"
 )
 
 const (
@@ -355,7 +357,7 @@ func (f streamFetcher) fetchOnce(ctx context.Context, start, end int64, ifMatch 
 func (f streamFetcher) get(ctx context.Context, start, end int64, ifMatch string, idle *time.Timer) ([]byte, int64, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.url, nil)
 	if err != nil {
-		return nil, 0, "", fmt.Errorf("build request: %w", err)
+		return nil, 0, "", fmt.Errorf("build request: %w", redact.Error(err))
 	}
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
 	if ifMatch != "" {
@@ -363,7 +365,8 @@ func (f streamFetcher) get(ctx context.Context, start, end int64, ifMatch string
 	}
 	resp, err := f.client.Do(req)
 	if err != nil {
-		return nil, 0, "", fmt.Errorf("get: %w", err)
+		// A *url.Error, which prints the presigned URL in full.
+		return nil, 0, "", fmt.Errorf("get: %w", redact.Error(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 

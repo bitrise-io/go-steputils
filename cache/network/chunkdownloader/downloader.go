@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bitrise-io/go-steputils/v2/cache/network/internal/redact"
 	"github.com/bitrise-io/go-utils/v2/log"
 	"github.com/bitrise-io/got"
 )
@@ -39,7 +40,8 @@ func (d *Downloader) DownloadFile(ctx context.Context, url, dest string) error {
 
 	applyTransportTuning(client)
 
-	d.logger.Infof("Downloading %s to %s", url, dest)
+	// url is presigned, so it stays out of the log.
+	d.logger.Infof("Downloading file to %s", dest)
 
 	downloader := got.NewWithContext(ctx)
 	downloader.Client = client
@@ -47,12 +49,13 @@ func (d *Downloader) DownloadFile(ctx context.Context, url, dest string) error {
 	dl := got.NewDownload(ctx, url, dest)
 	dl.Client = client
 	// got dereferences dl.Logger without a nil check, so it must be non-nil.
-	dl.Logger = d.logger
+	// It logs request errors, which name the URL.
+	dl.Logger = redact.Logger(d.logger)
 	dl.Concurrency = d.config.Concurrency
 	dl.MaxRetryPerChunk = d.config.MaxRetryPerChunk
 	dl.ChunkRetryThreshold = d.config.ChunkRetryThreshold
 
-	if err := downloader.Do(dl); err != nil {
+	if err := redact.Error(downloader.Do(dl)); err != nil {
 		d.logger.Errorf("Download failed: %s", err)
 		return err
 	}

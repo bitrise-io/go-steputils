@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bitrise-io/go-steputils/v2/cache/network/internal/redact"
 	"github.com/bitrise-io/go-utils/v2/log"
 )
 
@@ -203,7 +204,7 @@ func (u *Uploader) uploadChunk(ctx context.Context, provider ChunkProvider, url 
 
 	req, err := http.NewRequestWithContext(ctx, url.Method, url.URL, body)
 	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
+		return "", fmt.Errorf("create request: %w", redact.Error(err))
 	}
 
 	for k, v := range url.Headers {
@@ -216,7 +217,8 @@ func (u *Uploader) uploadChunk(ctx context.Context, provider ChunkProvider, url 
 		if ctx.Err() == context.Canceled {
 			return "", fmt.Errorf("chunk upload cancelled: %w", ctx.Err())
 		}
-		return "", fmt.Errorf("do request: %w", err)
+		// A *url.Error, which prints the presigned URL in full.
+		return "", fmt.Errorf("do request: %w", redact.Error(err))
 	}
 	defer resp.Body.Close() //nolint:errcheck
 

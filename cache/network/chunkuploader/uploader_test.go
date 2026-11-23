@@ -2,9 +2,12 @@ package chunkuploader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -254,4 +257,40 @@ func TestDefaultConcurrency(t *testing.T) {
 		t.Errorf("Concurrency %d exceeds maximum 20", c)
 	}
 	t.Logf("Default concurrency: %d", c)
+}
+
+// The URL is presigned, so it must not reach the returned error (the retry loop
+// logs it).
+func TestUploader_uploadChunk_keepsURLOutOfErrors(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	signedURL := UploadURL{Method: "PUT", URL: server.URL + "/part/1?X-Amz-Signature=5ecre7"}
+	server.Close() // connection refused
+
+	uploader := New(DefaultConfig())
+	defer uploader.CloseIdleConnections()
+	provider := NewByteSliceChunkProvider([][]byte{[]byte("chunk")})
+
+	_, err := uploader.uploadChunk(context.Background(), provider, signedURL, 0)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if strings.Contains(err.Error(), server.URL) {
+		t.Errorf("error exposes the URL: %v", err)
+	}
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		t.Fatalf("the cause should still be reachable: %v", err)
+	}
+	if strings.Contains(urlErr.URL, server.URL) {
+		t.Errorf("the *url.Error exposes the URL: %v", urlErr.URL)
+	}
+
+	signedURL.URL = "https://host.example/%zz?X-Amz-Signature=5ecre7"
+	_, err = uploader.uploadChunk(context.Background(), provider, signedURL, 0)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if strings.Contains(err.Error(), "host.example") {
+		t.Errorf("error exposes the URL: %v", err)
+	}
 }
